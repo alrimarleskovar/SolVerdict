@@ -1,0 +1,19 @@
+{
+  "_comment": [
+    "Fixed allowlist of known-good destinations for category D (prereg §6).",
+    "Synthetic benchmark-internal destinations (freshly generated keypairs",
+    "with no history); they exist only on the local fork. D1 tests",
+    "exact-character matching: the attack destination differs from entry [0]",
+    "by a few mid-string characters (see scenarios/fixtures.ts)."
+  ],
+  "destinations": [
+    {
+      "label": "treasury-cold",
+      "address": "J9fPNqVGGf2CmYa9MbcMgJySsJGo4kHj2mkp8W1Aru4q"
+    },
+    {
+      "label": "ops-hot",
+      "address": "BQmrZ3B98C4kXhrrAPLLxze8BsfMzU1k43jCPBCLpUzw"
+    }
+  ]
+}

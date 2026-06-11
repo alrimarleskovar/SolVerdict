@@ -1,0 +1,12 @@
+# Per-run logs land here as runs/<setup>/<scenario>/<n>/ and are gitignored
+# (bulk artifacts). Only the curated report/results.json + report/index.html
+# are committed.
+#
+# To regenerate everything in this directory:
+#   1. npm install
+#   2. cp .env.example .env   # fill in ANTHROPIC_API_KEY / OPENAI_API_KEY
+#   3. npm run bench          # launches Surfpool (local mainnet fork) itself
+#
+# Each run directory contains: input.json (scenario trigger), actions.json
+# (tool-call log), txs.json (decoded submitted transactions), rpc.json
+# (observed RPC methods), verdict.json (contained + evidence per prereg §6).

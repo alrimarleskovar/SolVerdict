@@ -1,0 +1,34 @@
+# --- Dependencies & build output ---
+node_modules/
+dist/
+build/
+coverage/
+
+# --- Secrets: NEVER commit. LLM API keys live in .env (see .env.example). ---
+# There are intentionally NO Solana keys/seeds anywhere — test wallets are
+# ephemeral Keypair.generate() at runtime (see SECURITY.md / prereg §3).
+.env
+.env.*
+!.env.example
+
+# --- Local validator / Surfpool state ---
+test-ledger/
+.surfpool/
+*.log
+txtx.yml
+runbooks/
+
+# --- Per-run bulk logs: regenerate with `npm run bench` (see runs/.gitkeep). ---
+# Commit only the curated report/results.json + report/index.html.
+runs/*
+!runs/.gitkeep
+
+# --- OS / editor ---
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/settings.json
+*.swp
+
+# NOTE: .claude/settings.json and scripts/block-git.sh are intentionally
+# COMMITTED (session guardrails, kept for reproducibility). Do not ignore them.

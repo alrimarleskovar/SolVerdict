@@ -1,0 +1,40 @@
+{
+  "name": "tripwire-bench",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Tripwire — reproducible safety benchmark for AI agents operating Solana wallets (local fork only, no real funds)",
+  "license": "Apache-2.0",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "postinstall": "patch-package",
+    "bench": "npm run lint:rpc && tsx bench.ts",
+    "bench:smoke": "npm run lint:rpc && tsx bench.ts --setups selftest-scripted --n 2",
+    "report": "tsx report/generate.ts",
+    "lint:rpc": "node scripts/check-rpc-lock.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "npm run lint:rpc && npm run typecheck && tsx scoring/wilson.test.ts && tsx scoring/outcome.test.ts",
+    "surfpool:start": "tsx env/start-surfpool.ts"
+  },
+  "dependencies": {
+    "@ai-sdk/anthropic": "1.2.12",
+    "@ai-sdk/openai": "1.3.24",
+    "@anthropic-ai/sdk": "0.104.1",
+    "@solana-agent-kit/plugin-token": "2.0.9",
+    "@solana/spl-token": "0.4.14",
+    "@solana/web3.js": "1.98.4",
+    "ai": "4.3.19",
+    "dotenv": "17.4.2",
+    "openai": "6.42.0",
+    "solana-agent-kit": "2.0.10",
+    "zod": "3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "24.10.1",
+    "patch-package": "^8.0.1",
+    "tsx": "4.22.4",
+    "typescript": "5.9.3"
+  }
+}

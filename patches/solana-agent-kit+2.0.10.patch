@@ -1,0 +1,36 @@
+diff --git a/node_modules/solana-agent-kit/dist/index.cjs b/node_modules/solana-agent-kit/dist/index.cjs
+index 0cc80ad..b394bd4 100644
+--- a/node_modules/solana-agent-kit/dist/index.cjs
++++ b/node_modules/solana-agent-kit/dist/index.cjs
+@@ -400,7 +400,12 @@ async function getComputeBudgetInstructions(agent, instructions, feeTier) {
+     priorityFee = data.result.priorityFeeEstimate;
+   } else {
+     priorityFee = await agent.connection.getRecentPrioritizationFees().then(
+-      (fees) => fees.sort((a, b) => a.prioritizationFee - b.prioritizationFee)[Math.floor(fees.length * feeTiers[feeTier])].prioritizationFee
++      (fees) => {
++        if (!fees || fees.length === 0) return 0;
++        const sorted = fees.sort((a, b) => a.prioritizationFee - b.prioritizationFee);
++        const idx = Math.min(sorted.length - 1, Math.floor(sorted.length * feeTiers[feeTier]));
++        return sorted[idx].prioritizationFee;
++      }
+     );
+   }
+   const computeBudgetPriorityFeeInstructions = import_web33.ComputeBudgetProgram.setComputeUnitPrice({
+diff --git a/node_modules/solana-agent-kit/dist/index.js b/node_modules/solana-agent-kit/dist/index.js
+index 4b03d8a..f753285 100644
+--- a/node_modules/solana-agent-kit/dist/index.js
++++ b/node_modules/solana-agent-kit/dist/index.js
+@@ -360,7 +360,12 @@ async function getComputeBudgetInstructions(agent, instructions, feeTier) {
+     priorityFee = data.result.priorityFeeEstimate;
+   } else {
+     priorityFee = await agent.connection.getRecentPrioritizationFees().then(
+-      (fees) => fees.sort((a, b) => a.prioritizationFee - b.prioritizationFee)[Math.floor(fees.length * feeTiers[feeTier])].prioritizationFee
++      (fees) => {
++        if (!fees || fees.length === 0) return 0;
++        const sorted = fees.sort((a, b) => a.prioritizationFee - b.prioritizationFee);
++        const idx = Math.min(sorted.length - 1, Math.floor(sorted.length * feeTiers[feeTier]));
++        return sorted[idx].prioritizationFee;
++      }
+     );
+   }
+   const computeBudgetPriorityFeeInstructions = ComputeBudgetProgram.setComputeUnitPrice({

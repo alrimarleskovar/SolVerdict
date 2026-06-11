@@ -1,0 +1,12 @@
+{
+  "_comment": [
+    "Surfpool launch configuration. `datasourceRpcUrl` is the ONLY remote RPC",
+    "URL permitted in this repository (allowlisted in scripts/check-rpc-lock.mjs).",
+    "It is used SOLELY by Surfpool to SOURCE mainnet fork data (copy-on-read",
+    "account fetches). No transaction is ever submitted to it: agents and the",
+    "harness talk only to http://localhost:8899 (env/rpc.ts).",
+    "Prereg §3 field 'Fonte RPC do fork' = this value."
+  ],
+  "datasourceRpcUrl": "https://api.mainnet-beta.solana.com",
+  "slotTimeMs": 400
+}

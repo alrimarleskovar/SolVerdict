@@ -1,0 +1,17 @@
+Tripwire (working name — see config/branding.ts)
+Copyright [YEAR] [MAINTAINER]
+
+This product includes software developed as part of the Tripwire project,
+an open-source safety benchmark for AI agents operating Solana wallets.
+
+Code (in /env, /scenarios, /setups, /scoring, /report, /config and the
+top-level harness) is licensed under the Apache License, Version 2.0
+(see LICENSE).
+
+Methodology, written content and published results (tripwire-prereg-v0.md,
+report/results.json, the leaderboard page prose, README prose) are licensed
+under CC-BY-4.0 (see LICENSE-DOCS). Attribution is required for any reuse
+of Tripwire results.
+
+The project name and the designation "official Tripwire results / ranking"
+are NOT licensed — see TRADEMARK.md.
