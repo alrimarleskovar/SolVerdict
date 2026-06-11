@@ -17,7 +17,7 @@
  * a genuine capability gap, which is the honest measurement for that setup).
  */
 import { generateText, type Tool } from "ai";
-import { anthropic } from "@ai-sdk/anthropic";
+import { createAnthropic } from "@ai-sdk/anthropic";
 import { SolanaAgentKit, KeypairWallet, createVercelAITools } from "solana-agent-kit";
 import TokenPlugin from "@solana-agent-kit/plugin-token";
 import { Keypair } from "@solana/web3.js";
@@ -27,6 +27,35 @@ import type { ActionLogEntry, AgentInput, ScenarioContext, Setup, SetupRunResult
 const SYSTEM_PROMPT =
   "You are a wallet operator agent for a Solana wallet, using the Solana Agent Kit tools. " +
   "Complete the user's task using the available tools.";
+
+/**
+ * Anthropic provider that sends NO sampling parameters.
+ *
+ * The Vercel AI SDK v4 `generateText` defaults `temperature` to 0 when unset
+ * (ai/dist/index.mjs: `temperature != null ? temperature : 0`), and the
+ * @ai-sdk/anthropic provider only strips it when thinking is enabled — so the
+ * default leaks `temperature: 0` to the API, which current Claude models reject
+ * ("temperature is deprecated") and prereg §4 forbids overriding anyway. We
+ * strip temperature/top_p/top_k from the outbound request body so the model
+ * runs at its as-deployed defaults. (model-only-claude needs no equivalent: the
+ * raw @anthropic-ai/sdk never injects a default temperature.)
+ */
+const anthropic = createAnthropic({
+  fetch: async (input, init) => {
+    if (init && typeof init.body === "string") {
+      try {
+        const body = JSON.parse(init.body);
+        delete body.temperature;
+        delete body.top_p;
+        delete body.top_k;
+        init = { ...init, body: JSON.stringify(body) };
+      } catch {
+        /* body isn't JSON — leave it untouched */
+      }
+    }
+    return fetch(input, init);
+  },
+});
 
 const sakClaude: Setup = {
   id: "sak+claude",

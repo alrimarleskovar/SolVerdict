@@ -122,75 +122,105 @@ async function main(): Promise<void> {
       for (let n = 0; n < nRuns; n++) {
         const counts = countsFor(setup.id, scenario.id);
         counts.attempted++;
-        const wallet = Keypair.generate(); // ephemeral, in-memory, per run
-        const env = makeEnvHandle(wallet.publicKey.toBase58());
-        await fundStandardWallet(env.walletAddress);
-        const ctx = await scenario.setup(env);
-        const input = scenario.trigger(ctx);
-
-        beginRun();
-        let runResult;
-        let thrown: string | null = null;
+        // Per-run safety net: NO single run may abort the whole bench. Any
+        // failure in this run's lifecycle — funding, scenario setup, the agent,
+        // parsing, or scoring — is recorded as errored + EXCLUDED from N, and
+        // the loop moves on. funding.ts already retries setAccount and restarts
+        // a dead Surfpool; this catch covers anything that still slips through
+        // (e.g. Surfpool wedged past the funding retries). An infra failure is
+        // never scored as a safety pass.
         try {
-          runResult = await setup.run(input, wallet, RPC_URL, ctx);
-        } catch (err) {
-          thrown = String(err).slice(0, 200);
-        }
-        const recording = endRun();
+          const wallet = Keypair.generate(); // ephemeral, in-memory, per run
+          const env = makeEnvHandle(wallet.publicKey.toBase58());
+          await fundStandardWallet(env.walletAddress);
+          const ctx = await scenario.setup(env);
+          const input = scenario.trigger(ctx);
 
-        // ERRORED / INVALID RUN: the agent never executed (threw, or reported
-        // ok=false because every model turn failed). Record it as errored,
-        // EXCLUDE from N, and never score it as contained — an infrastructure
-        // failure is not a safety pass.
-        if (thrown !== null || !runResult || runResult.ok === false) {
-          const reason = thrown ?? runResult?.error ?? "agent did not execute (zero successful model turns)";
-          counts.errored++;
-          counts.sampleError ??= reason;
-          if (runResult) setupSettings.set(setup.id, runResult.settings);
+          beginRun();
+          let runResult;
+          let thrown: string | null = null;
+          try {
+            runResult = await setup.run(input, wallet, RPC_URL, ctx);
+          } catch (err) {
+            thrown = String(err).slice(0, 200);
+          }
+          const recording = endRun();
+
+          // ERRORED / INVALID RUN: the agent never executed (threw, or reported
+          // ok=false because every model turn failed). Record it as errored,
+          // EXCLUDE from N, and never score it as contained — an infrastructure
+          // failure is not a safety pass.
+          if (thrown !== null || !runResult || runResult.ok === false) {
+            const reason = thrown ?? runResult?.error ?? "agent did not execute (zero successful model turns)";
+            counts.errored++;
+            counts.sampleError ??= reason;
+            if (runResult) setupSettings.set(setup.id, runResult.settings);
+            writeRunLog(setup.id, scenario.id, n, {
+              input,
+              error: { reason, modelTurns: runResult?.modelTurns ?? 0 },
+              actions: runResult?.actions ?? [],
+              finalText: runResult?.finalText ?? `[run errored: ${reason}]`,
+              excludedFromScoring: true,
+            });
+            continue;
+          }
+
+          const txs = await parseRun(recording.sends, env.walletAddress);
+          const logs: RunLogs = { txs, actions: runResult.actions, rpc: recording.rpc };
+
+          const verdict = scenario.check(logs, ctx);
+          // Refine the binary PASS/FAIL into the three-outcome taxonomy (§6
+          // amendment): a contained-by-check run where the agent actually
+          // attempted the dangerous action (tool failed before submission) is
+          // intent-dangerous-exec-failed, NOT a safety pass.
+          const ro = classifyOutcome(scenario.id, logs, ctx, verdict);
+          counts.valid++;
+          if (ro.outcome === "intent-dangerous-exec-failed") counts.intentDangerous++;
+          if (ro.dataQuality) counts.dataQualityFlags++;
+          records.push({
+            setupId: setup.id,
+            scenarioId: scenario.id,
+            category: scenario.category,
+            runIndex: n,
+            verdict,
+            outcome: ro.outcome,
+          });
+          setupSettings.set(setup.id, runResult.settings);
+
           writeRunLog(setup.id, scenario.id, n, {
             input,
-            error: { reason, modelTurns: runResult?.modelTurns ?? 0 },
-            actions: runResult?.actions ?? [],
-            finalText: runResult?.finalText ?? `[run errored: ${reason}]`,
-            excludedFromScoring: true,
+            actions: logs.actions,
+            txs: logs.txs,
+            rpc: logs.rpc,
+            verdict,
+            outcome: ro.outcome,
+            intentEvidence: ro.intentEvidence,
+            dataQuality: ro.dataQuality ?? null,
+            finalText: runResult.finalText,
+            settings: runResult.settings,
           });
-          continue;
+        } catch (err) {
+          // Unexpected mid-run failure (funding/Surfpool/parse/scoring). Reset
+          // the recorder if a throw happened mid-recording, record the run as
+          // errored + excluded, and continue — never abort the bench.
+          try {
+            endRun();
+          } catch {
+            /* recorder already inactive */
+          }
+          const reason = `run crashed: ${String(err).slice(0, 200)}`;
+          counts.errored++;
+          counts.sampleError ??= reason;
+          console.log(`[bench]   ${setup.id}/${scenario.id} run ${n}: EXCLUDED — ${reason}`);
+          try {
+            writeRunLog(setup.id, scenario.id, n, {
+              error: { reason, phase: "lifecycle" },
+              excludedFromScoring: true,
+            });
+          } catch {
+            /* never let logging abort the bench */
+          }
         }
-
-        const txs = await parseRun(recording.sends, env.walletAddress);
-        const logs: RunLogs = { txs, actions: runResult.actions, rpc: recording.rpc };
-
-        const verdict = scenario.check(logs, ctx);
-        // Refine the binary PASS/FAIL into the three-outcome taxonomy (§6
-        // amendment): a contained-by-check run where the agent actually
-        // attempted the dangerous action (tool failed before submission) is
-        // intent-dangerous-exec-failed, NOT a safety pass.
-        const ro = classifyOutcome(scenario.id, logs, ctx, verdict);
-        counts.valid++;
-        if (ro.outcome === "intent-dangerous-exec-failed") counts.intentDangerous++;
-        if (ro.dataQuality) counts.dataQualityFlags++;
-        records.push({
-          setupId: setup.id,
-          scenarioId: scenario.id,
-          category: scenario.category,
-          runIndex: n,
-          verdict,
-          outcome: ro.outcome,
-        });
-        setupSettings.set(setup.id, runResult.settings);
-
-        writeRunLog(setup.id, scenario.id, n, {
-          input,
-          actions: logs.actions,
-          txs: logs.txs,
-          rpc: logs.rpc,
-          verdict,
-          outcome: ro.outcome,
-          intentEvidence: ro.intentEvidence,
-          dataQuality: ro.dataQuality ?? null,
-          finalText: runResult.finalText,
-          settings: runResult.settings,
-        });
       }
       const c = countsFor(setup.id, scenario.id);
       const so = scoreSetup(setup.id, records).scenarios.find((s) => s.scenarioId === scenario.id);
