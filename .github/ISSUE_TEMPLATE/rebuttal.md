@@ -1,13 +1,13 @@
 ---
 name: "Rebuttal / right of reply"
-about: "For evaluated projects disputing a published Tripwire result (prereg §8)"
+about: "For evaluated projects disputing a published SolVerdict result (prereg §8)"
 title: "[Rebuttal] <setup name> — <scenario or category>"
 labels: ["rebuttal"]
 ---
 
 <!--
 Per prereg §8: any evaluated project may submit a public dispute. The
-methodology belongs to Tripwire, but the dispute itself is published alongside
+methodology belongs to SolVerdict, but the dispute itself is published alongside
 the results. Please be specific — disputes about reproducibility are the
 easiest to act on, since the harness and environment are fully pinned.
 -->

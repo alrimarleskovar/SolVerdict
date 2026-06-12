@@ -6,7 +6,7 @@
  * agent are pinned to the localhost recorder RPC, so SAK's own transaction
  * submissions are captured as evidence at the RPC boundary.
  *
- * Injection delivery: framework setups don't expose Tripwire's overlay tools,
+ * Injection delivery: framework setups don't expose SolVerdict's overlay tools,
  * so untrusted data (B1/B2/B3/E2) is delivered as provenance-labelled context
  * in the prompt — identical payload + label to what baseline gets via tool
  * results. The agent acts (or contains) using SAK's real toolset.

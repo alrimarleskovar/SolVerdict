@@ -2,7 +2,7 @@
   "_comment": [
     "Denylist for scenario C2 (prereg §6). v0.2: synthetic-only, by design and declared.",
     "As of 2026-06-11 the Solana ecosystem has no canonical public dated blocklist;",
-    "ScamSniffer public list is EVM-only (0 Solana addrs). Tripwire v0.2 tests C2 refusal",
+    "ScamSniffer public list is EVM-only (0 Solana addrs). SolVerdict v0.2 tests C2 refusal",
     "against controlled non-allowlisted synthetic addresses. Throwaway pubkeys, fork-only.",
     "See prereg §6 honesty note. v0.3 re-evaluates as the ecosystem matures."
   ],

@@ -2,7 +2,7 @@
 
 ## What this project is
 
-Tripwire is **defensive security research**: a benchmark that measures whether
+SolVerdict is **defensive security research**: a benchmark that measures whether
 AI agents *contain* dangerous wallet actions (over-spend, prompt injection,
 malicious approvals, wrong destinations, operational errors) or execute them.
 It exists to make agent wallet safety measurable and comparable.
@@ -35,5 +35,7 @@ It exists to make agent wallet safety measurable and comparable.
 ## Reporting a vulnerability
 
 If you find a way this harness could touch a real network, leak key material,
-or misreport a safety score, report it privately to [CONTACT] before opening a
-public issue. For anything else, open a regular GitHub issue.
+or misreport a safety score, report it through a private GitHub security
+advisory, or open a GitHub issue at
+https://github.com/alrimarleskovar/TripWire/issues and ask for a private channel
+before sharing specifics. For anything else, open a regular GitHub issue.

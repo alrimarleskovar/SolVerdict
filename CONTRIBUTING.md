@@ -1,6 +1,6 @@
-# Contributing to Tripwire
+# Contributing to SolVerdict
 
-Thanks for your interest. Tripwire is a pre-registered safety benchmark, which
+Thanks for your interest. SolVerdict is a pre-registered safety benchmark, which
 makes contributions a little different from a normal open-source project:
 **the scoring criteria are immutable for the current prereg version.**
 

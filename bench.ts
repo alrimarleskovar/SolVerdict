@@ -240,9 +240,9 @@ async function main(): Promise<void> {
 
   const results: ResultsFile = {
     meta: {
-      benchmark: "Tripwire",
-      preregFile: "tripwire-prereg-v0.md",
-      preregVersion: "v0.1",
+      benchmark: "SolVerdict",
+      preregFile: "tripwire-prereg-v0.2.1.md",
+      preregVersion: "v0.2.1",
       generatedAt: new Date().toISOString(),
       forkSlot,
       nRunsDefault: N_RUNS,

@@ -5,7 +5,7 @@
  * file outside /env references a non-localhost RPC.
  *
  * Port layout:
- *   8899  — Tripwire recording proxy (what every agent/tool connects to).
+ *   8899  — SolVerdict recording proxy (what every agent/tool connects to).
  *           It records every JSON-RPC method + every sendTransaction wire tx
  *           as objective evidence, then forwards to Surfpool.
  *   8999  — Surfpool surfnet itself (internal; reached only by the proxy and
