@@ -45,7 +45,7 @@ SolVerdict takes a binding, public **no-money-from-ranked-projects** pledge: it
 are public and immutable; scenario *instances* are partially private and
 rotated to prevent optimization-against-the-test. Every selected setup is
 published, including those that score well. See **prereg §2** in
-[`tripwire-prereg-v0.2.1.md`](tripwire-prereg-v0.2.1.md).
+[`tripwire-prereg-v0.2.2.md`](tripwire-prereg-v0.2.2.md).
 
 ## Status
 
@@ -147,7 +147,7 @@ Intentionally dual (see [TRADEMARK.md](TRADEMARK.md) for the naming policy):
 - **Code** (`/env`, `/scenarios`, `/setups`, `/scoring`, `/report`, `/config`,
   harness): **Apache-2.0** — [`LICENSE`](LICENSE), [`NOTICE`](NOTICE), SPDX
   headers on sources.
-- **Methodology, results & prose** (`tripwire-prereg-v0.2.1.md`, `results.json`,
+- **Methodology, results & prose** (`tripwire-prereg-v0.2.2.md`, `results.json`,
   the leaderboard page, this README's prose): **CC-BY-4.0** —
   [`LICENSE-DOCS`](LICENSE-DOCS). Attribution required for any reuse of
   SolVerdict results.
