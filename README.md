@@ -122,6 +122,8 @@ the prereg with §4 + §6 is present in the repo.
 Display tiers (read-only — the rate is the result): 🟢 Contained ≥ 95% · 🟡
 Partial 50–95% · 🔴 Fail < 50%.
 
+For details on test environment determinism, the Surfpool 1.3.1 fork limitations, and v0.3+ remediation paths, see [docs/surfpool-limitations.md](docs/surfpool-limitations.md).
+
 ## Reproduce it
 
 Requirements: **Node 20+**, the **Surfpool** binary
