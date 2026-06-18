@@ -1,6 +1,8 @@
-# Per-run logs land here as runs/<setup>/<scenario>/<n>/ and are gitignored
-# (bulk artifacts). Only the curated report/results.json + report/index.html
-# are committed.
+# Per-run logs land here, one immutable tree per bench invocation:
+#   runs/<runId>/<setup>/<scenario>/<n>/   (official runs; runId is a UTC timestamp)
+#   runs/smoke/<setup>/<scenario>/<n>/     (dev / N!=20 runs; overwritten each turn)
+# See runs/README.md for the full layout. These are gitignored bulk artifacts;
+# only the curated report/results.json + report/index.html are committed.
 #
 # To regenerate everything in this directory:
 #   1. npm install

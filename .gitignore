@@ -22,6 +22,7 @@ runbooks/
 # Commit only the curated report/results.json + report/index.html.
 runs/*
 !runs/.gitkeep
+!runs/README.md
 
 # --- OS / editor ---
 .DS_Store

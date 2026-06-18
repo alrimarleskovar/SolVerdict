@@ -16,7 +16,8 @@
  *                    marks results UNOFFICIAL.
  */
 import { Keypair } from "@solana/web3.js";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync, rmSync, symlinkSync, unlinkSync } from "node:fs";
+import { execSync } from "node:child_process";
 import path from "node:path";
 import "dotenv/config";
 import { N_RUNS } from "./config/params.js";
@@ -42,6 +43,15 @@ const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname));
 const RUNS_DIR = path.join(ROOT, "runs");
 const RESULTS_PATH = path.join(ROOT, "report", "results.json");
 
+/**
+ * Per-invocation log root: runs/<runId>/ (official) or runs/smoke/ (dev). Set
+ * once at the top of main() so each bench invocation produces a self-contained,
+ * immutable log tree instead of overwriting the previous run's per-run logs
+ * (see docs/investigations/run-b-quality-audit.md §7-8). Defaults to RUNS_DIR
+ * only as a safety fallback; main() always reassigns it.
+ */
+let RUN_ROOT = RUNS_DIR;
+
 function arg(flag: string): string | undefined {
   const i = process.argv.indexOf(flag);
   return i >= 0 ? process.argv[i + 1] : undefined;
@@ -51,8 +61,44 @@ function jsonReplacer(_k: string, v: unknown): unknown {
   return typeof v === "bigint" ? v.toString() : v;
 }
 
+/** UTC, sortable, filesystem-safe run id — e.g. `2026-06-19T143005Z`. */
+function makeRunId(): string {
+  return new Date().toISOString().slice(0, 19).replace(/:/g, "") + "Z";
+}
+
+/** Current git commit, or null if git is unavailable / not a repo. */
+function gitCommit(): string | null {
+  try {
+    return execSync("git rev-parse HEAD", { cwd: ROOT, stdio: ["ignore", "pipe", "ignore"] })
+      .toString()
+      .trim();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Point runs/latest at the just-written run. A symlink is best-effort (some
+ * filesystems disallow it); runs/latest.txt is always written so development
+ * workflows can resolve the most recent run without a runId.
+ */
+function updateLatestPointer(runDirName: string): void {
+  const link = path.join(RUNS_DIR, "latest");
+  try {
+    unlinkSync(link);
+  } catch {
+    /* no existing symlink/file to replace */
+  }
+  try {
+    symlinkSync(runDirName, link, "dir");
+  } catch {
+    /* symlinks may be unsupported on this platform — latest.txt still covers it */
+  }
+  writeFileSync(path.join(RUNS_DIR, "latest.txt"), runDirName + "\n");
+}
+
 function writeRunLog(setupId: string, scenarioId: string, n: number, data: unknown): void {
-  const dir = path.join(RUNS_DIR, setupId, scenarioId, String(n));
+  const dir = path.join(RUN_ROOT, setupId, scenarioId, String(n));
   mkdirSync(dir, { recursive: true });
   for (const [name, value] of Object.entries(data as Record<string, unknown>)) {
     writeFileSync(path.join(dir, `${name}.json`), JSON.stringify(value, jsonReplacer, 2));
@@ -74,11 +120,39 @@ async function main(): Promise<void> {
   }
   const scenarios = scenFilter ? SCENARIOS.filter((s) => scenFilter.includes(s.id)) : SCENARIOS;
 
+  // Resolve the run id. Priority: explicit --run-id / BENCH_RUN_ID, else a
+  // sortable UTC timestamp for official (N=20) runs, else the shared "smoke"
+  // bucket for dev/unofficial runs (overwritten each turn so it never pollutes
+  // the immutable per-run history).
+  const explicitRunId = (arg("--run-id") ?? process.env.BENCH_RUN_ID)?.trim();
+  const runId = explicitRunId || (official ? makeRunId() : "smoke");
+  RUN_ROOT = path.join(RUNS_DIR, runId);
+  if (runId === "smoke") rmSync(RUN_ROOT, { recursive: true, force: true });
+  mkdirSync(RUN_ROOT, { recursive: true });
+  const startTime = new Date().toISOString();
+  console.log(`[bench] runId = ${runId}  →  runs/${runId}/`);
+
   console.log(`[bench] starting Surfpool…`);
   await ensureSurfpool();
   await startRecorder();
   const forkSlot = readPinnedForkSlot();
   console.log(`[bench] fork slot ${forkSlot}; ${setups.length} setup(s) x ${scenarios.length} scenario(s) x N=${nRuns}${official ? "" : "  (UNOFFICIAL — N != 20)"}`);
+
+  // Self-contained provenance for this run tree. Re-written at the end with
+  // endTime + the model settings actually observed per setup.
+  const runMetadata: Record<string, unknown> = {
+    runId,
+    startTime,
+    official,
+    preregVersion: "v0.2.2",
+    forkSlot,
+    n: nRuns,
+    setups: setups.map((s) => s.id),
+    scenarios: scenarios.map((s) => s.id),
+    versions: { surfpool: "1.3.1", "solana-web3.js": "1.98.4", node: process.version },
+    gitCommit: gitCommit(),
+  };
+  writeFileSync(path.join(RUN_ROOT, "run-metadata.json"), JSON.stringify(runMetadata, null, 2));
 
   const records: RunRecord[] = [];
   const setupSettings = new Map<string, Record<string, unknown>>();
@@ -283,6 +357,15 @@ async function main(): Promise<void> {
   writeFileSync(RESULTS_PATH, JSON.stringify(results, jsonReplacer, 2));
   console.log(`[bench] wrote ${RESULTS_PATH}`);
   generateReport();
+
+  // Finalize the run tree: complete metadata (end time + model settings actually
+  // used) and point runs/latest at it. report/results.json + index.html remain
+  // the latest-run summary (overwritten by design); runs/<runId>/ is immutable.
+  runMetadata.endTime = new Date().toISOString();
+  runMetadata.modelSettings = Object.fromEntries(setupSettings);
+  writeFileSync(path.join(RUN_ROOT, "run-metadata.json"), JSON.stringify(runMetadata, null, 2));
+  updateLatestPointer(runId);
+  console.log(`[bench] runId = ${runId}  (immutable logs under runs/${runId}/, runs/latest → ${runId})`);
   console.log(`[bench] done.`);
 }
 
