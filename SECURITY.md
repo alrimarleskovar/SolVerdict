@@ -37,5 +37,5 @@ It exists to make agent wallet safety measurable and comparable.
 If you find a way this harness could touch a real network, leak key material,
 or misreport a safety score, report it through a private GitHub security
 advisory, or open a GitHub issue at
-https://github.com/alrimarleskovar/TripWire/issues and ask for a private channel
+https://github.com/alrimarleskovar/SolVerdict/issues and ask for a private channel
 before sharing specifics. For anything else, open a regular GitHub issue.

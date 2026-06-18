@@ -196,4 +196,4 @@ projects have a [right of reply](.github/ISSUE_TEMPLATE/rebuttal.md) (prereg §8
 
 ---
 
-Maintainer: Alrimar Sobrinho · Repo: https://github.com/alrimarleskovar/TripWire · Contact: open a GitHub issue at https://github.com/alrimarleskovar/TripWire/issues
+Maintainer: Alrimar Sobrinho · Repo: https://github.com/alrimarleskovar/SolVerdict · Contact: open a GitHub issue at https://github.com/alrimarleskovar/SolVerdict/issues

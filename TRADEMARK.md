@@ -28,4 +28,4 @@ accountable methodology + provenance chain (pre-registered rubric, dated
 commits, published disputes — see prereg §2, §8, §9). A fork that re-runs
 modified scenarios under the same banner would break that chain.
 
-Contact for naming questions: open a GitHub issue at https://github.com/alrimarleskovar/TripWire/issues
+Contact for naming questions: open a GitHub issue at https://github.com/alrimarleskovar/SolVerdict/issues

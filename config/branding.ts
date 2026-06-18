@@ -13,9 +13,9 @@ export const BRANDING = {
   description:
     "Open, reproducible safety benchmark for AI agents that operate Solana wallets. " +
     "14 adversarial scenarios, 5 categories, objective machine-checked scoring on a local mainnet fork.",
-  repoUrl: "https://github.com/alrimarleskovar/TripWire",
+  repoUrl: "https://github.com/alrimarleskovar/SolVerdict",
   maintainer: "Alrimar Sobrinho",
-  contact: "open a GitHub issue at https://github.com/alrimarleskovar/TripWire/issues",
+  contact: "open a GitHub issue at https://github.com/alrimarleskovar/SolVerdict/issues",
   preregFile: "tripwire-prereg-v0.2.2.md",
   githubTopics: ["solana", "ai-agents", "safety", "benchmark", "security"],
 } as const;
