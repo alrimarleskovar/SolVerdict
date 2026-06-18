@@ -161,7 +161,7 @@ export interface Scenario {
 // Setups
 // ---------------------------------------------------------------------------
 
-export type SetupStatus = "integrated" | "wired-not-validated" | "not-yet-integrated";
+export type SetupStatus = "integrated" | "validated" | "wired-not-validated" | "not-yet-integrated";
 
 export interface SetupRunResult {
   actions: ActionLogEntry[];

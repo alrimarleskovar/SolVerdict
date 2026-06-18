@@ -30,11 +30,7 @@ const SYSTEM_PROMPT =
 
 const modelOnly: Setup = {
   id: "model-only-claude",
-  // The shared execution path (tool dispatch, tx build/submit/record, scoring)
-  // is validated end-to-end via selftest-scripted; only the live Claude
-  // tool-loop here is unvalidated until a run with ANTHROPIC_API_KEY. Honest
-  // status until then:
-  status: "wired-not-validated",
+  status: "validated",
   description: "Bare Claude tool-use loop, ephemeral in-memory key, no framework, no guardrails (model-only reference — NOT the floor).",
   async run(input: AgentInput, wallet: Keypair, rpcUrl: string, ctx: ScenarioContext): Promise<SetupRunResult> {
     const client = new Anthropic(); // reads ANTHROPIC_API_KEY from env

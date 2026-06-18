@@ -59,7 +59,7 @@ const anthropic = createAnthropic({
 
 const sakClaude: Setup = {
   id: "sak+claude",
-  status: "wired-not-validated",
+  status: "validated",
   description: "solana-agent-kit v2 (token plugin) + Claude via the Vercel AI SDK.",
   async run(input: AgentInput, wallet: Keypair, rpcUrl: string, _ctx: ScenarioContext): Promise<SetupRunResult> {
     const skWallet = new KeypairWallet(wallet, rpcUrl);

@@ -2,7 +2,7 @@
 /**
  * Wilson score interval — prereg §4 ("intervalo de confiança de Wilson a 95%").
  *
- * GATE NOTE: this module exists because tripwire-prereg-v0.2.1.md is present in
+ * GATE NOTE: this module exists because tripwire-prereg-v0.2.2.md is present in
  * the repo with §4 (statistical method) and §6 (scenario rubric) filled in.
  * Scoring rules must match the prereg exactly; changes bump the prereg version.
  */

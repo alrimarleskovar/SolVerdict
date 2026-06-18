@@ -1,7 +1,7 @@
 /* SolVerdict landing page — v0.2.2. Vanilla CSS, no build step.
    Dark base, Solana brand colors (purple #9945FF / green #14F195) as sparing accents. */
 :root {
-  --bg: #0d1117;
+  --bg: #0a0a14;
   --panel: #161b22;
   --panel-2: #11151c;
   --border: #30363d;
@@ -28,7 +28,9 @@ html { -webkit-text-size-adjust: 100%; }
 
 body {
   margin: 0;
-  background: var(--bg);
+  background-color: var(--bg);
+  /* static feTurbulence grain at ~3% — Linear/Stripe-style depth, no animation */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='solNoise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23solNoise)' opacity='0.03'/%3E%3C/svg%3E");
   color: var(--text);
   font-family: var(--sans);
   font-size: 16px;
@@ -79,6 +81,27 @@ hr { border: none; border-top: 1px solid var(--divider); margin: 3rem 0; }
   color: var(--text-strong);
   letter-spacing: -0.5px;
 }
+.logo {
+  width: 0.85em;
+  height: 0.85em;
+  vertical-align: -0.06em;
+  margin-right: 0.35rem;
+  flex-shrink: 0;
+}
+
+/* hero entrance: staggered opacity fade, no slide, no bounce — full sequence < 1s */
+@keyframes solFadeIn { from { opacity: 0; } to { opacity: 1; } }
+.hero h1, .hero .subtitle, .hero .lede-sub, .hero .actions {
+  opacity: 0;
+  animation: solFadeIn 400ms ease forwards;
+}
+.hero h1 { animation-delay: 0ms; }
+.hero .subtitle { animation-delay: 200ms; }
+.hero .lede-sub { animation-delay: 300ms; }
+.hero .actions { animation-delay: 400ms; }
+@media (prefers-reduced-motion: reduce) {
+  .hero h1, .hero .subtitle, .hero .lede-sub, .hero .actions { animation: none; opacity: 1; }
+}
 .hero h1 .sol {
   background: linear-gradient(90deg, var(--sol-purple), var(--sol-green));
   -webkit-background-clip: text;
@@ -106,11 +129,18 @@ hr { border: none; border-top: 1px solid var(--divider); margin: 3rem 0; }
   background-size: 160% 160%;
   background-position: 0% 50%;
   border-color: transparent;
-  color: #0d1117;
+  color: #0a0a14;
   font-weight: 600;
-  transition: background-position 0.25s ease;
+  transition: background-position 0.25s ease, transform 0.2s ease, filter 0.2s ease;
 }
-.btn-primary:hover { background-position: 100% 50%; border-color: transparent; }
+@media (hover: hover) {
+  .btn-primary:hover {
+    background-position: 100% 50%;
+    border-color: transparent;
+    transform: translateY(-1px);
+    filter: brightness(1.08);
+  }
+}
 
 /* --- sections --- */
 section { padding: 1.5rem 0; }
@@ -203,6 +233,14 @@ ul.reasons strong { color: var(--text-strong); font-family: var(--mono); display
 footer { border-top: 1px solid var(--divider); margin-top: 3rem; padding: 2rem 0 3rem; color: var(--muted); font-size: 0.85rem; }
 footer .row { display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; margin-bottom: 0.8rem; font-family: var(--mono); }
 footer .pledge { font-style: italic; }
+
+/* hover micro-interactions — gated so touch devices never get stuck states */
+@media (hover: hover) {
+  .finding, .cta, details { transition: border-color 200ms ease; }
+  .finding:hover, .cta:hover, details:hover { border-color: rgba(153, 69, 255, 0.5); }
+  /* placard row highlight: inset wash overlays tier tints without overriding them, keeps rounded chips */
+  tbody tr:hover th, tbody tr:hover td { box-shadow: inset 0 0 0 999px rgba(153, 69, 255, 0.06); }
+}
 
 @media (max-width: 640px) {
   body { font-size: 15px; }

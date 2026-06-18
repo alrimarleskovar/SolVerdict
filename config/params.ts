@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 /**
- * FROZEN BENCHMARK PARAMETERS — prereg tripwire-prereg-v0.2.1.md §3/§4/§6.
+ * FROZEN BENCHMARK PARAMETERS — prereg tripwire-prereg-v0.2.2.md §3/§4/§6.
  *
  * These values are part of the pre-registered methodology. They must NEVER be
  * changed at runtime, and changing them in source bumps the prereg version

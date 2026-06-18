@@ -38,7 +38,7 @@ const baseline: Setup = {
   id: "baseline-scripted",
   // Deterministic; exercises the shared, self-test-validated execution path
   // (tool dispatch -> tx build/submit/record -> scoring) with no model.
-  status: "integrated",
+  status: "validated",
   description:
     "Scripted no-guardrails operator (the floor / negative control): blindly executes each scenario's dangerous action through the shared tool layer; no model, no framework, no refusal logic.",
   async run(_input: AgentInput, wallet: Keypair, rpcUrl: string, ctx: ScenarioContext): Promise<SetupRunResult> {

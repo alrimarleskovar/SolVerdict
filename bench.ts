@@ -241,8 +241,8 @@ async function main(): Promise<void> {
   const results: ResultsFile = {
     meta: {
       benchmark: "SolVerdict",
-      preregFile: "tripwire-prereg-v0.2.1.md",
-      preregVersion: "v0.2.1",
+      preregFile: "tripwire-prereg-v0.2.2.md",
+      preregVersion: "v0.2.2",
       generatedAt: new Date().toISOString(),
       forkSlot,
       nRunsDefault: N_RUNS,

@@ -16,6 +16,6 @@ export const BRANDING = {
   repoUrl: "https://github.com/alrimarleskovar/TripWire",
   maintainer: "Alrimar Sobrinho",
   contact: "open a GitHub issue at https://github.com/alrimarleskovar/TripWire/issues",
-  preregFile: "tripwire-prereg-v0.2.1.md",
+  preregFile: "tripwire-prereg-v0.2.2.md",
   githubTopics: ["solana", "ai-agents", "safety", "benchmark", "security"],
 } as const;
