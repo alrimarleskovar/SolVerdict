@@ -13,7 +13,7 @@
  *    cheatcode-seeded state + the USDC mint, so run-to-run mainnet drift does
  *    not affect scoring; the snapshot path is wired for future versions.
  */
-import { spawn } from "node:child_process";
+import { spawn, execSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import path from "node:path";
 import { SURFPOOL_INTERNAL_URL, SURFPOOL_INTERNAL_PORT } from "./rpc.js";
@@ -22,6 +22,9 @@ const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..")
 const FORK_CONFIG_PATH = path.join(ROOT, "env", "fork-config.json");
 const FORK_SLOT_PATH = path.join(ROOT, "config", "forkslot.json");
 const LOG_PATH = path.join(ROOT, "runs", "surfpool.log");
+
+/** PID of the surfnet WE spawned (null if Surfpool was already up, or after a kill). */
+let lastSpawnedPid: number | null = null;
 
 interface ForkConfig {
   datasourceRpcUrl: string;
@@ -103,6 +106,7 @@ export async function ensureSurfpool(): Promise<number> {
     { detached: true, stdio: ["ignore", "ignore", "ignore"], cwd: ROOT },
   );
   child.unref();
+  lastSpawnedPid = child.pid ?? null;
 
   const deadline = Date.now() + 60_000;
   while (Date.now() < deadline) {
@@ -116,4 +120,65 @@ export async function ensureSurfpool(): Promise<number> {
       "  curl -sL -o /tmp/sp.tgz https://github.com/solana-foundation/surfpool/releases/download/v1.3.1/surfpool-linux-x64.tar.gz\n" +
       "  tar xzf /tmp/sp.tgz -C ~/.local/bin && surfpool --version",
   );
+}
+
+/**
+ * Best-effort: SIGKILL whatever process is bound to `port`. Covers a surfnet we
+ * didn't spawn (already running, or detached PID lost). lsof first, then fuser;
+ * each is optional and failures are swallowed.
+ */
+function freePort(port: number): void {
+  for (const cmd of [`lsof -ti tcp:${port}`, `fuser -k ${port}/tcp`]) {
+    try {
+      const out = execSync(`${cmd} 2>/dev/null`, { stdio: ["ignore", "pipe", "ignore"] })
+        .toString()
+        .trim();
+      // lsof prints pids; kill them. (fuser -k already killed and prints pids too.)
+      for (const pid of out.split(/\s+/).filter(Boolean)) {
+        const n = Number(pid);
+        if (Number.isInteger(n) && n > 1) {
+          try {
+            process.kill(n, "SIGKILL");
+          } catch {
+            /* already gone */
+          }
+        }
+      }
+    } catch {
+      /* tool absent or nothing on the port */
+    }
+  }
+}
+
+/**
+ * Hard restart for a WEDGED-but-alive surfnet: one that still answers health
+ * checks but rejects cheatcodes. Soft `ensureSurfpool()` won't help (it sees a
+ * live process and no-ops), so we SIGKILL the tracked PID, free the internal
+ * port, wait for the health check to actually fail, then relaunch fresh. A fresh
+ * fork only re-seeds synthetic cheatcode state, which is all v0 scenarios touch.
+ * Returns the (unchanged, pinned) fork slot.
+ */
+export async function forceRestartSurfpool(): Promise<number> {
+  console.warn(
+    `[surfpool] FORCED restart: SIGKILL surfnet (pid=${lastSpawnedPid ?? "unknown"}) + freeing port ${SURFPOOL_INTERNAL_PORT}`,
+  );
+  if (lastSpawnedPid !== null) {
+    try {
+      process.kill(lastSpawnedPid, "SIGKILL");
+    } catch {
+      /* already gone */
+    }
+    lastSpawnedPid = null;
+  }
+  freePort(SURFPOOL_INTERNAL_PORT);
+
+  // Wait until it's genuinely down before relaunching, re-freeing if it lingers.
+  const deadline = Date.now() + 15_000;
+  while (Date.now() < deadline) {
+    if (!(await surfpoolIsUp())) break;
+    freePort(SURFPOOL_INTERNAL_PORT);
+    await new Promise((r) => setTimeout(r, 300));
+  }
+  console.warn(`[surfpool] relaunching surfnet after forced kill…`);
+  return ensureSurfpool();
 }

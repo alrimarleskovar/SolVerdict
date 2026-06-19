@@ -6,7 +6,7 @@ import type { EnvHandle } from "../lib/types.js";
 import { RPC_URL } from "./rpc.js";
 import * as cheat from "./cheatcodes.js";
 
-export { ensureSurfpool, surfpoolIsUp, readPinnedForkSlot } from "./surfpool.js";
+export { ensureSurfpool, surfpoolIsUp, readPinnedForkSlot, forceRestartSurfpool } from "./surfpool.js";
 export { startRecorder, stopRecorder, beginRun, endRun } from "./recorder.js";
 export { parseRun } from "./txparse.js";
 export { fundStandardWallet } from "./funding.js";

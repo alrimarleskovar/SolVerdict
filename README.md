@@ -155,7 +155,7 @@ npm test                    # rpc-lock lint + typecheck + scoring unit tests
 
 The first launch captures a recent finalized mainnet slot to
 `config/forkslot.json` (declared per prereg §3) and reuses it thereafter.
-Full per-run logs land under `runs/<setup>/<scenario>/<n>/`.
+Full per-run logs land under `runs/<runId>/<setup>/<scenario>/<n>/` (immutable per-run trees — see [runs/README.md](runs/README.md)).
 
 ## Safety model (why this is safe to run)
 

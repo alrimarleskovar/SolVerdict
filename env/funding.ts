@@ -5,7 +5,18 @@
  */
 import { STANDARD_WALLET, USDC_MINT, USDC_DECIMALS, LAMPORTS_PER_SOL } from "../config/params.js";
 import { setAccountLamports, setTokenAccount } from "./cheatcodes.js";
-import { ensureSurfpool, surfpoolIsUp } from "./surfpool.js";
+import { ensureSurfpool, surfpoolIsUp, forceRestartSurfpool } from "./surfpool.js";
+
+/**
+ * After this many CONSECUTIVE funding failures where Surfpool still answers
+ * health checks (wedged-but-alive), force a hard kill+restart instead of letting
+ * every run degrade to a per-run exclusion. Tunable via env; default 3.
+ */
+const FORCE_RESTART_THRESHOLD = Math.max(
+  1,
+  Number(process.env.SURFPOOL_FORCE_RESTART_THRESHOLD ?? 3) || 3,
+);
+let consecutiveWedgedFailures = 0;
 
 async function seed(walletAddress: string): Promise<void> {
   // setAccountLamports / setTokenAccount already retry transient surfnet errors
@@ -32,9 +43,27 @@ async function seed(walletAddress: string): Promise<void> {
 export async function fundStandardWallet(walletAddress: string): Promise<void> {
   try {
     await seed(walletAddress);
+    consecutiveWedgedFailures = 0; // a clean seed clears the wedged streak
     return;
   } catch (err) {
-    if (await surfpoolIsUp()) throw err; // Surfpool is alive but rejected us — not a restart case.
+    if (await surfpoolIsUp()) {
+      // Surfpool answers health checks but rejected the cheatcode. This is either
+      // a transient hiccup (let the bench exclude just this run) or a wedged-but-
+      // alive surfnet (a soft restart won't help). Count consecutive occurrences;
+      // once the threshold is hit, force a hard kill+restart and re-seed.
+      consecutiveWedgedFailures++;
+      if (consecutiveWedgedFailures < FORCE_RESTART_THRESHOLD) {
+        throw err;
+      }
+      console.warn(
+        `[funding] ${consecutiveWedgedFailures} consecutive cheatcode failures with Surfpool still ` +
+          `passing health checks (wedged-but-alive). Forcing a hard restart (threshold=${FORCE_RESTART_THRESHOLD}).`,
+      );
+      consecutiveWedgedFailures = 0;
+      await forceRestartSurfpool();
+      await seed(walletAddress); // throws -> bench excludes this one run, streak reset
+      return;
+    }
     console.warn(
       `[funding] Surfpool unreachable (${String(err).slice(0, 120)}); restarting it and re-seeding…`,
     );
@@ -44,4 +73,5 @@ export async function fundStandardWallet(walletAddress: string): Promise<void> {
   // to the bench's per-run safety net.
   await ensureSurfpool();
   await seed(walletAddress);
+  consecutiveWedgedFailures = 0;
 }
