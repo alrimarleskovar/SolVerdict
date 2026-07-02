@@ -2,49 +2,63 @@
 /**
  * Wire types shared between the API routes, the status page, and the
  * audit-worker. The verdict shape REUSES the parent bench's scoring types
- * (../../scoring) — SetupScore/CategoryScore/ScenarioScore are type-only imports
- * so nothing from the heavy web3 scenario graph is pulled into the web bundle.
+ * (../../scoring) — SetupScore is a type-only import so nothing from the heavy
+ * web3 scenario graph is pulled into the web bundle.
  */
 import type { SetupScore } from "../../scoring";
+import type { Outcome } from "../../scoring";
 
 export type AuditStatus = "queued" | "running" | "done" | "failed";
 
-export type Framework = "sak" | "custom" | "other";
-export type Provider = "anthropic" | "openai" | "other";
-
-/** Exactly what the submit form collects. */
+/** Exactly what the Sprint 2 submit form collects. */
 export interface AuditForm {
-  framework: Framework;
-  /** Model provider for the agent under test. */
-  provider: Provider;
-  /** Agent endpoint URL or a GitHub repo URL. */
-  target: string;
+  /** The agent's HTTPS endpoint implementing the SolVerdict Audit Protocol. */
+  endpoint: string;
+  /** Free-text framework name (e.g. "Solana Agent Kit", "custom"). */
+  framework: string;
+  /** Free-text model name (e.g. "claude-sonnet-4-6"). */
+  model: string;
   /** Optional — used only to notify the submitter when the run finishes. */
   email?: string;
 }
 
+/** One scenario's live outcome, streamed into the record as the worker runs. */
+export interface ScenarioProgress {
+  scenarioId: string;
+  category: string;
+  outcome: Outcome | "errored";
+}
+
+/** Per-run progress the status page renders ("running B3 of 14…"). */
+export interface AuditProgress {
+  total: number;
+  completed: number;
+  /** Scenario id currently in flight, or null between/at the end. */
+  current: string | null;
+  perScenario: ScenarioProgress[];
+}
+
 /**
- * The scored verdict written back by the audit-worker. `score` is the parent
- * bench's SetupScore for the single setup that stood in for the submitted agent
- * (Sprint 1 maps framework+provider to a published reference setup — see
- * web/README.md "Known Sprint 1 limitations").
+ * The scored verdict written back by the audit-worker after benching the user's
+ * ACTUAL endpoint. `score` is the parent bench's SetupScore for the synthetic
+ * "http-agent" setup that wraps the submitted endpoint.
  */
 export interface AuditResult {
-  /** The published setup id the worker actually ran (e.g. "sak-claude"). */
-  setupId: string;
-  /** Prereg version the run scored against. */
+  setupId: string; // always "http-agent"
+  /** Echo of what was tested (shown on the status page). */
+  endpoint: string;
+  framework: string;
+  model: string;
   preregVersion: string;
-  /** Local mainnet-fork slot the run pinned to, if reported. */
   forkSlot: number | null;
-  /** True only for a full pre-registered N=20 run; Sprint 1 smoke runs are false. */
+  /** Always false for user audits — N != the pre-registered N=20. */
   official: boolean;
   /** Runs per scenario actually executed. */
   n: number;
-  /** Scenario ids the worker restricted the run to (a smoke subset in Sprint 1). */
+  /** Scenario ids the run covered. */
   scenarios: string[];
   /** The reused parent scoring output. */
   score: SetupScore;
-  /** Tool/engine versions the run recorded. */
   versions?: Record<string, string>;
 }
 
@@ -55,8 +69,10 @@ export interface AuditRecord {
   createdAt: string;
   updatedAt: string;
   form: AuditForm;
-  /** Reference setup the worker will run / ran for this submission. */
-  mappedSetup: string;
+  /** True once the submitter checked the protocol-conformance box. */
+  protocolConfirmed: boolean;
+  /** Live progress while status === "running". */
+  progress?: AuditProgress;
   /** Populated once status === "done". */
   result: AuditResult | null;
   /** Populated once status === "failed". */

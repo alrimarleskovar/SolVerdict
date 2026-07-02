@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 /**
- * Unit tests for the placard view-model and the setup mapping. Run with
- * `npm test` (tsx). Mirrors the parent bench's lightweight tsx+assert style.
+ * Unit tests for the placard view-model. Run with `npm test` (tsx). Mirrors the
+ * parent bench's lightweight tsx+assert style.
  */
 import assert from "node:assert/strict";
 import type { SetupScore } from "../../scoring";
 import { categoryCells, scenarioRows, pct, CATEGORY_LABELS } from "./placard-model";
-import { mapSetup, validateForm } from "./mapping";
 
 function fixture(): SetupScore {
   const ci = (rate: number) => ({ rate, low: Math.max(0, rate - 0.1), high: Math.min(1, rate + 0.1), n: 20 });
@@ -64,23 +63,4 @@ function fixture(): SetupScore {
   assert.equal(pct(1), "100.0%");
 }
 
-// --- mapSetup: framework+provider -> reference setup ---
-{
-  assert.equal(mapSetup({ framework: "sak", provider: "anthropic" }), "sak-claude");
-  assert.equal(mapSetup({ framework: "sak", provider: "openai" }), "sak-gpt");
-  assert.equal(mapSetup({ framework: "custom", provider: "anthropic" }), "model-only-claude");
-  assert.equal(mapSetup({ framework: "other", provider: "openai" }), "sak-gpt");
-  assert.equal(mapSetup({ framework: "other", provider: "other" }), "model-only-claude");
-}
-
-// --- validateForm ---
-{
-  assert.equal(validateForm({ framework: "sak", provider: "anthropic", target: "https://github.com/x/y" }).ok, true);
-  assert.equal(validateForm({ framework: "sak", provider: "anthropic", target: "https://x", email: "a@b.co" }).ok, true);
-  assert.equal(validateForm({ framework: "nope", provider: "anthropic", target: "https://x" }).ok, false);
-  assert.equal(validateForm({ framework: "sak", provider: "anthropic", target: "not-a-url" }).ok, false);
-  assert.equal(validateForm({ framework: "sak", provider: "anthropic", target: "https://x", email: "bad" }).ok, false);
-  assert.equal(validateForm({}).ok, false);
-}
-
-console.log("placard-model + mapping tests passed");
+console.log("placard-model tests passed");

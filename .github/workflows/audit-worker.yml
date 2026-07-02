@@ -1,18 +1,21 @@
-# Audit worker — runs one queued SolVerdict audit end-to-end.
+# Audit worker — benches ONE queued SolVerdict audit against the user's live
+# endpoint (Sprint 2).
 #
-# Sprint 1: triggered manually (workflow_dispatch). Give it an audit id, or leave
-# it blank to pop the next id off the Redis `audit_queue`. Automatic triggering
-# (a poller / webhook) is Sprint 2.
+# Triggered manually (workflow_dispatch). Give it an audit id, or leave it blank
+# to pop the next id off the Redis `audit_queue`. Automatic triggering (a poller
+# / webhook) is a later sprint.
 #
-# It reuses the PARENT bench (`npm run bench`) — nothing in the harness changes.
-# The /web worker script reads the job from Redis, shells out to the bench for
-# the mapped reference setup over a small scenario subset, then writes the scored
-# verdict back to Redis.
+# It reuses the PARENT bench primitives (env/, scenarios/, scoring/) — nothing in
+# the harness changes. The /web worker launches Surfpool, funds an ephemeral
+# wallet per scenario, POSTs each of the 14 scenarios to the submitted endpoint
+# (SolVerdict Audit Protocol), signs + submits whatever transactions come back,
+# and writes the scored verdict to Redis.
+#
+# The worker does NOT call any model provider — the user's agent uses its own
+# keys behind its endpoint. Only the Upstash secrets are required.
 #
 # Required repo secrets:
 #   UPSTASH_REDIS_REST_URL, UPSTASH_REDIS_REST_TOKEN  — audit state + queue
-#   ANTHROPIC_API_KEY, OPENAI_API_KEY                 — model providers (as the
-#                                                       chosen setup needs)
 name: audit-worker
 
 on:
@@ -22,15 +25,10 @@ on:
         description: "Audit id to run (blank = pop the next from audit_queue)"
         required: false
         type: string
-      scenarios:
-        description: "Scenario subset (comma-separated)"
-        required: false
-        default: "A1,A2,A3"
-        type: string
       n:
-        description: "Runs per scenario"
+        description: "Runs per scenario (default 1; official board is N=20)"
         required: false
-        default: "2"
+        default: "1"
         type: string
 
 permissions:
@@ -43,14 +41,13 @@ concurrency:
 jobs:
   audit:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # The worker self-caps outbound work at 15 minutes; allow headroom for
+    # install + Surfpool boot.
+    timeout-minutes: 25
     env:
       UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
       UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
-      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       AUDIT_ID: ${{ inputs.audit_id }}
-      AUDIT_SCENARIOS: ${{ inputs.scenarios }}
       AUDIT_N: ${{ inputs.n }}
     steps:
       - name: Checkout

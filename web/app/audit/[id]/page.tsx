@@ -14,6 +14,13 @@ const STATUS_META: Record<AuditStatus, { label: string; color: string; blurb: st
   failed: { label: "Failed", color: "var(--red)", blurb: "The run could not complete." },
 };
 
+const OUTCOME_ICON: Record<string, string> = {
+  contained: "🟢",
+  uncontained: "🔴",
+  "intent-dangerous-exec-failed": "🟠",
+  errored: "⚪",
+};
+
 export default function AuditStatusPage() {
   const params = useParams<{ id: string }>();
   const id = params.id;
@@ -36,9 +43,8 @@ export default function AuditStatusPage() {
         if (!active) return;
         setRecord(data);
         setError(null);
-        // Keep polling until terminal.
         if (data.status === "queued" || data.status === "running") {
-          timer = setTimeout(poll, 5000);
+          timer = setTimeout(poll, 4000);
         }
       } catch (err) {
         if (active) setError(String(err));
@@ -53,6 +59,7 @@ export default function AuditStatusPage() {
   }, [id]);
 
   const meta = record ? STATUS_META[record.status] : null;
+  const progress = record?.progress;
 
   return (
     <>
@@ -82,33 +89,45 @@ export default function AuditStatusPage() {
                 {meta.label}
               </span>
               {(record.status === "queued" || record.status === "running") && (
-                <span className="note">Auto-refreshing every 5s…</span>
+                <span className="note">Auto-refreshing…</span>
               )}
             </div>
             <p style={{ color: "var(--text)", margin: "1rem 0 0" }}>{meta.blurb}</p>
 
-            <dl
-              style={{
-                display: "grid",
-                gridTemplateColumns: "auto 1fr",
-                gap: "0.35rem 1rem",
-                margin: "1.25rem 0 0",
-                fontSize: "0.9rem",
-              }}
-            >
-              <dt className="note">Framework</dt>
-              <dd style={{ margin: 0 }}>{record.form.framework}</dd>
-              <dt className="note">Provider</dt>
-              <dd style={{ margin: 0 }}>{record.form.provider}</dd>
-              <dt className="note">Target</dt>
-              <dd style={{ margin: 0, wordBreak: "break-all" }}>{record.form.target}</dd>
-              <dt className="note">Reference setup</dt>
-              <dd style={{ margin: 0 }}>
-                <code>{record.mappedSetup}</code>
-              </dd>
-              <dt className="note">Submitted</dt>
-              <dd style={{ margin: 0 }}>{new Date(record.createdAt).toLocaleString()}</dd>
-            </dl>
+            {/* What was tested */}
+            <p style={{ color: "var(--text-strong)", margin: "1.25rem 0 0", fontSize: "0.95rem" }}>
+              This audit tested: <code style={{ wordBreak: "break-all" }}>{record.form.endpoint}</code>
+              <br />
+              framework: <strong>{record.form.framework}</strong> · model: <strong>{record.form.model}</strong>
+            </p>
+
+            {/* Live per-scenario progress */}
+            {record.status === "running" && progress && (
+              <div style={{ marginTop: "1.5rem" }}>
+                <p className="note" style={{ marginBottom: "0.5rem" }}>
+                  {progress.current
+                    ? `Running ${progress.current} (${progress.completed + 1} of ${progress.total})…`
+                    : `Completed ${progress.completed} of ${progress.total}…`}
+                </p>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "0.4rem" }}>
+                  {progress.perScenario.map((s) => (
+                    <span
+                      key={s.scenarioId}
+                      className="cell"
+                      title={s.outcome}
+                      style={{
+                        border: "1px solid var(--border)",
+                        borderRadius: "6px",
+                        padding: "0.25rem 0.5rem",
+                        fontSize: "0.78rem",
+                      }}
+                    >
+                      {OUTCOME_ICON[s.outcome] ?? "•"} {s.scenarioId}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {record.status === "failed" && record.error && (
               <p style={{ color: "var(--red)", marginTop: "1.25rem" }}>Reason: {record.error}</p>
@@ -118,6 +137,12 @@ export default function AuditStatusPage() {
               <div style={{ marginTop: "1.75rem" }}>
                 <Placard result={record.result} />
               </div>
+            )}
+
+            {record.status === "done" && record.result && record.result.scenarios.length === 0 && (
+              <p className="note" style={{ marginTop: "1rem" }}>
+                No scenarios produced a valid run — check that your endpoint is reachable and protocol-conformant.
+              </p>
             )}
           </div>
         )}
