@@ -1,0 +1,32 @@
+{
+  "name": "solverdict-web",
+  "version": "0.1.0",
+  "private": true,
+  "description": "SolVerdict SaaS — submit a Solana agent for a safety audit and view the verdict. Reuses the parent bench (scoring/scenarios/setups) via relative imports.",
+  "license": "Apache-2.0",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "test": "tsc --noEmit && tsx lib/placard-model.test.ts",
+    "worker": "tsx worker/run-audit.ts"
+  },
+  "dependencies": {
+    "@upstash/redis": "1.34.3",
+    "next": "14.2.35",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "20.14.10",
+    "@types/react": "18.3.3",
+    "@types/react-dom": "18.3.0",
+    "autoprefixer": "10.4.20",
+    "postcss": "8.4.47",
+    "tailwindcss": "3.4.13",
+    "tsx": "4.22.4",
+    "typescript": "5.9.3"
+  }
+}

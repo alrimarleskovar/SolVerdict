@@ -1,0 +1,384 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* SolVerdict SaaS — Solana-ecosystem visual identity, ported from docs/style.css.
+   Dark base, glass morphism, animated mesh gradient, brand purple/green. */
+:root {
+  --bg: #0a0a14;
+  --panel: #161b22;
+  --panel-2: #11151c;
+  --border: #30363d;
+  --text: #c9d1d9;
+  --text-strong: #e6edf3;
+  --muted: #8b949e;
+  --sol-purple: #9945ff;
+  --sol-green: #14f195;
+  --purple-soft: #bd8aff;
+  --accent: var(--purple-soft);
+  --divider-soft: rgba(153, 69, 255, 0.16);
+  --green: var(--sol-green);
+  --green-bg: rgba(20, 241, 149, 0.08);
+  --partial: var(--purple-soft);
+  --partial-bg: rgba(153, 69, 255, 0.12);
+  --red: #e0635e;
+  --red-bg: rgba(224, 99, 94, 0.1);
+  --incomplete: #a8b1bb;
+  --incomplete-bg: rgba(139, 148, 158, 0.12);
+  --glass-bg: rgba(20, 20, 30, 0.5);
+  --glass-border: rgba(153, 69, 255, 0.2);
+  --glass-border-hover: rgba(153, 69, 255, 0.5);
+  --grad: linear-gradient(90deg, var(--sol-purple), var(--sol-green));
+  --grad-bright: linear-gradient(90deg, var(--purple-soft), var(--sol-green));
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background-color: var(--bg);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='solNoise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23solNoise)' opacity='0.03'/%3E%3C/svg%3E");
+  color: var(--text);
+  font-family: var(--sans);
+  line-height: 1.6;
+  overflow-x: hidden;
+}
+
+/* thin Solana-gradient top border */
+body::before {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--grad);
+  opacity: 0.85;
+  z-index: 5;
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+}
+a:hover {
+  text-decoration: underline;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--mono);
+}
+
+/* --- animated mesh gradient background --- */
+.mesh {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+  opacity: 0.55;
+}
+.mesh::before,
+.mesh::after {
+  content: "";
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(55px);
+  will-change: transform;
+}
+.mesh::before {
+  width: 62vw;
+  height: 62vw;
+  left: -12vw;
+  top: -16vh;
+  background: radial-gradient(circle, rgba(153, 69, 255, 0.45), transparent 68%);
+  animation: meshA 30s ease-in-out infinite alternate;
+}
+.mesh::after {
+  width: 56vw;
+  height: 56vw;
+  right: -12vw;
+  bottom: -14vh;
+  background: radial-gradient(circle, rgba(20, 241, 149, 0.32), transparent 68%);
+  animation: meshB 36s ease-in-out infinite alternate;
+}
+@keyframes meshA {
+  from {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    transform: translate3d(7vw, 6vh, 0) scale(1.14);
+  }
+}
+@keyframes meshB {
+  from {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    transform: translate3d(-7vw, -5vh, 0) scale(1.1);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mesh::before,
+  .mesh::after {
+    animation: none;
+  }
+}
+
+.wrap {
+  position: relative;
+  z-index: 1;
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 0 1.25rem;
+}
+
+/* brand wordmark gradient */
+.sol {
+  background: var(--grad-bright);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+
+.logo {
+  width: 0.85em;
+  height: 0.85em;
+  vertical-align: -0.06em;
+  margin-right: 0.35rem;
+  flex-shrink: 0;
+}
+
+/* --- glass card --- */
+.glass {
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+@media (hover: hover) {
+  .glass-hover:hover {
+    border-color: var(--glass-border-hover);
+    box-shadow: inset 0 0 24px rgba(153, 69, 255, 0.1), 0 0 18px rgba(153, 69, 255, 0.12);
+    transform: translateY(-2px);
+  }
+}
+
+/* --- buttons --- */
+.btn {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 0.92rem;
+  padding: 0.6rem 1rem;
+  border-radius: 8px;
+  border: 1px solid rgba(153, 69, 255, 0.35);
+  background: rgba(153, 69, 255, 0.05);
+  color: var(--text-strong);
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+@media (hover: hover) {
+  .btn:hover {
+    background: rgba(153, 69, 255, 0.22);
+    border-color: var(--sol-purple);
+    box-shadow: 0 0 16px rgba(153, 69, 255, 0.25);
+    text-decoration: none;
+    transform: translateY(-1px);
+  }
+}
+.btn-primary {
+  background: linear-gradient(135deg, var(--sol-purple), var(--sol-green));
+  background-size: 160% 160%;
+  background-position: 0% 50%;
+  border-color: transparent;
+  color: #0a0a14;
+  font-weight: 700;
+  box-shadow: 0 4px 22px rgba(153, 69, 255, 0.35);
+  transition: background-position 0.25s ease, transform 0.2s ease, filter 0.2s ease, box-shadow 0.2s ease;
+}
+@media (hover: hover) {
+  .btn-primary:hover {
+    background-position: 100% 50%;
+    transform: translateY(-1px) scale(1.02);
+    filter: brightness(1.08);
+    box-shadow: 0 6px 30px rgba(153, 69, 255, 0.5), 0 0 18px rgba(20, 241, 149, 0.3);
+  }
+}
+.btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+  filter: none;
+}
+
+/* --- form controls --- */
+.field {
+  display: block;
+  width: 100%;
+  font-family: var(--sans);
+  font-size: 0.95rem;
+  color: var(--text-strong);
+  background: rgba(17, 21, 28, 0.7);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.65rem 0.8rem;
+}
+.field:focus {
+  outline: 2px solid var(--purple-soft);
+  outline-offset: 1px;
+  border-color: var(--sol-purple);
+}
+select.field {
+  appearance: none;
+}
+.label {
+  display: block;
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  color: var(--text-strong);
+  margin: 0 0 0.35rem;
+}
+.hint {
+  color: var(--muted);
+  font-size: 0.78rem;
+  margin-top: 0.3rem;
+}
+
+/* --- badge --- */
+.badge {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--partial);
+  border: 1px solid rgba(153, 69, 255, 0.5);
+  border-radius: 4px;
+  padding: 0.1rem 0.45rem;
+}
+
+code {
+  font-family: var(--mono);
+  font-size: 0.85em;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.15em 0.45em;
+}
+
+/* --- placard table (mirrors docs/style.css) --- */
+.table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  padding: 0.5rem;
+}
+table.placard {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 2px;
+  font-size: 0.9rem;
+  min-width: 560px;
+}
+table.placard caption {
+  text-align: left;
+  color: var(--muted);
+  font-size: 0.85rem;
+  padding: 0.4rem 0.4rem 0.7rem;
+}
+table.placard th,
+table.placard td {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.5rem 0.6rem;
+  text-align: center;
+  vertical-align: middle;
+}
+table.placard thead th {
+  background: rgba(22, 27, 34, 0.7);
+  font-family: var(--mono);
+  font-weight: 600;
+  color: var(--text-strong);
+  font-size: 0.82rem;
+}
+table.placard tbody th {
+  text-align: left;
+  background: rgba(17, 21, 28, 0.7);
+  font-family: var(--mono);
+  font-weight: 600;
+  color: var(--text-strong);
+  white-space: nowrap;
+}
+.cell {
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+.t-green {
+  background: var(--green-bg);
+  color: var(--green);
+  border-color: rgba(20, 241, 149, 0.3);
+}
+.t-yellow {
+  background: var(--partial-bg);
+  color: var(--partial);
+  border-color: rgba(153, 69, 255, 0.35);
+}
+.t-red {
+  background: var(--red-bg);
+  color: var(--red);
+  border-color: rgba(224, 99, 94, 0.3);
+}
+.t-incomplete {
+  background: var(--incomplete-bg);
+  color: var(--incomplete);
+  font-style: italic;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem 1.5rem;
+  margin: 1rem 0 0;
+  font-size: 0.82rem;
+  color: var(--muted);
+  font-family: var(--mono);
+}
+.legend span::before {
+  content: "";
+  display: inline-block;
+  width: 0.7em;
+  height: 0.7em;
+  border-radius: 2px;
+  margin-right: 0.4em;
+}
+.legend .lg::before {
+  background: var(--green);
+}
+.legend .ly::before {
+  background: var(--sol-purple);
+}
+.legend .lr::before {
+  background: var(--red);
+}
+.legend .li::before {
+  background: var(--incomplete);
+}
+
+.note {
+  color: var(--muted);
+  font-size: 0.88rem;
+}
