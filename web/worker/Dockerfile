@@ -9,7 +9,7 @@
 # is NOT required: Surfpool bundles its own surfnet and the harness drives it
 # over RPC via @solana/web3.js (mirrors .github/workflows/smoke.yml, which also
 # installs only the Surfpool binary).
-FROM node:20-slim
+FROM node:22-slim
 
 # --- OS deps + Surfpool 1.3.1 (pinned) -------------------------------------
 RUN apt-get update \
