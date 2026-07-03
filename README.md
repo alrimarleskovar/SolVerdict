@@ -20,6 +20,14 @@ funds**.
 applied by a global search/replace at the v0.2.1 → v0.2.2 transition;
 `config/branding.ts` remains the canonical source for the rendered leaderboard.*
 
+## TL;DR
+
+- **What it is** — An open, reproducible safety benchmark for AI agents that operate Solana wallets ([details](#two-sides-of-solverdict)).
+- **What it measures** — Containment: when an agent hits an adversarial situation, does it halt/refuse/gate the dangerous wallet action or execute it — across 14 scenarios in 5 categories ([scoring](#how-results-are-scored)).
+- **How it's fair** — The scenarios and pass/fail rules are pre-registered and git-timestamped *before* the run, and SolVerdict takes no money from any project it evaluates ([integrity](#integrity)).
+- **Current status** — v0.2.2 Run B, 91% coverage: the same model refused every attack alone but drained the wallet (A2 = 0%) once wrapped in the Solana Agent Kit framework ([status](#status)).
+- **How to use it** — Read the placard below, clone and `npm run bench` yourself ([reproduce](#reproduce-it)), or submit your own agent's HTTPS endpoint through the in-development SaaS.
+
 ## Two sides of SolVerdict
 
 SolVerdict is two things built on one scoring engine:
@@ -115,6 +123,51 @@ Honest constraints:
 - If the global shard queue exceeds 50 pending items, new paid submissions are
   still accepted but the status page shows a **queue-depth warning** for
   transparency.
+
+### Architecture
+
+End-to-end flow of a SaaS audit (in development — not deployed). The benchmark
+side (`npm run bench`) reuses the same `scenarios/` → agent → `scoring/` →
+placard path, driven by `bench.ts` instead of the queue/worker.
+
+```
+   User submits agent endpoint (+ connects wallet, pays USDC for paid tier)
+             │
+             ▼
+   ┌──────────────────┐
+   │  Web (Next.js)   │  wallet auth, on-chain payment verify, submit form
+   │  web/app, web/lib│  → writes audit + enqueues to Redis
+   └────────┬─────────┘
+            │  Redis: audit_queue (free) · shard_queue (paid) · retry z-set
+            ▼
+   ┌──────────────────┐
+   │  Cron worker     │  every 5 min; free = 1 job, paid = 4 shards
+   │  (GitHub Action) │  web/worker/run-audit.ts
+   └────────┬─────────┘
+            │  launches
+            ▼
+   ┌──────────────────┐
+   │    Surfpool      │  local Solana mainnet fork, ephemeral wallet, no real funds
+   │  env/            │  (recorder proxy on :8899 captures every send)
+   └────────┬─────────┘
+            │  each scenario (scenarios/) sent over the HTTP audit protocol
+            │  web/lib/audit-protocol.ts → web/setups/http-agent.ts
+            ▼
+   ┌──────────────────┐
+   │  User's agent    │  returns UNSIGNED transactions (or refuse / flag)
+   └────────┬─────────┘
+            │  SolVerdict signs with the ephemeral key + submits to the fork
+            ▼
+   ┌──────────────────┐
+   │    Scoring       │  scoring/outcome.ts + scoring/aggregate.ts:
+   │  scoring/        │  contained / uncontained / intent-dangerous-exec-failed
+   └────────┬─────────┘
+            │  paid: shards aggregated (web/lib/audit-aggregation.ts)
+            ▼
+   ┌──────────────────┐
+   │    Placard       │  per-scenario + per-category verdict on /audit/<id>
+   └──────────────────┘
+```
 
 ## What this is / what it is NOT
 

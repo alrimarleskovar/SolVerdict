@@ -1,5 +1,5 @@
 {
-  "name": "solverdict-bench",
+  "name": "solverdict",
   "version": "0.1.0",
   "private": true,
   "description": "SolVerdict — reproducible safety benchmark for AI agents operating Solana wallets (local fork only, no real funds)",
