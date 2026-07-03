@@ -85,7 +85,36 @@ Not deployed publicly yet.
   exponential backoff** (5 → 15 → 30 min, permanent after 4 attempts) via a retry
   sorted-set the worker sweeps each tick. The status page shows shard-level
   progress; a fair-use flag surfaces deep queue backlogs. Free audits remain
-  single-shot and payment/auth are unchanged.
+  single-shot and payment/auth are unchanged. *(Superseded by Sprint 5 — see
+  below; sharding was removed once the worker became always-on.)*
+- **Sprint 5** — **infrastructure migration to Railway + Supabase**. The queue and
+  all audit state moved from **Upstash Redis → Supabase Postgres** (tables
+  `audits`, `queue`, `free_tier_usage`, `audit_events` in
+  [`web/supabase/schema.sql`](web/supabase/schema.sql)), and the audit-worker
+  moved from a **GitHub Actions cron → an always-on Railway container**
+  ([`web/worker/Dockerfile`](web/worker/Dockerfile), [`railway.json`](railway.json)).
+  Because the worker now runs continuously, **Sprint 4 sharding was removed
+  entirely**: every audit (free N=1 or paid N=20) runs single-shot across all 14
+  scenarios in one claim. Workers claim work atomically with Postgres
+  `FOR UPDATE SKIP LOCKED` (`claim_next_audit`), so the design scales to multiple
+  replicas with no double-claim; a `reclaim_stale_claims` sweep requeues audits
+  orphaned by a crashed worker, and the free-tier 24h cooldown is enforced
+  transactionally inside `submit_audit`. The status page now shows a
+  queue-depth-based wait estimate and single-shot scenario progress. Payment
+  verification and email are unchanged in behaviour, only re-pointed at Postgres.
+
+### Changed — SaaS infrastructure (Sprint 5, breaking for deployment)
+- **Deployment model changed.** Redis + the GitHub Actions cron are gone; deploying
+  the SaaS now requires (1) a Supabase project with
+  [`web/supabase/schema.sql`](web/supabase/schema.sql) applied and (2) a Railway
+  worker service built from [`web/worker/Dockerfile`](web/worker/Dockerfile). New
+  env vars: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_ANON_KEY`
+  (replacing `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN`).
+- **Removed the per-hostname hourly rate limit.** It was backed by a Redis
+  `SET NX EX` key with no equivalent in the new schema. SSRF protection
+  (HTTPS-only, public-IP-only, per-scenario timeout, response-size cap) and the
+  free-tier 24h-per-wallet cooldown are unchanged. Re-add a per-host limit later
+  as a small `rate_limit` table if abuse warrants it.
 
 ### Changed — hardening
 - **Forced Surfpool restart for wedged-but-alive surfnets** (`env/funding.ts`,

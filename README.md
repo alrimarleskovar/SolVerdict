@@ -73,27 +73,32 @@ transactions max) live in
 Built on top of the benchmark, tracked in [`web/`](web). Still **in development
 and not deployed publicly**:
 
-- ✅ **Sprint 1** — Next.js 14 foundation (submit form, status page), Upstash
-  Redis queue, and the audit-worker skeleton (GitHub Action).
+- ✅ **Sprint 1** — Next.js 14 foundation (submit form, status page), the queue,
+  and the audit-worker skeleton.
 - ✅ **Sprint 2** — the HTTP audit protocol, SSRF hardening (HTTPS + public-IP
-  only, DNS-rebinding re-check, per-host rate limit, per-scenario timeout,
-  100 KB response cap), the unsigned-transaction custody model, a reference
-  implementation, and unit tests.
+  only, DNS-rebinding re-check, per-scenario timeout, 100 KB response cap), the
+  unsigned-transaction custody model, a reference implementation, and unit tests.
 - ✅ **Sprint 3** — wallet authentication (`@solana/wallet-adapter`; Phantom,
   Solflare, Backpack); a **Free** (N=1) vs **Paid** (N=20, 10 USDC) tier model;
   **on-chain USDC payment verification** (amount + destination + memo = audit id);
-  **cron auto-trigger** every 5 minutes (replacing manual dispatch); and Resend
-  **email notifications** on completion.
-- ✅ **Sprint 4** — **sharded, resumable paid audits**: an N=20 audit (280 runs,
-  too large for one job) is split into **4 shards** (4-4-4-2 scenarios), one shard
-  processed per cron tick, with **exponential-backoff retries** (5/15/30/60 min,
-  4 attempts max), a retry sweep, and safe cross-shard aggregation that preserves
-  the three-outcome scoring via the parent `scoreSetup`.
-- ⏳ **Sprint 5+ (optional refinements)** — a dedicated long-running worker,
-  paid-RPC upgrade, wallet-adapter bundle slimming, refund/credit automation for
-  partial paid runs.
-- **Deployment: not yet public.** Pending env configuration in Vercel + GitHub
-  Actions secrets ([`.github/workflows/audit-worker.yml`](.github/workflows/audit-worker.yml)).
+  auto-trigger of queued audits; and Resend **email notifications** on completion.
+- ✅ **Sprint 4** — sharded, resumable paid audits (4 shards per cron tick with
+  exponential-backoff retries). *Superseded by Sprint 5 — sharding was removed
+  once the worker became always-on.*
+- ✅ **Sprint 5** — **infrastructure migration**: the queue and audit state moved
+  **Upstash Redis → Supabase Postgres**, and the worker moved **GitHub Actions
+  cron → an always-on Railway container**. With a continuous worker, every audit
+  runs **single-shot** (free N=1 or paid N=20, all 14 scenarios in one claim) —
+  no sharding. Workers claim atomically via Postgres `FOR UPDATE SKIP LOCKED`, so
+  the design scales to multiple replicas with no double-claim; a stale-claim sweep
+  requeues audits orphaned by a crashed worker.
+- ⏳ **Sprint 6+ (optional refinements)** — paid-RPC upgrade, wallet-adapter bundle
+  slimming, refund/credit automation, multi-replica autoscaling, RLS + anon-key
+  client reads.
+- **Deployment: not yet public.** Pending a Supabase project
+  ([`web/supabase/schema.sql`](web/supabase/schema.sql)) + a Railway worker
+  ([`web/worker/Dockerfile`](web/worker/Dockerfile), [`railway.json`](railway.json))
+  + env configuration in Vercel/Railway.
 
 See [`web/README.md`](web/README.md) for the full SaaS architecture and dev setup.
 
@@ -104,25 +109,26 @@ The intended user flow (in development — not live):
 1. **Connect a Solana wallet** (Phantom / Solflare / Backpack). The wallet
    identifies the submission and, for a paid audit, signs the USDC payment.
 2. **Free tier** — one audit per wallet per 24h, **N=1** per scenario; a quick
-   protocol-conformance + obvious-failure check. Runs single-shot in one cron job.
+   protocol-conformance + obvious-failure check.
 3. **Paid tier** — **10 USDC** sent to the configured payment wallet with the
-   **audit id as the transaction memo**, then **N=20** per scenario. The worker
+   **audit id as the transaction memo**, then **N=20** per scenario. The API
    verifies the payment on-chain (reads a Solana RPC: amount + destination +
-   memo) before queueing.
-4. **Sharded execution (paid)** — the audit runs as 4 shards, one per 5-minute
-   cron tick, so a healthy paid audit completes in **~20–25 min** end-to-end; a
-   completed shard enqueues the next, and failed shards retry with backoff.
-5. **Progress** is visible per shard on `/audit/<id>`; an optional contact email
-   is notified on completion.
+   memo) before enqueueing.
+4. **Execution** — the always-on worker claims the next queued audit atomically
+   and runs it **single-shot**: all 14 scenarios at the audit's N in one pass on a
+   fresh Surfpool fork. A free audit finishes in a few minutes; a paid N=20 audit
+   in roughly 5–10 minutes.
+5. **Progress** is visible on `/audit/<id>` — a queue-depth wait estimate while
+   queued, then live per-scenario outcomes while running; an optional contact
+   email is notified on completion.
 
 Honest constraints:
 
-- A **free** audit (N=1) runs comfortably inside a single ~15-minute job.
-- A **paid** audit spans **4 cron ticks** (~20–25 min under normal load; longer
-  if shards retry).
-- If the global shard queue exceeds 50 pending items, new paid submissions are
-  still accepted but the status page shows a **queue-depth warning** for
-  transparency.
+- Audits run **one at a time per worker**. Wait time is driven by queue depth
+  (shown on the status page); running more workers is a config change — each
+  claims different audits with no coordination (Postgres `SKIP LOCKED`).
+- A worker crash mid-audit is self-healing: the audit's claim goes stale and the
+  next maintenance sweep requeues it.
 
 ### Architecture
 
@@ -136,13 +142,14 @@ placard path, driven by `bench.ts` instead of the queue/worker.
              ▼
    ┌──────────────────┐
    │  Web (Next.js)   │  wallet auth, on-chain payment verify, submit form
-   │  web/app, web/lib│  → writes audit + enqueues to Redis
+   │  web/app, web/lib│  → submit_audit / enqueue_paid (Supabase RPC)
+   │  (Vercel)        │
    └────────┬─────────┘
-            │  Redis: audit_queue (free) · shard_queue (paid) · retry z-set
+            │  Supabase Postgres: audits · queue · free_tier_usage · audit_events
             ▼
    ┌──────────────────┐
-   │  Cron worker     │  every 5 min; free = 1 job, paid = 4 shards
-   │  (GitHub Action) │  web/worker/run-audit.ts
+   │  Always-on worker│  claim_next_audit (FOR UPDATE SKIP LOCKED); one audit
+   │  (Railway)       │  at a time, single-shot at N; web/worker/run-audit.ts
    └────────┬─────────┘
             │  launches
             ▼
@@ -162,7 +169,7 @@ placard path, driven by `bench.ts` instead of the queue/worker.
    │    Scoring       │  scoring/outcome.ts + scoring/aggregate.ts:
    │  scoring/        │  contained / uncontained / intent-dangerous-exec-failed
    └────────┬─────────┘
-            │  paid: shards aggregated (web/lib/audit-aggregation.ts)
+            │  scoreSetup → results jsonb written back to audits
             ▼
    ┌──────────────────┐
    │    Placard       │  per-scenario + per-category verdict on /audit/<id>
@@ -331,10 +338,12 @@ npm install
 npm run dev          # Next.js dev server on http://localhost:3000
 ```
 
-The submit → status flow needs an Upstash Redis database. Full instructions —
-protocol, worker, deployment, and the safety envelope — are in
-[`web/README.md`](web/README.md). This is in development and not deployed publicly
-(see "SaaS status" above).
+The submit → status flow needs a Supabase project (apply
+[`web/supabase/schema.sql`](web/supabase/schema.sql)); the worker
+(`npm run worker`) runs it against the local Surfpool. Full instructions —
+protocol, worker, deployment (Supabase + Railway), and the safety envelope — are
+in [`web/README.md`](web/README.md). This is in development and not deployed
+publicly (see "SaaS status" above).
 
 ## Safety model (why this is safe to run)
 

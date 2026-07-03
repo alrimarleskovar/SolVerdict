@@ -47,17 +47,7 @@ export interface AuditForm {
   email?: string;
 }
 
-// ---------------------------------------------------------------------------
-// Sharded paid audits (Sprint 4)
-// ---------------------------------------------------------------------------
-
-export type ShardStatus = "queued" | "running" | "done" | "failed" | "retrying";
-
-/**
- * A per-scenario tally produced by a completed shard. Compact enough to persist
- * inside the audit record; aggregation expands these back into scoring records
- * (lib/audit-aggregation.ts) so the parent scoreSetup produces the final board.
- */
+/** A per-scenario outcome tally produced by the worker while benching. */
 export interface ScenarioResult {
   scenarioId: string;
   category: string;
@@ -66,27 +56,6 @@ export interface ScenarioResult {
   contained: number;
   uncontained: number;
   intentDangerousExecFailed: number;
-}
-
-/**
- * One slice of a paid audit — a small group of scenarios run at full N in a
- * single cron tick, retried independently with exponential backoff.
- */
-export interface Shard {
-  shardId: number;
-  scenarios: string[];
-  /** Runs per scenario (20 for paid). */
-  N: number;
-  status: ShardStatus;
-  /** How many times execution has been attempted (incremented at run start). */
-  attempts: number;
-  /** Epoch ms the shard becomes eligible for retry (status "retrying"). */
-  nextAttemptAt?: number;
-  /** Per-scenario tallies once status === "done". */
-  results?: ScenarioResult[];
-  startedAt?: number;
-  finishedAt?: number;
-  error?: string;
 }
 
 /** One scenario's live outcome, streamed into the record as the worker runs. */
@@ -131,15 +100,16 @@ export interface AuditResult {
   versions?: Record<string, string>;
 }
 
-/** The full audit record as stored at `audit:<id>` in Redis. */
+/**
+ * The full audit record. Backed by the `audits` table in Supabase (Sprint 5);
+ * the API and worker map DB rows to this shape via lib/supabase.ts rowToRecord.
+ */
 export interface AuditRecord {
   id: string;
   status: AuditStatus;
   createdAt: string;
   updatedAt: string;
   form: AuditForm;
-  /** True once the submitter checked the protocol-conformance box. */
-  protocolConfirmed: boolean;
   /** Wallet-adapter pubkey that authenticated the submission (Sprint 3). */
   walletPubkey: string;
   /** free (N=1) or paid (N=20). */
@@ -148,36 +118,16 @@ export interface AuditRecord {
   n: number;
   /** Present for paid audits. */
   payment?: PaymentInfo;
-  /** Shard plan — present only for paid audits (Sprint 4). Free audits stay single-shot. */
-  shards?: Shard[];
-  /** Set at shard-creation time when shard_queue depth exceeds the fair-use threshold. */
-  queueDepthWarning?: boolean;
+  /**
+   * Number of unclaimed audits ahead of this one in the queue, attached by the
+   * GET route while status is "queued" so the status page can show a wait
+   * estimate. Not persisted — computed per read.
+   */
+  queueDepth?: number;
   /** Live progress while status === "running". */
   progress?: AuditProgress;
   /** Populated once status === "done". */
   result: AuditResult | null;
   /** Populated once status === "failed"/"payment_failed". */
   error?: string;
-}
-
-// ---------------------------------------------------------------------------
-// Shard helpers (pure — operate on a record)
-// ---------------------------------------------------------------------------
-
-/** Sum of scenarios across shards that have finished successfully. */
-export function totalScenariosCovered(rec: AuditRecord): number {
-  return (rec.shards ?? [])
-    .filter((s) => s.status === "done")
-    .reduce((acc, s) => acc + s.scenarios.length, 0);
-}
-
-/** True when every shard has completed successfully. */
-export function isFullyComplete(rec: AuditRecord): boolean {
-  const shards = rec.shards ?? [];
-  return shards.length > 0 && shards.every((s) => s.status === "done");
-}
-
-/** True when any shard has exhausted its retries. */
-export function hasPermanentFailure(rec: AuditRecord): boolean {
-  return (rec.shards ?? []).some((s) => s.status === "failed");
 }

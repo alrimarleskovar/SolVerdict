@@ -1,26 +1,23 @@
 // SPDX-License-Identifier: Apache-2.0
 /**
- * Payment → queue state machine (Sprint 3), shared by the `/paid` and
- * `/verify-payment` API routes and the cron worker so the logic lives in one
- * place.
+ * Payment → queue state machine (Sprint 3, migrated to Supabase in Sprint 5),
+ * shared by the `/paid` and `/verify-payment` API routes and the worker so the
+ * logic lives in one place.
  *
- *   awaiting_payment --(valid tx)--> queued (enqueued for the worker)
+ *   awaiting_payment --(valid tx)--> queued (row enqueued via enqueue_paid RPC)
  *   awaiting_payment --(stuck >5m, no/invalid tx)--> payment_failed (+ email)
  *
  * Env: SOLVERDICT_PAYMENT_WALLET (server) / NEXT_PUBLIC_SOLVERDICT_PAYMENT_WALLET,
  *      SOLANA_RPC_URL (default mainnet-beta public).
  */
+import { supabaseAdmin, type AuditRow } from "./supabase";
 import {
-  redis,
-  auditKey,
-  PAYMENT_PENDING_KEY,
-  SHARD_QUEUE_KEY,
-  SHARD_QUEUE_WARN_DEPTH,
-} from "./redis";
-import { verifyPayment, PAYMENT_STUCK_MS, type RpcLike } from "./payment";
+  verifyPayment,
+  PAYMENT_STUCK_MS,
+  PAID_AMOUNT_USDC,
+  type RpcLike,
+} from "./payment";
 import { sendAuditNotification } from "./notify";
-import { buildShards, shardToken } from "./shards";
-import { SCENARIO_IDS } from "./scenario-ids";
 import type { AuditRecord } from "./types";
 
 export function paymentWallet(): string {
@@ -33,9 +30,10 @@ export function solanaRpcUrl(): string {
   return process.env.SOLANA_RPC_URL ?? "https://api.mainnet-beta.solana.com";
 }
 
-async function save(rec: AuditRecord): Promise<void> {
-  rec.updatedAt = new Date().toISOString();
-  await redis().set(auditKey(rec.id), rec);
+async function fetchRow(id: string): Promise<AuditRow | null> {
+  const { data, error } = await supabaseAdmin().from("audits").select("*").eq("id", id).maybeSingle();
+  if (error) throw new Error(error.message);
+  return (data as AuditRow | null) ?? null;
 }
 
 export interface VerifyOutcome {
@@ -46,109 +44,89 @@ export interface VerifyOutcome {
 
 /**
  * Verify a payment for a paid audit and, on success, move it to `queued` and
- * enqueue it. Idempotent: an already-queued/running/done audit is returned as-is.
+ * enqueue it (atomic `enqueue_paid` RPC). Idempotent: an already
+ * queued/running/done audit is returned as-is.
  */
 export async function verifyAndQueue(
   id: string,
   signature?: string,
   opts: { connection?: RpcLike; now?: number } = {},
 ): Promise<VerifyOutcome> {
-  const rec = await redis().get<AuditRecord>(auditKey(id));
-  if (!rec) return { ok: false, status: "failed", reason: "audit not found" };
-  if (rec.tier !== "paid") return { ok: false, status: rec.status, reason: "not a paid audit" };
-  if (rec.status === "queued" || rec.status === "running" || rec.status === "done") {
-    return { ok: true, status: rec.status };
+  const row = await fetchRow(id);
+  if (!row) return { ok: false, status: "failed", reason: "audit not found" };
+  if (row.tier !== "paid") return { ok: false, status: row.status, reason: "not a paid audit" };
+  if (row.status === "queued" || row.status === "running" || row.status === "done") {
+    return { ok: true, status: row.status };
   }
-  const sig = signature ?? rec.payment?.signature;
-  if (!sig) return { ok: false, status: rec.status, reason: "no payment signature provided" };
-  if (!rec.payment) return { ok: false, status: rec.status, reason: "missing payment info" };
 
-  rec.payment.signature = sig;
+  const sig = signature ?? row.payment_signature ?? undefined;
+  if (!sig) return { ok: false, status: row.status, reason: "no payment signature provided" };
 
   const result = await verifyPayment({
     signature: sig,
-    expectedAmountUsdc: rec.payment.expectedUsdc,
+    expectedAmountUsdc: PAID_AMOUNT_USDC,
     expectedMemo: id,
-    expectedDestination: rec.payment.destination,
-    expectedSigner: rec.walletPubkey,
+    expectedDestination: paymentWallet(),
+    expectedSigner: row.wallet,
     connection: opts.connection,
     rpcUrl: solanaRpcUrl(),
     now: opts.now,
   });
 
   if (!result.valid) {
-    rec.payment.reason = result.reason;
-    await save(rec);
-    return { ok: false, status: rec.status, reason: result.reason };
+    // Record the signature so a later stuck-payment sweep can retry it, but keep
+    // the audit awaiting_payment (transient reasons are returned, not persisted).
+    await supabaseAdmin()
+      .from("audits")
+      .update({ payment_signature: sig, updated_at: new Date().toISOString() })
+      .eq("id", id);
+    return { ok: false, status: row.status, reason: result.reason };
   }
 
-  rec.payment.verifiedAt = new Date().toISOString();
-  rec.payment.actualUsdc = result.actualAmount ?? undefined;
-  rec.payment.reason = undefined;
-  rec.status = "queued";
-
-  // Sprint 4: split the paid audit into shards and enqueue ONLY the first shard.
-  // Each completed shard enqueues the next (worker); free audits still use
-  // audit_queue and are untouched by this path.
-  rec.shards = buildShards([...SCENARIO_IDS], rec.n);
-
-  // Fair-use: accept but flag when the shard backlog is deep (transparency).
-  try {
-    const depth = await redis().llen(SHARD_QUEUE_KEY);
-    if (depth > SHARD_QUEUE_WARN_DEPTH) {
-      rec.queueDepthWarning = true;
-      console.warn(`[payment] shard_queue depth ${depth} > ${SHARD_QUEUE_WARN_DEPTH} — flagging ${id}`);
-    }
-  } catch {
-    /* depth is advisory only */
-  }
-
-  await save(rec);
-  await redis().lpush(SHARD_QUEUE_KEY, shardToken(id, rec.shards[0].shardId));
-  await redis().lrem(PAYMENT_PENDING_KEY, 0, id);
-  return { ok: true, status: "queued" };
+  // Atomic: flip to queued + insert into queue + emit event, idempotently.
+  const { data, error } = await supabaseAdmin().rpc("enqueue_paid", { p_id: id, p_signature: sig });
+  if (error) throw new Error(error.message);
+  return { ok: true, status: (data as AuditRecord["status"]) ?? "queued" };
 }
 
 /**
- * Cron path: for a paid audit stuck in `awaiting_payment` past the grace window,
- * try one more on-chain check; if still unpaid, mark `payment_failed` and notify.
+ * Sweep path: for a paid audit stuck in `awaiting_payment` past the grace
+ * window, try one more on-chain check; if still unpaid, mark `payment_failed`
+ * and notify.
  */
 export async function resolveStuckPayment(
   id: string,
   opts: { connection?: RpcLike; now?: number } = {},
 ): Promise<VerifyOutcome> {
   const now = opts.now ?? Date.now();
-  const rec = await redis().get<AuditRecord>(auditKey(id));
-  if (!rec) {
-    await redis().lrem(PAYMENT_PENDING_KEY, 0, id);
-    return { ok: false, status: "failed", reason: "audit not found" };
-  }
-  if (rec.status !== "awaiting_payment") {
-    // Already resolved elsewhere — drop it from the pending index.
-    await redis().lrem(PAYMENT_PENDING_KEY, 0, id);
-    return { ok: true, status: rec.status };
-  }
+  const row = await fetchRow(id);
+  if (!row) return { ok: false, status: "failed", reason: "audit not found" };
+  if (row.status !== "awaiting_payment") return { ok: true, status: row.status };
 
-  const ageMs = now - new Date(rec.createdAt).getTime();
+  const ageMs = now - new Date(row.created_at).getTime();
   if (ageMs < PAYMENT_STUCK_MS) {
-    return { ok: false, status: rec.status, reason: "not stuck yet" };
+    return { ok: false, status: row.status, reason: "not stuck yet" };
   }
 
   // Give a last verification chance if a signature was reported.
-  if (rec.payment?.signature) {
-    const outcome = await verifyAndQueue(id, rec.payment.signature, opts);
+  if (row.payment_signature) {
+    const outcome = await verifyAndQueue(id, row.payment_signature, opts);
     if (outcome.ok) return outcome;
   }
 
-  rec.status = "payment_failed";
-  rec.error = rec.payment?.reason ?? "payment not received within the grace window";
-  await save(rec);
-  await redis().lrem(PAYMENT_PENDING_KEY, 0, id);
+  const reason = "payment not received within the grace window";
+  await supabaseAdmin()
+    .from("audits")
+    .update({ status: "payment_failed", error: reason, updated_at: new Date().toISOString() })
+    .eq("id", id);
+  await supabaseAdmin()
+    .from("audit_events")
+    .insert({ audit_id: id, event_type: "payment_failed", payload: { reason } });
   await sendAuditNotification({
-    to: rec.form.email,
+    to: row.email ?? undefined,
     auditId: id,
-    endpoint: rec.form.endpoint,
+    endpoint: row.endpoint,
     status: "payment_failed",
   });
-  return { ok: false, status: "payment_failed", reason: rec.error };
+  return { ok: false, status: "payment_failed", reason };
 }

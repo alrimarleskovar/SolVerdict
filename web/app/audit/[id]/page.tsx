@@ -31,20 +31,15 @@ const OUTCOME_ICON: Record<string, string> = {
   errored: "⚪",
 };
 
-const SHARD_ICON: Record<string, string> = {
-  queued: "⏳",
-  running: "▶️",
-  done: "🟢",
-  failed: "🔴",
-  retrying: "🔁",
-};
-
 const POLLING_STATUSES: AuditStatus[] = ["awaiting_payment", "queued", "running"];
 
-function etaLabel(nextAttemptAt?: number): string {
-  if (!nextAttemptAt) return "";
-  const minutes = Math.max(0, Math.round((nextAttemptAt - Date.now()) / 60000));
-  return minutes === 0 ? "shortly" : `in ~${minutes}m`;
+/** Rough wait estimate from how many unclaimed audits sit ahead in the queue. */
+function waitLabel(queueDepth: number | undefined, paid: boolean): string {
+  if (queueDepth === undefined) return "";
+  const perAudit = paid ? 8 : 2; // ~minutes: paid N=20 ≈ 8m, free N=1 ≈ 2m
+  if (queueDepth === 0) return "you're next — starting shortly";
+  const mins = queueDepth * perAudit;
+  return `${queueDepth} audit${queueDepth === 1 ? "" : "s"} ahead of you · ~${mins}m estimated wait`;
 }
 
 export default function AuditStatusPage() {
@@ -87,8 +82,6 @@ export default function AuditStatusPage() {
   const meta = record ? STATUS_META[record.status] : null;
   const progress = record?.progress;
   const paid = record?.tier === "paid";
-  const shards = record?.shards ?? [];
-  const shardsDone = shards.filter((s) => s.status === "done").length;
   const paymentVerified =
     record && (record.payment?.verifiedAt || ["queued", "running", "done"].includes(record.status));
 
@@ -161,72 +154,15 @@ export default function AuditStatusPage() {
               framework: <strong>{record.form.framework}</strong> · model: <strong>{record.form.model}</strong>
             </p>
 
-            {/* Sharded progress (paid tier) */}
-            {paid && shards.length > 0 && (
-              <div style={{ marginTop: "1.5rem" }}>
-                {record.queueDepthWarning && (
-                  <p className="note" style={{ color: "var(--purple-soft)", margin: "0 0 0.5rem" }}>
-                    ⚠️ High queue depth right now — your shards may take longer than usual to run.
-                  </p>
-                )}
-                <p className="note" style={{ marginBottom: "0.4rem" }}>
-                  Shards: {shardsDone} of {shards.length} done
-                </p>
-                <div
-                  style={{
-                    height: "6px",
-                    background: "var(--border)",
-                    borderRadius: "3px",
-                    overflow: "hidden",
-                    marginBottom: "0.75rem",
-                  }}
-                >
-                  <div
-                    style={{
-                      height: "100%",
-                      width: `${(shardsDone / shards.length) * 100}%`,
-                      background: "var(--sol-green)",
-                      transition: "width 0.3s ease",
-                    }}
-                  />
-                </div>
-                <div style={{ display: "grid", gap: "0.4rem" }}>
-                  {shards.map((s) => (
-                    <div
-                      key={s.shardId}
-                      className="cell"
-                      style={{
-                        display: "flex",
-                        gap: "0.6rem",
-                        alignItems: "baseline",
-                        flexWrap: "wrap",
-                        border: "1px solid var(--border)",
-                        borderRadius: "6px",
-                        padding: "0.4rem 0.6rem",
-                        fontSize: "0.8rem",
-                      }}
-                    >
-                      <strong style={{ color: "var(--text-strong)" }}>
-                        {SHARD_ICON[s.status] ?? "•"} Shard {s.shardId}/{shards.length}
-                      </strong>
-                      <span style={{ color: "var(--muted)" }}>{s.scenarios.join(", ")}</span>
-                      {s.status === "running" && <span style={{ color: "var(--sol-green)" }}>running…</span>}
-                      {s.status === "retrying" && (
-                        <span style={{ color: "var(--purple-soft)" }}>
-                          retry {etaLabel(s.nextAttemptAt)} (attempt {s.attempts})
-                        </span>
-                      )}
-                      {s.status === "failed" && (
-                        <span style={{ color: "var(--red)" }}>failed: {s.error ?? "max retries exhausted"}</span>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
+            {/* Queue wait estimate */}
+            {record.status === "queued" && (
+              <p className="note" style={{ marginTop: "1.25rem" }}>
+                ⏳ In the queue{record.queueDepth !== undefined ? ` — ${waitLabel(record.queueDepth, paid)}` : "…"}
+              </p>
             )}
 
-            {/* Live per-scenario progress (free tier single-shot) */}
-            {record.status === "running" && !paid && progress && (
+            {/* Live per-scenario progress (single-shot, both tiers) */}
+            {record.status === "running" && progress && (
               <div style={{ marginTop: "1.5rem" }}>
                 <p className="note" style={{ marginBottom: "0.5rem" }}>
                   {progress.current
@@ -257,14 +193,9 @@ export default function AuditStatusPage() {
               <p style={{ color: "var(--red)", marginTop: "1.25rem" }}>Reason: {record.error}</p>
             )}
 
-            {/* Placard for a completed audit — or a partial one that failed after some shards scored. */}
-            {(record.status === "done" || record.status === "failed") && record.result && (
+            {/* Placard for a completed audit. */}
+            {record.status === "done" && record.result && (
               <div style={{ marginTop: "1.75rem" }}>
-                {record.status === "failed" && (
-                  <p className="note" style={{ marginBottom: "0.75rem", color: "var(--purple-soft)" }}>
-                    Partial result — some shards did not complete. Scores below cover only the scenarios that ran.
-                  </p>
-                )}
                 <Placard result={record.result} />
               </div>
             )}

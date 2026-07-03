@@ -2,19 +2,15 @@
 import { NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 import { PublicKey } from "@solana/web3.js";
-import { redis, auditKey, QUEUE_KEY, freeUsedKey, FREE_TTL_S, PAYMENT_PENDING_KEY } from "../../../../lib/redis";
+import { supabaseAdmin } from "../../../../lib/supabase";
 import { validateSubmission } from "../../../../lib/submission";
 import { assertPublicHttpsUrl, SsrfError } from "../../../../lib/ssrf";
 import { PAID_AMOUNT_USDC, USDC_MINT } from "../../../../lib/payment";
 import { paymentWallet } from "../../../../lib/payment-flow";
-import type { AuditRecord, AuditTier } from "../../../../lib/types";
+import type { AuditTier } from "../../../../lib/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-/** Max 1 audit per hostname per hour (SSRF/abuse control). */
-const RATE_LIMIT_TTL_S = 3600;
-const rateKey = (host: string) => `ratelimit:host:${host}`;
 
 function validWalletPubkey(v: unknown): string | null {
   if (typeof v !== "string") return null;
@@ -48,11 +44,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ errors: ["tier must be 'free' or 'paid'"] }, { status: 400 });
   }
 
-  // SSRF guard: resolve DNS and reject private/loopback targets BEFORE enqueue.
-  let host: string;
+  // SSRF guard: resolve DNS and reject private/loopback targets BEFORE insert.
   try {
-    const target = await assertPublicHttpsUrl(value.endpoint);
-    host = target.hostname.toLowerCase();
+    await assertPublicHttpsUrl(value.endpoint);
   } catch (err) {
     if (err instanceof SsrfError) {
       return NextResponse.json({ errors: [`endpoint rejected: ${err.message}`] }, { status: 400 });
@@ -60,80 +54,51 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "endpoint validation failed" }, { status: 400 });
   }
 
-  // Rate limit per hostname.
-  try {
-    const acquired = await redis().set(rateKey(host), new Date().toISOString(), { nx: true, ex: RATE_LIMIT_TTL_S });
-    if (acquired === null) {
-      return NextResponse.json(
-        { errors: [`rate limited: only one audit per hour per host (${host})`] },
-        { status: 429 },
-      );
+  if (tier === "paid") {
+    // Confirm payment is configured before creating an awaiting_payment audit.
+    try {
+      paymentWallet();
+    } catch {
+      return NextResponse.json({ error: "payment is not configured on this server" }, { status: 503 });
     }
-  } catch (err) {
-    return NextResponse.json(
-      { error: `rate-limit check failed: ${err instanceof Error ? err.message : String(err)}` },
-      { status: 502 },
-    );
   }
 
   const id = randomUUID();
-  const now = new Date().toISOString();
-  const base: Omit<AuditRecord, "status" | "n" | "payment"> = {
-    id,
-    createdAt: now,
-    updatedAt: now,
-    form: { endpoint: value.endpoint, framework: value.framework, model: value.model, email: value.email },
-    protocolConfirmed: value.protocolConfirmed,
-    walletPubkey,
-    tier,
-    result: null,
-  };
+  const n = tier === "paid" ? 20 : 1;
 
-  if (tier === "free") {
-    // One free audit per wallet per 24h (atomic set-if-absent).
-    try {
-      const acquired = await redis().set(freeUsedKey(walletPubkey), now, { nx: true, ex: FREE_TTL_S });
-      if (acquired === null) {
-        return NextResponse.json(
-          { errors: ["free tier is limited to one audit per wallet per 24h — use the paid tier for another run"] },
-          { status: 429 },
-        );
-      }
-    } catch (err) {
-      return NextResponse.json({ error: `free-tier check failed: ${String(err)}` }, { status: 502 });
-    }
-
-    const record: AuditRecord = { ...base, status: "queued", n: 1 };
-    try {
-      await redis().set(auditKey(id), record);
-      await redis().lpush(QUEUE_KEY, id);
-    } catch (err) {
-      return NextResponse.json({ error: `Could not queue audit: ${String(err)}` }, { status: 502 });
-    }
-    return NextResponse.json({ auditId: id, tier, status: "queued" }, { status: 201 });
-  }
-
-  // Paid: hold for payment, do NOT enqueue until verified on-chain.
-  let destination: string;
+  // submit_audit inserts the audit and — for the free tier — atomically enforces
+  // the 24h-per-wallet cooldown and enqueues, all in one transaction.
+  let outcome: string;
   try {
-    destination = paymentWallet();
-  } catch {
-    return NextResponse.json({ error: "payment is not configured on this server" }, { status: 503 });
-  }
-
-  const record: AuditRecord = {
-    ...base,
-    status: "awaiting_payment",
-    n: 20,
-    payment: { expectedUsdc: PAID_AMOUNT_USDC, destination },
-  };
-  try {
-    await redis().set(auditKey(id), record);
-    await redis().lpush(PAYMENT_PENDING_KEY, id);
+    const { data, error } = await supabaseAdmin().rpc("submit_audit", {
+      p_id: id,
+      p_wallet: walletPubkey,
+      p_endpoint: value.endpoint,
+      p_framework: value.framework,
+      p_model: value.model,
+      p_email: value.email ?? null,
+      p_tier: tier,
+      p_n: n,
+    });
+    if (error) throw new Error(error.message);
+    outcome = data as string;
   } catch (err) {
     return NextResponse.json({ error: `Could not create audit: ${String(err)}` }, { status: 502 });
   }
 
+  if (outcome === "free_limit") {
+    return NextResponse.json(
+      { errors: ["free tier is limited to one audit per wallet per 24h — use the paid tier for another run"] },
+      { status: 429 },
+    );
+  }
+
+  if (tier === "free") {
+    return NextResponse.json({ auditId: id, tier, status: "queued" }, { status: 201 });
+  }
+
+  // Paid: created as awaiting_payment; the client pays then calls /paid.
+  const destination = paymentWallet();
   return NextResponse.json(
     {
       auditId: id,

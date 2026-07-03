@@ -10,7 +10,7 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "test": "tsc --noEmit && tsx lib/placard-model.test.ts && tsx lib/audit-protocol.test.ts && tsx lib/payment.test.ts && tsx lib/notify.test.ts && tsx lib/backoff.test.ts && tsx lib/shards.test.ts && tsx lib/audit-aggregation.test.ts && tsx setups/http-agent.test.ts",
+    "test": "tsc --noEmit && tsx lib/placard-model.test.ts && tsx lib/audit-protocol.test.ts && tsx lib/payment.test.ts && tsx lib/notify.test.ts && tsx lib/supabase.test.ts && tsx worker/queue-claim.test.ts && tsx setups/http-agent.test.ts",
     "worker": "tsx worker/run-audit.ts"
   },
   "dependencies": {
@@ -20,7 +20,7 @@
     "@solana/wallet-adapter-react-ui": "0.9.39",
     "@solana/wallet-adapter-wallets": "0.19.37",
     "@solana/web3.js": "1.98.4",
-    "@upstash/redis": "1.34.3",
+    "@supabase/supabase-js": "^2.110.0",
     "buffer": "6.0.3",
     "next": "14.2.35",
     "react": "18.3.1",

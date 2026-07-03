@@ -1,0 +1,9 @@
+# Keep the build context lean and avoid copying host-built artifacts into the
+# image (deps are installed fresh inside the Dockerfile).
+node_modules
+web/node_modules
+web/.next
+.git
+runs
+report/*.json
+*.log
