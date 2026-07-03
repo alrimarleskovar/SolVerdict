@@ -58,6 +58,35 @@ tooling, hardening, and documentation built on top of the v0.2.2 results.
   `npm install` + Surfpool 1.3.1 install + `npm test` + `npm run bench:smoke`
   (deterministic `selftest-scripted`, no API keys). Fails the PR on any error.
 
+### Added — SaaS (`web/`)
+An audit-as-a-service product built on top of the benchmark. It reuses the parent
+`env/`, `scenarios/`, and `scoring/` and does NOT change the v0.2.2 methodology —
+user audits will be formalized as a new "user-endpoint" setup category in v0.3.
+Not deployed publicly yet.
+- **Sprint 1** — Next.js 14 app (submit form, status page), Upstash Redis queue,
+  and the audit-worker skeleton (GitHub Action).
+- **Sprint 2** — the HTTP audit protocol (agents implement one HTTPS endpoint and
+  return UNSIGNED transactions; SolVerdict signs with the run's ephemeral key and
+  executes on the local fork, scoring with the same three-outcome rule), SSRF
+  hardening (HTTPS + public-IP only, per-host rate limit, per-scenario timeout,
+  response-size cap), and a reference agent.
+- **Sprint 3** — wallet authentication (`@solana/wallet-adapter`; Phantom,
+  Solflare, Backpack); a **Free** tier (N=1, one per wallet per 24h) vs **Paid**
+  tier (N=20 for **10 USDC**); **on-chain USDC payment verification** (confirms
+  amount + destination + memo = audit id before queueing); **cron auto-trigger**
+  (the audit-worker now drains `audit_queue` every 5 minutes instead of manual
+  dispatch, and resolves stuck payments); and **email notifications** on
+  completion via Resend.
+- **Sprint 4** — **sharded, resumable paid audits**. A paid N=20 audit (280 runs,
+  too large for one 15-min cron job) is split into 4 shards ([4,4,4,2]
+  scenarios); the worker processes ONE shard (or one free audit) per tick, a
+  completed shard enqueues the next, and the final completion aggregates all
+  shards into the placard via the parent `scoreSetup`. Failed shards **retry with
+  exponential backoff** (5 → 15 → 30 min, permanent after 4 attempts) via a retry
+  sorted-set the worker sweeps each tick. The status page shows shard-level
+  progress; a fair-use flag surfaces deep queue backlogs. Free audits remain
+  single-shot and payment/auth are unchanged.
+
 ### Changed — hardening
 - **Forced Surfpool restart for wedged-but-alive surfnets** (`env/funding.ts`,
   `env/surfpool.ts`). Previously a Surfpool that passed health checks but rejected

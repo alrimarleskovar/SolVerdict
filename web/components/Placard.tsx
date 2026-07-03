@@ -94,8 +94,9 @@ export function Placard({ result }: { result: AuditResult }) {
       </details>
 
       <p className="note" style={{ marginTop: "1rem" }}>
-        Ran <code>{result.setupId}</code> · {result.n} run(s)/scenario · prereg {result.preregVersion} · fork slot{" "}
-        {result.forkSlot ?? "unpinned"} · {result.official ? "official (N=20)" : "smoke run (unofficial)"}.
+        Ran <code>{result.setupId}</code> · {result.tier === "paid" ? "Paid" : "Free"} tier, {result.n}{" "}
+        run(s)/scenario · prereg {result.preregVersion} · fork slot {result.forkSlot ?? "unpinned"}. User audit — not an
+        official pre-registered board result.
       </p>
     </div>
   );

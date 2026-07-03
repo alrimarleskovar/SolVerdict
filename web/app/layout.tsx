@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { Metadata } from "next";
 import "./globals.css";
+import { Providers } from "./providers";
 
 export const metadata: Metadata = {
   title: "SolVerdict — audit your Solana agent's safety",
@@ -13,7 +14,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <body>
         <div className="mesh" aria-hidden="true" />
-        <div className="wrap">{children}</div>
+        <Providers>
+          <div className="wrap">{children}</div>
+        </Providers>
       </body>
     </html>
   );

@@ -8,10 +8,20 @@ import { Placard } from "../../../components/Placard";
 import type { AuditRecord, AuditStatus } from "../../../lib/types";
 
 const STATUS_META: Record<AuditStatus, { label: string; color: string; blurb: string }> = {
+  awaiting_payment: {
+    label: "Awaiting payment",
+    color: "var(--purple-soft)",
+    blurb: "Waiting for your USDC payment to confirm on-chain.",
+  },
   queued: { label: "Queued", color: "var(--purple-soft)", blurb: "Waiting for a worker to pick up the run." },
   running: { label: "Running", color: "var(--sol-green)", blurb: "Benching your agent against the rubric…" },
   done: { label: "Done", color: "var(--sol-green)", blurb: "The verdict is in." },
   failed: { label: "Failed", color: "var(--red)", blurb: "The run could not complete." },
+  payment_failed: {
+    label: "Payment failed",
+    color: "var(--red)",
+    blurb: "We could not verify your payment, so the audit was not run.",
+  },
 };
 
 const OUTCOME_ICON: Record<string, string> = {
@@ -20,6 +30,22 @@ const OUTCOME_ICON: Record<string, string> = {
   "intent-dangerous-exec-failed": "🟠",
   errored: "⚪",
 };
+
+const SHARD_ICON: Record<string, string> = {
+  queued: "⏳",
+  running: "▶️",
+  done: "🟢",
+  failed: "🔴",
+  retrying: "🔁",
+};
+
+const POLLING_STATUSES: AuditStatus[] = ["awaiting_payment", "queued", "running"];
+
+function etaLabel(nextAttemptAt?: number): string {
+  if (!nextAttemptAt) return "";
+  const minutes = Math.max(0, Math.round((nextAttemptAt - Date.now()) / 60000));
+  return minutes === 0 ? "shortly" : `in ~${minutes}m`;
+}
 
 export default function AuditStatusPage() {
   const params = useParams<{ id: string }>();
@@ -43,7 +69,7 @@ export default function AuditStatusPage() {
         if (!active) return;
         setRecord(data);
         setError(null);
-        if (data.status === "queued" || data.status === "running") {
+        if (POLLING_STATUSES.includes(data.status)) {
           timer = setTimeout(poll, 4000);
         }
       } catch (err) {
@@ -60,6 +86,11 @@ export default function AuditStatusPage() {
 
   const meta = record ? STATUS_META[record.status] : null;
   const progress = record?.progress;
+  const paid = record?.tier === "paid";
+  const shards = record?.shards ?? [];
+  const shardsDone = shards.filter((s) => s.status === "done").length;
+  const paymentVerified =
+    record && (record.payment?.verifiedAt || ["queued", "running", "done"].includes(record.status));
 
   return (
     <>
@@ -84,15 +115,44 @@ export default function AuditStatusPage() {
 
         {record && meta && (
           <div className="glass" style={{ padding: "1.75rem 2rem" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", flexWrap: "wrap" }}>
               <span className="badge" style={{ color: meta.color, borderColor: meta.color }}>
                 {meta.label}
               </span>
-              {(record.status === "queued" || record.status === "running") && (
-                <span className="note">Auto-refreshing…</span>
-              )}
+              <span className="badge" title="audit tier">
+                {paid ? "Paid · N=20" : "Free · N=1"}
+              </span>
+              {POLLING_STATUSES.includes(record.status) && <span className="note">Auto-refreshing…</span>}
             </div>
             <p style={{ color: "var(--text)", margin: "1rem 0 0" }}>{meta.blurb}</p>
+
+            {/* Payment status (paid tier only) */}
+            {paid && (
+              <div style={{ marginTop: "1rem" }}>
+                {record.status === "awaiting_payment" && (
+                  <p className="note" style={{ margin: 0 }}>
+                    Waiting for payment of {record.payment?.expectedUsdc ?? 10} USDC…
+                  </p>
+                )}
+                {record.status === "payment_failed" && (
+                  <p style={{ color: "var(--red)", margin: 0, fontSize: "0.9rem" }}>
+                    Payment failed{record.payment?.reason ? `: ${record.payment.reason}` : ""}.
+                  </p>
+                )}
+                {paymentVerified && record.payment?.signature && (
+                  <p className="note" style={{ margin: 0 }}>
+                    ✅ Payment verified on-chain —{" "}
+                    <a
+                      href={`https://solscan.io/tx/${record.payment.signature}`}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      {record.payment.signature.slice(0, 8)}…{record.payment.signature.slice(-8)}
+                    </a>
+                  </p>
+                )}
+              </div>
+            )}
 
             {/* What was tested */}
             <p style={{ color: "var(--text-strong)", margin: "1.25rem 0 0", fontSize: "0.95rem" }}>
@@ -101,8 +161,72 @@ export default function AuditStatusPage() {
               framework: <strong>{record.form.framework}</strong> · model: <strong>{record.form.model}</strong>
             </p>
 
-            {/* Live per-scenario progress */}
-            {record.status === "running" && progress && (
+            {/* Sharded progress (paid tier) */}
+            {paid && shards.length > 0 && (
+              <div style={{ marginTop: "1.5rem" }}>
+                {record.queueDepthWarning && (
+                  <p className="note" style={{ color: "var(--purple-soft)", margin: "0 0 0.5rem" }}>
+                    ⚠️ High queue depth right now — your shards may take longer than usual to run.
+                  </p>
+                )}
+                <p className="note" style={{ marginBottom: "0.4rem" }}>
+                  Shards: {shardsDone} of {shards.length} done
+                </p>
+                <div
+                  style={{
+                    height: "6px",
+                    background: "var(--border)",
+                    borderRadius: "3px",
+                    overflow: "hidden",
+                    marginBottom: "0.75rem",
+                  }}
+                >
+                  <div
+                    style={{
+                      height: "100%",
+                      width: `${(shardsDone / shards.length) * 100}%`,
+                      background: "var(--sol-green)",
+                      transition: "width 0.3s ease",
+                    }}
+                  />
+                </div>
+                <div style={{ display: "grid", gap: "0.4rem" }}>
+                  {shards.map((s) => (
+                    <div
+                      key={s.shardId}
+                      className="cell"
+                      style={{
+                        display: "flex",
+                        gap: "0.6rem",
+                        alignItems: "baseline",
+                        flexWrap: "wrap",
+                        border: "1px solid var(--border)",
+                        borderRadius: "6px",
+                        padding: "0.4rem 0.6rem",
+                        fontSize: "0.8rem",
+                      }}
+                    >
+                      <strong style={{ color: "var(--text-strong)" }}>
+                        {SHARD_ICON[s.status] ?? "•"} Shard {s.shardId}/{shards.length}
+                      </strong>
+                      <span style={{ color: "var(--muted)" }}>{s.scenarios.join(", ")}</span>
+                      {s.status === "running" && <span style={{ color: "var(--sol-green)" }}>running…</span>}
+                      {s.status === "retrying" && (
+                        <span style={{ color: "var(--purple-soft)" }}>
+                          retry {etaLabel(s.nextAttemptAt)} (attempt {s.attempts})
+                        </span>
+                      )}
+                      {s.status === "failed" && (
+                        <span style={{ color: "var(--red)" }}>failed: {s.error ?? "max retries exhausted"}</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Live per-scenario progress (free tier single-shot) */}
+            {record.status === "running" && !paid && progress && (
               <div style={{ marginTop: "1.5rem" }}>
                 <p className="note" style={{ marginBottom: "0.5rem" }}>
                   {progress.current
@@ -129,12 +253,18 @@ export default function AuditStatusPage() {
               </div>
             )}
 
-            {record.status === "failed" && record.error && (
+            {(record.status === "failed" || record.status === "payment_failed") && record.error && (
               <p style={{ color: "var(--red)", marginTop: "1.25rem" }}>Reason: {record.error}</p>
             )}
 
-            {record.status === "done" && record.result && (
+            {/* Placard for a completed audit — or a partial one that failed after some shards scored. */}
+            {(record.status === "done" || record.status === "failed") && record.result && (
               <div style={{ marginTop: "1.75rem" }}>
+                {record.status === "failed" && (
+                  <p className="note" style={{ marginBottom: "0.75rem", color: "var(--purple-soft)" }}>
+                    Partial result — some shards did not complete. Scores below cover only the scenarios that ran.
+                  </p>
+                )}
                 <Placard result={record.result} />
               </div>
             )}

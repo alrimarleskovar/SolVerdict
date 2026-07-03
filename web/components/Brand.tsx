@@ -1,5 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
+"use client";
+
 import Link from "next/link";
+import dynamic from "next/dynamic";
+import { BRANDING } from "../../config/branding";
+
+// Wallet button is browser-only — load it client-side to avoid SSR/hydration issues.
+const WalletMultiButton = dynamic(
+  async () => (await import("@solana/wallet-adapter-react-ui")).WalletMultiButton,
+  { ssr: false, loading: () => <span className="btn" aria-hidden="true">Connect Wallet</span> },
+);
 
 /** The SolVerdict verdict glyph — check (green) + cross (red), matching docs/. */
 export function Logo({ className = "logo" }: { className?: string }) {
@@ -41,14 +51,20 @@ export function TopBar() {
         justifyContent: "space-between",
         gap: "0.75rem",
         padding: "1.1rem 0 0.4rem",
+        flexWrap: "wrap",
       }}
     >
       <Link href="/" style={{ textDecoration: "none" }}>
         <Wordmark />
       </Link>
-      <Link href="/submit" className="btn">
-        Start audit →
-      </Link>
+      <div style={{ display: "flex", alignItems: "center", gap: "1rem", flexWrap: "wrap", fontFamily: "var(--mono)", fontSize: "0.9rem" }}>
+        <Link href="/pricing">Pricing</Link>
+        <Link href="/docs/protocol">Docs</Link>
+        <a href={BRANDING.repoUrl} target="_blank" rel="noreferrer">
+          GitHub
+        </a>
+        <WalletMultiButton />
+      </div>
     </nav>
   );
 }

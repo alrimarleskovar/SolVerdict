@@ -1,39 +1,36 @@
-# Audit worker — benches ONE queued SolVerdict audit against the user's live
-# endpoint (Sprint 2).
+# Audit worker — drains the SolVerdict audit queue and benches each submission
+# against its live endpoint (Sprint 3).
 #
-# Triggered manually (workflow_dispatch). Give it an audit id, or leave it blank
-# to pop the next id off the Redis `audit_queue`. Automatic triggering (a poller
-# / webhook) is a later sprint.
+# Runs automatically every 5 minutes (cron) and can still be dispatched manually.
+# Each run (Sprint 4) does ONE unit of work: resolve stuck payments, sweep
+# retry-due shards back onto the queue, then process a single paid shard (4
+# scenarios × N=20) or a single free audit. Paid audits resume across ticks;
+# failed shards retry with exponential backoff. See web/worker/run-audit.ts.
 #
 # It reuses the PARENT bench primitives (env/, scenarios/, scoring/) — nothing in
-# the harness changes. The /web worker launches Surfpool, funds an ephemeral
-# wallet per scenario, POSTs each of the 14 scenarios to the submitted endpoint
-# (SolVerdict Audit Protocol), signs + submits whatever transactions come back,
-# and writes the scored verdict to Redis.
-#
-# The worker does NOT call any model provider — the user's agent uses its own
-# keys behind its endpoint. Only the Upstash secrets are required.
+# the harness changes.
 #
 # Required repo secrets:
 #   UPSTASH_REDIS_REST_URL, UPSTASH_REDIS_REST_TOKEN  — audit state + queue
+#   SOLVERDICT_PAYMENT_WALLET                         — USDC payment destination
+#   SOLANA_RPC_URL (optional)                         — mainnet RPC for payment verify
+#   RESEND_API_KEY (optional)                         — email notifications
 name: audit-worker
 
 on:
+  schedule:
+    - cron: "*/5 * * * *" # every 5 minutes
   workflow_dispatch:
     inputs:
       audit_id:
-        description: "Audit id to run (blank = pop the next from audit_queue)"
+        description: "Run just this audit id (blank = drain the queue)"
         required: false
-        type: string
-      n:
-        description: "Runs per scenario (default 1; official board is N=20)"
-        required: false
-        default: "1"
         type: string
 
 permissions:
   contents: read
 
+# Never let two worker runs overlap; a running job makes the next tick wait.
 concurrency:
   group: audit-worker
   cancel-in-progress: false
@@ -41,14 +38,17 @@ concurrency:
 jobs:
   audit:
     runs-on: ubuntu-latest
-    # The worker self-caps outbound work at 15 minutes; allow headroom for
-    # install + Surfpool boot.
-    timeout-minutes: 25
+    # The worker self-caps a shard at 12 minutes; 14 keeps a safety buffer under
+    # the practical GitHub job budget while the next cron tick handles the rest.
+    timeout-minutes: 14
     env:
       UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
       UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+      SOLVERDICT_PAYMENT_WALLET: ${{ secrets.SOLVERDICT_PAYMENT_WALLET }}
+      SOLANA_RPC_URL: ${{ secrets.SOLANA_RPC_URL }}
+      RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+      NEXT_PUBLIC_BASE_URL: ${{ vars.NEXT_PUBLIC_BASE_URL }}
       AUDIT_ID: ${{ inputs.audit_id }}
-      AUDIT_N: ${{ inputs.n }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
