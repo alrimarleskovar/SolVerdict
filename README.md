@@ -62,22 +62,59 @@ transactions max) live in
 
 ### SaaS status
 
-Built on top of the benchmark, tracked in [`web/`](web):
+Built on top of the benchmark, tracked in [`web/`](web). Still **in development
+and not deployed publicly**:
 
 - ✅ **Sprint 1** — Next.js 14 foundation (submit form, status page), Upstash
   Redis queue, and the audit-worker skeleton (GitHub Action).
 - ✅ **Sprint 2** — the HTTP audit protocol, SSRF hardening (HTTPS + public-IP
   only, DNS-rebinding re-check, per-host rate limit, per-scenario timeout,
-  15-minute total budget, 100 KB response cap), the unsigned-transaction custody
-  model, a reference implementation, and unit tests.
-- ⏳ **Sprint 3 (pending)** — payment, authentication, automatic worker
-  triggering, and email notifications.
-- **Deployment: not yet public.** The worker runs only on manual
-  `workflow_dispatch`
-  ([`.github/workflows/audit-worker.yml`](.github/workflows/audit-worker.yml));
-  public deployment waits on Sprint 3.
+  100 KB response cap), the unsigned-transaction custody model, a reference
+  implementation, and unit tests.
+- ✅ **Sprint 3** — wallet authentication (`@solana/wallet-adapter`; Phantom,
+  Solflare, Backpack); a **Free** (N=1) vs **Paid** (N=20, 10 USDC) tier model;
+  **on-chain USDC payment verification** (amount + destination + memo = audit id);
+  **cron auto-trigger** every 5 minutes (replacing manual dispatch); and Resend
+  **email notifications** on completion.
+- ✅ **Sprint 4** — **sharded, resumable paid audits**: an N=20 audit (280 runs,
+  too large for one job) is split into **4 shards** (4-4-4-2 scenarios), one shard
+  processed per cron tick, with **exponential-backoff retries** (5/15/30/60 min,
+  4 attempts max), a retry sweep, and safe cross-shard aggregation that preserves
+  the three-outcome scoring via the parent `scoreSetup`.
+- ⏳ **Sprint 5+ (optional refinements)** — a dedicated long-running worker,
+  paid-RPC upgrade, wallet-adapter bundle slimming, refund/credit automation for
+  partial paid runs.
+- **Deployment: not yet public.** Pending env configuration in Vercel + GitHub
+  Actions secrets ([`.github/workflows/audit-worker.yml`](.github/workflows/audit-worker.yml)).
 
 See [`web/README.md`](web/README.md) for the full SaaS architecture and dev setup.
+
+### How the SaaS works
+
+The intended user flow (in development — not live):
+
+1. **Connect a Solana wallet** (Phantom / Solflare / Backpack). The wallet
+   identifies the submission and, for a paid audit, signs the USDC payment.
+2. **Free tier** — one audit per wallet per 24h, **N=1** per scenario; a quick
+   protocol-conformance + obvious-failure check. Runs single-shot in one cron job.
+3. **Paid tier** — **10 USDC** sent to the configured payment wallet with the
+   **audit id as the transaction memo**, then **N=20** per scenario. The worker
+   verifies the payment on-chain (reads a Solana RPC: amount + destination +
+   memo) before queueing.
+4. **Sharded execution (paid)** — the audit runs as 4 shards, one per 5-minute
+   cron tick, so a healthy paid audit completes in **~20–25 min** end-to-end; a
+   completed shard enqueues the next, and failed shards retry with backoff.
+5. **Progress** is visible per shard on `/audit/<id>`; an optional contact email
+   is notified on completion.
+
+Honest constraints:
+
+- A **free** audit (N=1) runs comfortably inside a single ~15-minute job.
+- A **paid** audit spans **4 cron ticks** (~20–25 min under normal load; longer
+  if shards retry).
+- If the global shard queue exceeds 50 pending items, new paid submissions are
+  still accepted but the status page shows a **queue-depth warning** for
+  transparency.
 
 ## What this is / what it is NOT
 
@@ -169,12 +206,17 @@ is the **second-N=20 re-confirmation of sak+claude A2 = 0%**.
 
 ### Roadmap: user-endpoint setups (v0.3 prereg)
 
-Agents audited through the SaaS (see "Two sides of SolVerdict" above) will be
-formalized as a new **"user-endpoint" setup category** in **v0.3 of the
-pre-registration**. Until then those audits are a **product surface only** — they
-do not alter the v0.2.2 methodology, do not appear on the Run B board above, and
-their results are not "official SolVerdict results". The status table, coverage,
-and run history above cover only the published benchmark setups.
+Agents audited through the SaaS (see "Two sides of SolVerdict" above) are a
+**product surface only** — they do **not** alter the v0.2.2 methodology, do not
+appear on the Run B board above, and their results are not "official SolVerdict
+results". The status table, coverage, and run history above cover only the
+published benchmark setups.
+
+If enough paid audits accumulate, they **may** be aggregated into a new
+**"user-endpoint" setup category** in a **v0.3 published roster** — but only if
+that is methodologically appropriate (comparable configuration, adequate N, no
+optimization-against-the-test). Until such a roster is pre-registered, no SaaS
+audit is part of the committed prereg.
 
 ## How results are scored
 
