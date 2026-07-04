@@ -39,8 +39,8 @@ SolVerdict is two things built on one scoring engine:
   built on top of the benchmark: a developer submits an HTTPS endpoint for their
   own agent, SolVerdict runs the same 14 scenarios against that live agent, and
   returns a verdict placard. It reuses the parent `scoring/`, `scenarios/`, and
-  `env/` — no methodology fork. **It is not deployed publicly yet** (see
-  "SaaS status" below); the benchmark is unaffected by it.
+  `env/` — no methodology fork. **Staging is deployed but not yet publicly
+  announced** (see "SaaS status" below); the benchmark is unaffected by it.
 
 ### Audit protocol (Sprint 2)
 
@@ -70,8 +70,8 @@ transactions max) live in
 
 ### SaaS status
 
-Built on top of the benchmark, tracked in [`web/`](web). Still **in development
-and not deployed publicly**:
+Built on top of the benchmark, tracked in [`web/`](web). In development;
+**staging is deployed but not yet publicly announced**:
 
 - ✅ **Sprint 1** — Next.js 14 foundation (submit form, status page), the queue,
   and the audit-worker skeleton.
@@ -95,16 +95,37 @@ and not deployed publicly**:
 - ⏳ **Sprint 6+ (optional refinements)** — paid-RPC upgrade, wallet-adapter bundle
   slimming, refund/credit automation, multi-replica autoscaling, RLS + anon-key
   client reads.
-- **Deployment: not yet public.** Pending a Supabase project
-  ([`web/supabase/schema.sql`](web/supabase/schema.sql)) + a Railway worker
-  ([`web/worker/Dockerfile`](web/worker/Dockerfile), [`railway.json`](railway.json))
-  + env configuration in Vercel/Railway.
+- **Deployment: staging live at [solverdict.vercel.app](https://solverdict.vercel.app)**
+  (Vercel frontend + Railway worker + Supabase state) — not yet publicly announced
+  pending end-to-end validation and Item 5 (complete the `sak+claude` reference
+  bench).
+
+#### Deployment topology
+
+| Layer | Where | Detail |
+|---|---|---|
+| Frontend | Next.js on Vercel | [solverdict.vercel.app](https://solverdict.vercel.app) |
+| Worker | Docker container on Railway | always-on; pinned Node 22 + Surfpool 1.3.1 |
+| State | Supabase Postgres | tables: `audits`, `queue`, `free_tier_usage`, `payment_verifications`, `audit_events` |
+| Payment verification | on-chain USDC | read via a Solana RPC (amount + destination + memo = audit id) |
+| Auth | Solana wallet | Phantom / Solflare / Backpack |
+| Email | Resend | optional, opt-in via the form's email field |
+
+#### Try it (staging)
+
+The staging deployment is live at <https://solverdict.vercel.app> for end-to-end
+validation. It runs against Solana mainnet USDC payments (real transactions), so
+most flows require a Solana wallet with USDC. The **free tier** (N=1 audit per
+wallet per 24h) is available without payment.
+
+> **This is not a public release.** No audits have been processed in production
+> yet and no announcement has been made. Report issues via GitHub issues.
 
 See [`web/README.md`](web/README.md) for the full SaaS architecture and dev setup.
 
 ### How the SaaS works
 
-The intended user flow (in development — not live):
+The user flow (staging — live for validation, not yet publicly announced):
 
 1. **Connect a Solana wallet** (Phantom / Solflare / Backpack). The wallet
    identifies the submission and, for a paid audit, signs the USDC payment.
@@ -132,7 +153,7 @@ Honest constraints:
 
 ### Architecture
 
-End-to-end flow of a SaaS audit (in development — not deployed). The benchmark
+End-to-end flow of a SaaS audit (staging deployed; not yet publicly announced). The benchmark
 side (`npm run bench`) reuses the same `scenarios/` → agent → `scoring/` →
 placard path, driven by `bench.ts` instead of the queue/worker.
 
@@ -342,8 +363,8 @@ The submit → status flow needs a Supabase project (apply
 [`web/supabase/schema.sql`](web/supabase/schema.sql)); the worker
 (`npm run worker`) runs it against the local Surfpool. Full instructions —
 protocol, worker, deployment (Supabase + Railway), and the safety envelope — are
-in [`web/README.md`](web/README.md). This is in development and not deployed
-publicly (see "SaaS status" above).
+in [`web/README.md`](web/README.md). Staging is deployed but not yet publicly
+announced (see "SaaS status" above).
 
 ## Safety model (why this is safe to run)
 
