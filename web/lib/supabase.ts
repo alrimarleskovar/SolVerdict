@@ -32,6 +32,13 @@ let _anon: SupabaseClient | null = null;
 
 /** Service-role client (full read/write, bypasses RLS). Server-only. */
 export function supabaseAdmin(): SupabaseClient {
+  return createClient(requireEnv("SUPABASE_URL"), requireEnv("SUPABASE_SERVICE_ROLE_KEY"), {
+    auth: { persistSession: false, autoRefreshToken: false },
+    global: { headers: { "cache-control": "no-store" } },
+  });
+}
+
+function _oldSupabaseAdmin() {
   if (_admin) return _admin;
   _admin = createClient(requireEnv("SUPABASE_URL"), requireEnv("SUPABASE_SERVICE_ROLE_KEY"), {
     auth: { persistSession: false, autoRefreshToken: false },
