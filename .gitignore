@@ -33,3 +33,4 @@ runs/*
 
 # NOTE: .claude/settings.json and scripts/block-git.sh are intentionally
 # COMMITTED (session guardrails, kept for reproducibility). Do not ignore them.
+package.json.bak
