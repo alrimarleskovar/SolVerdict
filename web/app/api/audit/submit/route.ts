@@ -93,6 +93,15 @@ export async function POST(req: Request) {
     );
   }
 
+  // Public leaderboard opt-in (Sprint 6) — best-effort; never blocks the submit.
+  if (f.publicOptIn === true) {
+    try {
+      await supabaseAdmin().from("audits").update({ public_opt_in: true }).eq("id", id);
+    } catch {
+      /* opt-in is non-critical */
+    }
+  }
+
   if (tier === "free") {
     return NextResponse.json({ auditId: id, tier, status: "queued" }, { status: 201 });
   }

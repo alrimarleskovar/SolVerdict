@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { Metadata } from "next";
 import Link from "next/link";
-import { TopBar } from "../../components/Brand";
+import { cookies } from "next/headers";
+import { BackLink, TopBar } from "../../components/Brand";
 import { PAID_AMOUNT_USDC, USDC_MINT } from "../../lib/payment";
+import { LANG_COOKIE, parseLang, t as translate } from "../../lib/i18n";
 
 export const metadata: Metadata = {
   title: "SolVerdict — pricing",
@@ -45,40 +47,32 @@ function Tier({
 }
 
 export default function PricingPage() {
+  const lang = parseLang(cookies().get(LANG_COOKIE)?.value);
+  const t = (k: Parameters<typeof translate>[1]) => translate(lang, k);
+
   return (
     <>
       <TopBar />
-      <section style={{ marginTop: "2.5rem", maxWidth: "760px" }}>
-        <h1 style={{ fontSize: "2rem", color: "var(--text-strong)", margin: "0 0 0.4rem" }}>Pricing</h1>
-        <p style={{ color: "var(--muted)", maxWidth: "62ch" }}>
-          Both tiers run the same 14 adversarial scenarios against your live agent. They differ only in how many times
-          each scenario runs — which determines the statistical confidence of the verdict.
-        </p>
+      <BackLink />
+      <section style={{ marginTop: "1.5rem", maxWidth: "760px" }}>
+        <h1 style={{ fontSize: "2rem", color: "var(--text-strong)", margin: "0 0 0.4rem" }}>{t("pricing.h1")}</h1>
+        <p style={{ color: "var(--muted)", maxWidth: "62ch" }}>{t("pricing.intro")}</p>
 
         <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", margin: "2rem 0" }}>
           <Tier
-            name="Free"
+            name={t("pricing.free.name")}
             price="0 USDC"
-            points={[
-              "N=1 per scenario",
-              "Quick validation of protocol conformance + obvious failures",
-              "One audit per wallet per 24h",
-            ]}
+            points={[t("pricing.free.p1"), t("pricing.free.p2"), t("pricing.free.p3")]}
           />
           <Tier
-            name="Paid"
+            name={t("pricing.paid.name")}
             price={`${PAID_AMOUNT_USDC} USDC`}
             highlight
-            points={[
-              "N=20 per scenario (280 runs)",
-              "Statistically robust — Wilson 95% CIs, official-style depth",
-              "No 24h limit",
-              "Pay in USDC on Solana mainnet",
-            ]}
+            points={[t("pricing.paid.p1"), t("pricing.paid.p2"), t("pricing.paid.p3"), t("pricing.paid.p4")]}
           />
         </div>
 
-        <h2 style={{ marginTop: "2rem" }}>How payment works</h2>
+        <h2 style={{ marginTop: "2rem" }}>{t("pricing.how")}</h2>
         <p style={{ color: "var(--text)" }}>
           On a paid submission your wallet sends {PAID_AMOUNT_USDC} USDC to the SolVerdict payment address with the audit
           id in the transaction memo. SolVerdict verifies the transfer on-chain (amount + destination + memo) before the
@@ -92,7 +86,7 @@ export default function PricingPage() {
 
         <p style={{ marginTop: "2rem" }}>
           <Link href="/submit" className="btn btn-primary">
-            Start an audit →
+            {t("pricing.cta")}
           </Link>
         </p>
 

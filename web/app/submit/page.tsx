@@ -11,7 +11,8 @@ import {
   createTransferCheckedInstruction,
   createAssociatedTokenAccountInstruction,
 } from "@solana/spl-token";
-import { TopBar } from "../../components/Brand";
+import { BackLink, TopBar } from "../../components/Brand";
+import { useLang } from "../../components/LangProvider";
 
 const WalletMultiButton = dynamic(
   async () => (await import("@solana/wallet-adapter-react-ui")).WalletMultiButton,
@@ -38,10 +39,12 @@ interface PaymentInstructions {
 }
 
 export default function SubmitPage() {
+  const { t } = useLang();
   const { connection } = useConnection();
   const { publicKey, connected, sendTransaction } = useWallet();
   const [state, setState] = useState<Phase>({ phase: "idle" });
   const [confirmed, setConfirmed] = useState(false);
+  const [publicOptIn, setPublicOptIn] = useState(false);
   const [tier, setTier] = useState<Tier>("free");
 
   async function payUsdc(pay: PaymentInstructions): Promise<string> {
@@ -94,6 +97,7 @@ export default function SubmitPage() {
       model: fd.get("model"),
       email: fd.get("email") || undefined,
       protocolConfirmed: confirmed,
+      publicOptIn,
       walletPubkey: publicKey.toBase58(),
       tier,
     };
@@ -136,16 +140,19 @@ export default function SubmitPage() {
     return (
       <>
         <TopBar />
-        <section style={{ marginTop: "3rem" }}>
+        <BackLink />
+        <section style={{ marginTop: "2rem" }}>
           <div className="glass" style={{ padding: "1.75rem 2rem" }}>
-            <span className="badge">Audit queued</span>
-            <h1 style={{ fontSize: "1.5rem", margin: "1rem 0 0.5rem", color: "var(--text-strong)" }}>Save this link</h1>
-            <p style={{ color: "var(--muted)" }}>It&rsquo;s the key to your result — no login required to view it.</p>
+            <span className="badge">{t("submit.done.badge")}</span>
+            <h1 style={{ fontSize: "1.5rem", margin: "1rem 0 0.5rem", color: "var(--text-strong)" }}>
+              {t("submit.done.h1")}
+            </h1>
+            <p style={{ color: "var(--muted)" }}>{t("submit.done.note")}</p>
             <p style={{ margin: "1rem 0" }}>
               <code style={{ fontSize: "0.95rem", padding: "0.5rem 0.7rem", display: "inline-block" }}>{link}</code>
             </p>
             <Link href={link} className="btn btn-primary">
-              View audit status →
+              {t("submit.done.cta")}
             </Link>
           </div>
         </section>
@@ -156,27 +163,27 @@ export default function SubmitPage() {
   const busy = state.phase === "submitting" || state.phase === "paying" || state.phase === "verifying";
   const busyLabel =
     state.phase === "paying"
-      ? "Confirm the USDC payment in your wallet…"
+      ? t("submit.busy.paying")
       : state.phase === "verifying"
-        ? "Verifying payment on-chain…"
-        : "Queuing…";
+        ? t("submit.busy.verifying")
+        : t("submit.busy.queuing");
 
   return (
     <>
       <TopBar />
-      <section style={{ marginTop: "2.5rem", maxWidth: "640px" }}>
-        <h1 style={{ fontSize: "1.8rem", color: "var(--text-strong)", margin: "0 0 0.4rem" }}>Start an audit</h1>
+      <BackLink />
+      <section style={{ marginTop: "1.5rem", maxWidth: "640px" }}>
+        <h1 style={{ fontSize: "1.8rem", color: "var(--text-strong)", margin: "0 0 0.4rem" }}>{t("submit.h1")}</h1>
         <p style={{ color: "var(--muted)", marginBottom: "1.75rem" }}>
-          Your agent must implement the <Link href="/docs/protocol">SolVerdict Audit Protocol</Link>. See{" "}
-          <Link href="/pricing">pricing</Link> for Free vs Paid.
+          {t("submit.intro.a")} <Link href="/docs/protocol">{t("submit.intro.protocol")}</Link>. {t("submit.intro.b")}{" "}
+          <Link href="/pricing">{t("submit.intro.pricing")}</Link> {t("submit.intro.c")}
         </p>
 
         {!connected ? (
           <div className="glass" style={{ padding: "1.75rem 2rem" }}>
-            <p style={{ color: "var(--text-strong)", margin: "0 0 1rem" }}>Connect a wallet to submit an audit.</p>
+            <p style={{ color: "var(--text-strong)", margin: "0 0 1rem" }}>{t("submit.connect")}</p>
             <p className="note" style={{ margin: "0 0 1.25rem" }}>
-              Your wallet identifies your submission (and signs the USDC payment for a paid audit). It never signs
-              anything for the audit run itself.
+              {t("submit.connect.note")}
             </p>
             <WalletMultiButton />
           </div>
@@ -185,56 +192,65 @@ export default function SubmitPage() {
             {/* Tier selector */}
             <fieldset style={{ border: "none", padding: 0, margin: 0, display: "grid", gap: "0.6rem" }}>
               <legend className="label" style={{ padding: 0 }}>
-                Audit tier
+                {t("submit.tier.legend")}
               </legend>
               <label style={{ display: "flex", gap: "0.6rem", alignItems: "flex-start" }}>
                 <input type="radio" name="tier" checked={tier === "free"} onChange={() => setTier("free")} />
                 <span>
-                  <strong>Free</strong> — N=1 per scenario, quick validation. One per wallet / 24h.
+                  <strong>{t("submit.tier.free.name")}</strong> {t("submit.tier.free.desc")}
                 </span>
               </label>
               <label style={{ display: "flex", gap: "0.6rem", alignItems: "flex-start" }}>
                 <input type="radio" name="tier" checked={tier === "paid"} onChange={() => setTier("paid")} />
                 <span>
-                  <strong>Paid — 10 USDC</strong> — N=20 per scenario, statistically robust.
+                  <strong>{t("submit.tier.paid.name")}</strong> {t("submit.tier.paid.desc")}
                 </span>
               </label>
             </fieldset>
 
             <div>
               <label className="label" htmlFor="endpoint">
-                Agent endpoint URL
+                {t("submit.field.endpoint")}
               </label>
               <input id="endpoint" name="endpoint" type="url" className="field" placeholder="https://your-agent.example.com/audit" required />
-              <p className="hint">Must be HTTPS and publicly reachable. localhost / private IPs are rejected.</p>
+              <p className="hint">{t("submit.field.endpoint.hint")}</p>
             </div>
 
             <div>
               <label className="label" htmlFor="framework">
-                Framework name
+                {t("submit.field.framework")}
               </label>
               <input id="framework" name="framework" type="text" className="field" placeholder="Solana Agent Kit" required />
             </div>
 
             <div>
               <label className="label" htmlFor="model">
-                Model name
+                {t("submit.field.model")}
               </label>
               <input id="model" name="model" type="text" className="field" placeholder="claude-sonnet-4-6" required />
             </div>
 
             <div>
               <label className="label" htmlFor="email">
-                Contact email <span style={{ color: "var(--muted)" }}>(optional)</span>
+                {t("submit.field.email")} <span style={{ color: "var(--muted)" }}>{t("submit.field.optional")}</span>
               </label>
               <input id="email" name="email" type="email" className="field" placeholder="you@example.com" />
-              <p className="hint">We email you when the audit finishes (done or failed).</p>
+              <p className="hint">{t("submit.field.email.hint")}</p>
             </div>
 
             <label style={{ display: "flex", gap: "0.6rem", alignItems: "flex-start", fontSize: "0.9rem" }}>
               <input type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} style={{ marginTop: "0.25rem" }} required />
               <span>
-                I confirm my agent implements the <Link href="/docs/protocol">SolVerdict Audit Protocol</Link>.
+                {t("submit.confirm.a")} <Link href="/docs/protocol">{t("submit.intro.protocol")}</Link>.
+              </span>
+            </label>
+
+            <label style={{ display: "flex", gap: "0.6rem", alignItems: "flex-start", fontSize: "0.9rem" }}>
+              <input type="checkbox" checked={publicOptIn} onChange={(e) => setPublicOptIn(e.target.checked)} style={{ marginTop: "0.25rem" }} />
+              <span>
+                {t("submit.leaderboard")}
+                <br />
+                <span className="hint">{t("submit.leaderboard.hint")}</span>
               </span>
             </label>
 
@@ -243,7 +259,7 @@ export default function SubmitPage() {
             )}
 
             <button type="submit" className="btn btn-primary" disabled={busy || !confirmed}>
-              {busy ? busyLabel : tier === "paid" ? "Pay 10 USDC & queue audit" : "Queue free audit"}
+              {busy ? busyLabel : tier === "paid" ? t("submit.btn.paid") : t("submit.btn.free")}
             </button>
           </form>
         )}

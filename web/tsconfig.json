@@ -30,5 +30,5 @@
     "setups/**/*.ts",
     ".next/types/**/*.ts"
   ],
-  "exclude": ["node_modules", "examples", "../"]
+  "exclude": ["node_modules", "examples"]
 }

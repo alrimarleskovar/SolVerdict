@@ -31,7 +31,8 @@ create table if not exists audits (
   finished_at       timestamptz,
   results           jsonb,
   progress          jsonb,
-  error             text
+  error             text,
+  public_opt_in     boolean not null default false  -- Sprint 6: show on the public leaderboard
 );
 
 -- 24h free-tier rate limit, one row per wallet.
@@ -64,6 +65,8 @@ create table if not exists audit_events (
 create index if not exists idx_audits_wallet_created on audits (wallet, created_at desc);
 create index if not exists idx_queue_unclaimed on queue (enqueued_at) where claimed_at is null;
 create index if not exists idx_audit_events_audit_created on audit_events (audit_id, created_at);
+-- Sprint 6: public leaderboard (opted-in audits only).
+create index if not exists idx_audits_public on audits (public_opt_in, created_at desc) where public_opt_in = true;
 
 -- ---------------------------------------------------------------------------
 -- Functions (transactional — called via supabase.rpc)

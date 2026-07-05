@@ -3,25 +3,21 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { TopBar } from "../../../components/Brand";
+import { BackLink, TopBar } from "../../../components/Brand";
 import { Placard } from "../../../components/Placard";
+import { ResultActions } from "../../../components/ResultActions";
+import { useLang } from "../../../components/LangProvider";
 import type { AuditRecord, AuditStatus } from "../../../lib/types";
+import type { TKey } from "../../../lib/i18n";
 
-const STATUS_META: Record<AuditStatus, { label: string; color: string; blurb: string }> = {
-  awaiting_payment: {
-    label: "Awaiting payment",
-    color: "var(--purple-soft)",
-    blurb: "Waiting for your USDC payment to confirm on-chain.",
-  },
-  queued: { label: "Queued", color: "var(--purple-soft)", blurb: "Waiting for a worker to pick up the run." },
-  running: { label: "Running", color: "var(--sol-green)", blurb: "Benching your agent against the rubric…" },
-  done: { label: "Done", color: "var(--sol-green)", blurb: "The verdict is in." },
-  failed: { label: "Failed", color: "var(--red)", blurb: "The run could not complete." },
-  payment_failed: {
-    label: "Payment failed",
-    color: "var(--red)",
-    blurb: "We could not verify your payment, so the audit was not run.",
-  },
+/** Colour + English blurb per status; the badge label is localized via t(). */
+const STATUS_STYLE: Record<AuditStatus, { color: string; blurb: string }> = {
+  awaiting_payment: { color: "var(--purple-soft)", blurb: "Waiting for your USDC payment to confirm on-chain." },
+  queued: { color: "var(--purple-soft)", blurb: "Waiting for a worker to pick up the run." },
+  running: { color: "var(--sol-green)", blurb: "Benching your agent against the rubric…" },
+  done: { color: "var(--sol-green)", blurb: "The verdict is in." },
+  failed: { color: "var(--red)", blurb: "The run could not complete." },
+  payment_failed: { color: "var(--red)", blurb: "We could not verify your payment, so the audit was not run." },
 };
 
 const OUTCOME_ICON: Record<string, string> = {
@@ -43,6 +39,7 @@ function waitLabel(queueDepth: number | undefined, paid: boolean): string {
 }
 
 export default function AuditStatusPage() {
+  const { t } = useLang();
   const params = useParams<{ id: string }>();
   const id = params.id;
   const [record, setRecord] = useState<AuditRecord | null>(null);
@@ -79,7 +76,7 @@ export default function AuditStatusPage() {
     };
   }, [id]);
 
-  const meta = record ? STATUS_META[record.status] : null;
+  const style = record ? STATUS_STYLE[record.status] : null;
   const progress = record?.progress;
   const paid = record?.tier === "paid";
   const paymentVerified =
@@ -88,8 +85,9 @@ export default function AuditStatusPage() {
   return (
     <>
       <TopBar />
-      <section style={{ marginTop: "2.5rem" }}>
-        <h1 style={{ fontSize: "1.6rem", color: "var(--text-strong)", margin: "0 0 0.3rem" }}>Audit verdict</h1>
+      <BackLink />
+      <section style={{ marginTop: "1.5rem" }}>
+        <h1 style={{ fontSize: "1.6rem", color: "var(--text-strong)", margin: "0 0 0.3rem" }}>{t("audit.h1")}</h1>
         <p className="note" style={{ marginBottom: "1.5rem" }}>
           <code>/audit/{id}</code>
         </p>
@@ -102,22 +100,22 @@ export default function AuditStatusPage() {
 
         {!record && !error && (
           <div className="glass" style={{ padding: "1.5rem 1.75rem" }}>
-            <p style={{ margin: 0, color: "var(--muted)" }}>Loading…</p>
+            <p style={{ margin: 0, color: "var(--muted)" }}>{t("audit.loading")}</p>
           </div>
         )}
 
-        {record && meta && (
+        {record && style && (
           <div className="glass" style={{ padding: "1.75rem 2rem" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", flexWrap: "wrap" }}>
-              <span className="badge" style={{ color: meta.color, borderColor: meta.color }}>
-                {meta.label}
+              <span className="badge" style={{ color: style.color, borderColor: style.color }}>
+                {t(`status.${record.status}` as TKey)}
               </span>
               <span className="badge" title="audit tier">
                 {paid ? "Paid · N=20" : "Free · N=1"}
               </span>
-              {POLLING_STATUSES.includes(record.status) && <span className="note">Auto-refreshing…</span>}
+              {POLLING_STATUSES.includes(record.status) && <span className="note">{t("audit.refreshing")}</span>}
             </div>
-            <p style={{ color: "var(--text)", margin: "1rem 0 0" }}>{meta.blurb}</p>
+            <p style={{ color: "var(--text)", margin: "1rem 0 0" }}>{style.blurb}</p>
 
             {/* Payment status (paid tier only) */}
             {paid && (
@@ -135,11 +133,7 @@ export default function AuditStatusPage() {
                 {paymentVerified && record.payment?.signature && (
                   <p className="note" style={{ margin: 0 }}>
                     ✅ Payment verified on-chain —{" "}
-                    <a
-                      href={`https://solscan.io/tx/${record.payment.signature}`}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
+                    <a href={`https://solscan.io/tx/${record.payment.signature}`} target="_blank" rel="noreferrer">
                       {record.payment.signature.slice(0, 8)}…{record.payment.signature.slice(-8)}
                     </a>
                   </p>
@@ -149,15 +143,16 @@ export default function AuditStatusPage() {
 
             {/* What was tested */}
             <p style={{ color: "var(--text-strong)", margin: "1.25rem 0 0", fontSize: "0.95rem" }}>
-              This audit tested: <code style={{ wordBreak: "break-all" }}>{record.form.endpoint}</code>
+              {t("audit.tested")} <code style={{ wordBreak: "break-all" }}>{record.form.endpoint}</code>
               <br />
-              framework: <strong>{record.form.framework}</strong> · model: <strong>{record.form.model}</strong>
+              {t("audit.framework")} <strong>{record.form.framework}</strong> · {t("audit.model")}{" "}
+              <strong>{record.form.model}</strong>
             </p>
 
             {/* Queue wait estimate */}
             {record.status === "queued" && (
               <p className="note" style={{ marginTop: "1.25rem" }}>
-                ⏳ In the queue{record.queueDepth !== undefined ? ` — ${waitLabel(record.queueDepth, paid)}` : "…"}
+                ⏳ {record.queueDepth !== undefined ? waitLabel(record.queueDepth, paid) : "…"}
               </p>
             )}
 
@@ -166,8 +161,8 @@ export default function AuditStatusPage() {
               <div style={{ marginTop: "1.5rem" }}>
                 <p className="note" style={{ marginBottom: "0.5rem" }}>
                   {progress.current
-                    ? `Running ${progress.current} (${progress.completed + 1} of ${progress.total})…`
-                    : `Completed ${progress.completed} of ${progress.total}…`}
+                    ? `${t("status.running")} ${progress.current} (${progress.completed + 1} / ${progress.total})…`
+                    : `${progress.completed} / ${progress.total}…`}
                 </p>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: "0.4rem" }}>
                   {progress.perScenario.map((s) => (
@@ -190,7 +185,9 @@ export default function AuditStatusPage() {
             )}
 
             {(record.status === "failed" || record.status === "payment_failed") && record.error && (
-              <p style={{ color: "var(--red)", marginTop: "1.25rem" }}>Reason: {record.error}</p>
+              <p style={{ color: "var(--red)", marginTop: "1.25rem" }}>
+                {t("audit.reason")} {record.error}
+              </p>
             )}
 
             {/* Placard for a completed audit. */}
@@ -205,6 +202,9 @@ export default function AuditStatusPage() {
                 No scenarios produced a valid run — check that your endpoint is reachable and protocol-conformant.
               </p>
             )}
+
+            {/* Share / embed / PDF — only for a completed audit. */}
+            {record.status === "done" && record.result && <ResultActions id={id} result={record.result} />}
           </div>
         )}
       </section>

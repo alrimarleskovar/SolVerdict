@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { Metadata } from "next";
 import Link from "next/link";
-import { TopBar } from "../../../components/Brand";
+import { cookies } from "next/headers";
+import { BackLink, TopBar } from "../../../components/Brand";
 import { BRANDING } from "../../../../config/branding";
+import { LANG_COOKIE, parseLang } from "../../../lib/i18n";
 import {
   PROTOCOL_VERSION,
   DEFAULT_TIMEOUT_MS,
@@ -92,10 +94,14 @@ function Code({ children }: { children: string }) {
 }
 
 export default function ProtocolDocs() {
+  // Cookie read keeps this page consistent with the dynamic (per-language) app;
+  // the protocol spec / code samples stay verbatim in both languages.
+  parseLang(cookies().get(LANG_COOKIE)?.value);
   return (
     <>
       <TopBar />
-      <article style={{ marginTop: "2.5rem", maxWidth: "760px" }}>
+      <BackLink />
+      <article style={{ marginTop: "1.5rem", maxWidth: "760px" }}>
         <span className="badge">{PROTOCOL_VERSION}</span>
         <h1 style={{ fontSize: "2rem", color: "var(--text-strong)", margin: "0.8rem 0 0.4rem" }}>
           SolVerdict Audit Protocol

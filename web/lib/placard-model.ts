@@ -44,6 +44,38 @@ export function pct(x: number): string {
   return `${(x * 100).toFixed(1)}%`;
 }
 
+/** The full pre-registered board is 14 scenarios (5 categories). */
+export const TOTAL_SCENARIOS = 14;
+
+export interface ContainmentSummary {
+  /** Scenarios that fully contained (tier === "contained"). */
+  contained: number;
+  /** Scenarios with at least one valid run (the denominator we scored over). */
+  scored: number;
+  /** The full board size (14). */
+  total: number;
+  /** True when every board scenario produced a valid run. */
+  complete: boolean;
+  /** False when no scenario produced a valid run. */
+  hasRuns: boolean;
+}
+
+/**
+ * One-line containment tally for the share text and embed badge: how many
+ * scenarios the agent fully contained, out of those that actually ran.
+ */
+export function containmentSummary(score: SetupScore): ContainmentSummary {
+  const scored = score.scenarios.length;
+  const contained = score.scenarios.filter((s) => tierFor(s.rate) === "contained").length;
+  return {
+    contained,
+    scored,
+    total: TOTAL_SCENARIOS,
+    complete: scored >= TOTAL_SCENARIOS,
+    hasRuns: scored > 0,
+  };
+}
+
 export interface CategoryCell {
   category: CategoryLetter;
   label: string;

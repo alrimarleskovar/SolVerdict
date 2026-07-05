@@ -1,11 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 import Link from "next/link";
+import { cookies } from "next/headers";
 import { BRANDING } from "../../config/branding";
 import { Logo, TopBar } from "../components/Brand";
+import { LANG_COOKIE, parseLang, t as translate } from "../lib/i18n";
 
 const PREREG_URL = `${BRANDING.repoUrl}/blob/main/${BRANDING.preregFile}`;
 
 export default function Home() {
+  const lang = parseLang(cookies().get(LANG_COOKIE)?.value);
+  const t = (k: Parameters<typeof translate>[1]) => translate(lang, k);
+
   return (
     <>
       <TopBar />
@@ -21,49 +26,45 @@ export default function Home() {
           }}
         >
           <Logo />
-          <span className="sol">SolVerdict</span> — audit your Solana
-          <br />
-          agent&rsquo;s safety
+          <span className="sol">SolVerdict</span> {t("home.title.suffix")}
         </h1>
 
         <p style={{ fontSize: "1.15rem", color: "var(--text-strong)", maxWidth: "62ch", margin: "0.6rem auto 1rem" }}>
-          SolVerdict runs your Solana agent through 14 adversarial scenarios in 5 categories and scores every run with an
-          objective, machine-checkable rule on a local mainnet fork — no real funds.
+          {t("home.hero.lead")}
         </p>
         <p style={{ color: "var(--muted)", maxWidth: "62ch", margin: "0 auto 1.8rem" }}>
-          It measures one thing: when the agent meets a dangerous situation, does it <strong>contain</strong> the wallet
-          action or <strong>execute</strong> it. You get a private verdict placard you can share by link.
+          {t("home.hero.sub.a")} <strong>{t("home.hero.sub.contain")}</strong> {t("home.hero.sub.b")}{" "}
+          <strong>{t("home.hero.sub.execute")}</strong>
+          {t("home.hero.sub.c")}
         </p>
 
         <div style={{ display: "flex", flexWrap: "wrap", gap: "0.75rem", justifyContent: "center" }}>
           <Link href="/submit" className="btn btn-primary">
-            Start audit →
+            {t("home.cta.start")}
           </Link>
           <a className="btn" href={PREREG_URL} target="_blank" rel="noreferrer">
-            View methodology (pre-registered)
+            {t("home.cta.method")}
           </a>
           <a className="btn" href={BRANDING.repoUrl} target="_blank" rel="noreferrer">
-            GitHub repo
+            {t("home.cta.repo")}
           </a>
         </div>
       </header>
 
       <section style={{ marginTop: "3.5rem" }}>
         <div className="glass glass-hover" style={{ padding: "1.6rem 1.75rem" }}>
-          <span className="badge">How it works</span>
+          <span className="badge">{t("home.how")}</span>
           <ol style={{ margin: "1rem 0 0", paddingLeft: "1.2rem", lineHeight: 1.8, color: "var(--text)" }}>
             <li>
-              Submit your agent&rsquo;s framework, model provider, and endpoint or repo on the{" "}
-              <Link href="/submit">audit page</Link>.
+              {t("home.step1.a")} <Link href="/submit">{t("home.step1.link")}</Link>.
             </li>
-            <li>We queue the run and bench it against the pre-registered SolVerdict rubric.</li>
+            <li>{t("home.step2")}</li>
             <li>
-              You get a private link — <code>/audit/&lt;id&gt;</code> — that shows the verdict placard when the run
-              finishes.
+              {t("home.step3.a")} <code>/audit/&lt;id&gt;</code> {t("home.step3.b")}
             </li>
           </ol>
           <p className="note" style={{ marginTop: "1rem" }}>
-            No login. The audit id is an unguessable UUID, so the link is the only key to your result.
+            {t("home.note")}
           </p>
         </div>
       </section>
