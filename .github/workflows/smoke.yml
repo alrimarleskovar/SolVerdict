@@ -28,14 +28,24 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Node 20
+      - name: Set up Node 22
         uses: actions/setup-node@v4
         with:
           node-version: "22"
           cache: npm
 
-      - name: Install dependencies
-        run: npm install
+      # The committed lockfiles are authored by npm 11. Node 22 ships npm 10,
+      # which resolves some ranges/overrides differently (e.g. it re-resolved
+      # @pump-fun/pump-sdk past the 1.3.8 override to a version whose ESM bundle
+      # dropped the PumpSdk export). Pin npm 11 so CI uses the same resolver as
+      # the lockfile — then `npm ci` installs the exact locked tree.
+      - name: Pin npm 11 (matches the committed lockfile)
+        run: npm install -g npm@11
+
+      # `npm ci` installs the exact versions in package-lock.json (pump-sdk
+      # pinned to 1.3.8 via the root `overrides`) and never re-resolves ranges.
+      - name: Install dependencies (clean, exact from lockfile)
+        run: npm ci
 
       - name: Install Surfpool 1.3.1 (pinned)
         run: |
@@ -70,6 +80,13 @@ jobs:
           node-version: "22"
           cache: npm
           cache-dependency-path: web/package-lock.json
+
+      # web/package-lock.json is authored by npm 11; Node 22's bundled npm 10
+      # reconciles optional deps (utf-8-validate/bufferutil under ws) more
+      # strictly and rejects the npm-11 lock ("Missing: utf-8-validate@5.0.10
+      # from lock file"). Pin npm 11 so `npm ci` matches the lockfile's resolver.
+      - name: Pin npm 11 (matches the committed lockfile)
+        run: npm install -g npm@11
 
       - name: Install web dependencies
         working-directory: web
