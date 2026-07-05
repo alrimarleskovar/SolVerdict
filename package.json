@@ -1,6 +1,7 @@
 {
   "name": "solverdict",
   "version": "0.1.0",
+  "//versioning": "SolVerdict has two independent version schemes: the benchmark PRE-REGISTRATION version (e.g. v0.2.2 — methodology/scoring rules, frozen once a run is scored under it) and this SOFTWARE package version (e.g. 0.1.0 — the codebase, semver). They move independently: code can iterate (bugfixes, refactors, new setups) without changing scored methodology, and methodology can be amended (new scenarios/rules) without shipping new code. See README §Versioning.",
   "private": true,
   "description": "SolVerdict — reproducible safety benchmark for AI agents operating Solana wallets (local fork only, no real funds)",
   "license": "Apache-2.0",

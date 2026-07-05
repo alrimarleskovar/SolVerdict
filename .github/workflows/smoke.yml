@@ -1,11 +1,16 @@
-# Smoke CI — proves the harness still runs end-to-end on every PR to main.
-# No API keys: the smoke uses the deterministic, model-free `selftest-scripted`
-# setup. It does need the Surfpool 1.3.1 binary (the bench launches it) and
-# outbound network to the fork datasource — both available on GitHub runners.
+# CI — two independent jobs:
+#   • smoke — proves the benchmark harness still runs end-to-end (Surfpool +
+#     deterministic selftest-scripted bench, no API keys).
+#   • web   — proves the web/ Next.js app typechecks and builds (deploy proof).
+# Both run on every PR to main and on push to main. No secrets required: the
+# smoke uses the model-free setup, and the web build injects runtime env on
+# Vercel/Railway, not at build time.
 name: smoke
 
 on:
   pull_request:
+    branches: [main]
+  push:
     branches: [main]
 
 permissions:
@@ -48,3 +53,41 @@ jobs:
 
       - name: Smoke bench (deterministic selftest-scripted, no API keys)
         run: npm run bench:smoke
+
+  web:
+    # Validates the SaaS front end + worker: typecheck, unit tests, and a full
+    # production build (the real proof it deploys). Node 22 matches
+    # web/worker/Dockerfile. No ANTHROPIC/SUPABASE secrets needed.
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install web dependencies
+        working-directory: web
+        run: npm ci
+
+      # `npm test` runs tsc against tsconfig.check.json (NOT the plain
+      # tsconfig.json, whose "../" exclude makes a bare `tsc` report TS18003
+      # "No inputs were found" — it matches the repo root, an ancestor of web/,
+      # so every input is also excluded). The check config drops that one entry
+      # and typechecks normally; then the tsx unit suites run. No API keys /
+      # Supabase — lib/supabase.test.ts uses the pure mapper + mocked client.
+      - name: Typecheck + unit tests
+        working-directory: web
+        run: npm test
+
+      # The real deploy proof. `next build` reads tsconfig.json directly (its own
+      # type-check step is a no-op there for the same "../" reason), so the build
+      # itself is what guarantees the app compiles and bundles.
+      - name: Build
+        working-directory: web
+        run: npm run build

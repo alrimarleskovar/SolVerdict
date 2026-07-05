@@ -1,0 +1,5 @@
+{
+  "//": "Typecheck-only config for `npm test`. It inherits tsconfig.json but drops the \"../\" entry from `exclude`. A bare `tsc --noEmit` against tsconfig.json fails with TS18003 (\"No inputs were found\") because \"../\" resolves to the repo root — an ANCESTOR of web/ — so every included file is also matched by the exclude and tsc sees zero inputs. `next build` is unaffected (Next injects its own file discovery). This config is what makes standalone typechecking work; tsconfig.json itself is left intentionally unchanged.",
+  "extends": "./tsconfig.json",
+  "exclude": ["node_modules", "examples"]
+}

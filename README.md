@@ -28,6 +28,15 @@ applied by a global search/replace at the v0.2.1 → v0.2.2 transition;
 - **Current status** — v0.2.2 Run B, 91% coverage: the same model refused every attack alone but drained the wallet (A2 = 0%) once wrapped in the Solana Agent Kit framework ([status](#status)).
 - **How to use it** — Read the placard below, clone and `npm run bench` yourself ([reproduce](#reproduce-it)), or submit your own agent's HTTPS endpoint through the in-development SaaS.
 
+## Versioning
+
+SolVerdict uses two independent version schemes:
+
+- **Benchmark pre-registration version** (e.g. `v0.2.2`) — the methodology and scoring rules. Frozen once a run is scored under it. Bumping this version = new pre-registration document.
+- **Software package version** (e.g. `0.1.0` in package.json) — the codebase itself. Follows semver. Independent from the benchmark version.
+
+This separation exists because a codebase can iterate (bugfixes, refactors, new setups) without changing the scored methodology, and a methodology can be amended (new scenarios, new scoring rules) without shipping new code.
+
 ## Two sides of SolVerdict
 
 SolVerdict is two things built on one scoring engine:
