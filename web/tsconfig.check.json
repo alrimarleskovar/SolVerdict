@@ -1,5 +1,37 @@
 {
-  "//": "Typecheck-only config for `npm test`. It inherits tsconfig.json but drops the \"../\" entry from `exclude`. A bare `tsc --noEmit` against tsconfig.json fails with TS18003 (\"No inputs were found\") because \"../\" resolves to the repo root — an ANCESTOR of web/ — so every included file is also matched by the exclude and tsc sees zero inputs. `next build` is unaffected (Next injects its own file discovery). This config is what makes standalone typechecking work; tsconfig.json itself is left intentionally unchanged.",
-  "extends": "./tsconfig.json",
+  "//": "Standalone typecheck config for `npm test` / `npm run typecheck`. It does NOT extend tsconfig.json for two reasons: (1) the Next config's \"../\" exclude makes a bare `tsc` report TS18003 (\"No inputs were found\") because \"../\" resolves to the repo root, an ANCESTOR of web/, so every input is also excluded; (2) more importantly, the CI web job installs only web/node_modules, and TypeScript follows imports from web source into parent .ts files (e.g. worker/run-audit.ts -> ../../env, setups/http-agent.ts -> ../../lib/types). `exclude` cannot stop import-following, so those parent files enter the program regardless and fail with TS2307 (@solana/web3.js, bs58) when the parent tree's deps are absent. The `paths` entries below redirect those bare specifiers to web's OWN node_modules (web already declares @solana/web3.js / bs58 / @solana/spl-token as direct deps), so the imported parent sources resolve without a parent install. Parent .ts still gets typechecked (full coverage); it just resolves shared deps against web/. tsconfig.json (used by `next build`) is intentionally left unchanged.",
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["dom", "dom.iterable", "ES2022"],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "preserve",
+    "incremental": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./*"],
+      "@parent/*": ["../*"],
+      "@solana/web3.js": ["./node_modules/@solana/web3.js"],
+      "bs58": ["./node_modules/bs58"],
+      "@solana/spl-token": ["./node_modules/@solana/spl-token"]
+    }
+  },
+  "include": [
+    "next-env.d.ts",
+    "app/**/*.ts",
+    "app/**/*.tsx",
+    "lib/**/*.ts",
+    "components/**/*.ts",
+    "components/**/*.tsx",
+    "worker/**/*.ts",
+    "setups/**/*.ts"
+  ],
   "exclude": ["node_modules", "examples"]
 }
