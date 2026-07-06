@@ -645,6 +645,24 @@ table.placard tbody th {
   }
 }
 
+/* Documentation section cards: a very subtle continuous "breathing" border
+   oscillation (mist 10% ↔ accent-blue 20%). Each card is phase-shifted via
+   --card-i (negative delay) so they never pulse in unison. Base state = rest,
+   so the reduced-motion kill-switch renders the cards static. */
+.doc-card {
+  animation: cardBreathe 6s ease-in-out infinite;
+  animation-delay: calc(var(--card-i, 0) * -1.3s);
+}
+@keyframes cardBreathe {
+  0%,
+  100% {
+    border-color: rgba(148, 163, 184, 0.1);
+  }
+  50% {
+    border-color: rgba(59, 130, 246, 0.2);
+  }
+}
+
 /* Subtle dot grid over the landing background. */
 .landing-grid {
   position: absolute;

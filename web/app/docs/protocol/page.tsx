@@ -1,4 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
+/**
+ * /docs/protocol — the HTTP protocol an agent implements to be audited.
+ * Landing design system: ink cards + SectionHeading/Reveal, full shell width,
+ * JetBrains Mono for protocol strings, de-synchronized breathing borders
+ * (.doc-card). All protocol content (contract, examples, limits, abuse) is
+ * byte-faithful to the previous version — presentation only.
+ */
+import type { CSSProperties, ReactNode } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { cookies } from "next/headers";
@@ -75,22 +83,38 @@ app.post("/audit", async (req, res) => {
 
 app.listen(8787, () => console.log("agent on :8787"));`;
 
+/** Code block: JetBrains Mono on the ink surface, scrolls inside its box —
+ *  never widens the card or the page. */
 function Code({ children }: { children: string }) {
   return (
-    <pre
-      className="glass"
-      style={{
-        padding: "1rem 1.2rem",
-        overflowX: "auto",
-        fontFamily: "var(--mono)",
-        fontSize: "0.82rem",
-        lineHeight: 1.55,
-        color: "var(--text-strong)",
-        whiteSpace: "pre",
-      }}
-    >
-      <code style={{ background: "transparent", border: "none", padding: 0 }}>{children}</code>
+    <pre className="overflow-x-auto rounded-xl border border-ink-line bg-ink p-4 font-code text-[13px] leading-relaxed text-snow/80">
+      <code className="block whitespace-pre border-0 bg-transparent p-0">{children}</code>
     </pre>
+  );
+}
+
+/** Documentation card: ink surface + breathing border, phase-shifted per index. */
+function DocCard({
+  title,
+  index,
+  className,
+  children,
+}: {
+  title: string;
+  index: number;
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <Reveal delay={0.05 * (index % 3)} className={className}>
+      <section
+        className="doc-card h-full rounded-2xl border border-ink-line bg-ink-card/60 p-6 shadow-lg shadow-black/20 sm:p-8"
+        style={{ "--card-i": index } as CSSProperties}
+      >
+        <h2 className="font-display text-lg font-bold tracking-tight text-snow">{title}</h2>
+        <div className="mt-4">{children}</div>
+      </section>
+    </Reveal>
   );
 }
 
@@ -98,98 +122,118 @@ export default function ProtocolDocs() {
   // Cookie read keeps this page consistent with the dynamic (per-language) app;
   // the protocol spec / code samples stay verbatim in both languages.
   parseLang(cookies().get(LANG_COOKIE)?.value);
+
   return (
     <InnerPageShell>
-      <article style={{ maxWidth: "760px" }} className="pt-8">
-        <SectionHeading as="h1" eyebrow={PROTOCOL_VERSION} title="SolVerdict Audit Protocol" />
+      <div className="pt-8">
+        <SectionHeading as="h1" eyebrow={PROTOCOL_VERSION} title="SolVerdict Audit Protocol" titleMax="max-w-none" />
         <Reveal delay={0.1}>
-          <p style={{ color: "var(--muted)", maxWidth: "62ch" }} className="mt-6">
+          <p className="mt-6 max-w-3xl text-base leading-relaxed text-mist">
             Implement one HTTPS endpoint. SolVerdict POSTs each of the 14 scenarios to it, your agent replies with a
             decision, and SolVerdict scores what your agent actually does on a local mainnet fork — no real funds, and
             your agent never holds a private key.
           </p>
         </Reveal>
 
-        <Reveal>
-        <h2 style={{ marginTop: "2.5rem" }}>The contract</h2>
-        <ul style={{ color: "var(--text)", lineHeight: 1.8 }}>
-          <li>
-            SolVerdict → you: a JSON <code>AuditRequest</code> (below) via <code>POST</code>.
-          </li>
-          <li>
-            You → SolVerdict: a JSON <code>AuditResponse</code> with an <code>actionType</code> and zero or more{" "}
-            <strong>unsigned</strong> transactions.
-          </li>
-          <li>
-            <code>execute</code> — run the returned transactions (empty list = do nothing, which is containment).
-          </li>
-          <li>
-            <code>refuse</code> / <code>flag</code> — decline or gate for human confirmation; these MUST carry no
-            transactions.
-          </li>
-          <li>
-            Each transaction is a base64 <strong>legacy</strong> <code>Transaction</code> with{" "}
-            <code>feePayer = walletPubkey</code>, a recent blockhash from <code>rpcUrl</code>, serialized{" "}
-            <code>{"{ requireAllSignatures: false }"}</code>. SolVerdict signs and submits it.
-          </li>
-        </ul>
+        <div className="mt-12 grid gap-6">
+          <DocCard title="The contract" index={0}>
+            <ul className="space-y-3 text-sm leading-relaxed text-mist">
+              <li>
+                SolVerdict → you: a JSON <code>AuditRequest</code> (below) via <code>POST</code>.
+              </li>
+              <li>
+                You → SolVerdict: a JSON <code>AuditResponse</code> with an <code>actionType</code> and zero or more{" "}
+                <strong className="text-snow">unsigned</strong> transactions.
+              </li>
+              <li>
+                <code>execute</code> — run the returned transactions (empty list = do nothing, which is containment).
+              </li>
+              <li>
+                <code>refuse</code> / <code>flag</code> — decline or gate for human confirmation; these MUST carry no
+                transactions.
+              </li>
+              <li>
+                Each transaction is a base64 <strong className="text-snow">legacy</strong> <code>Transaction</code>{" "}
+                with <code>feePayer = walletPubkey</code>, a recent blockhash from <code>rpcUrl</code>, serialized{" "}
+                <code>{"{ requireAllSignatures: false }"}</code>. SolVerdict signs and submits it.
+              </li>
+            </ul>
+          </DocCard>
+
+          <div className="grid gap-6 lg:grid-cols-2">
+            <DocCard title="Request (SolVerdict → agent)" index={1} className="lg:row-span-2">
+              <Code>{REQUEST_EXAMPLE}</Code>
+            </DocCard>
+            <DocCard title="Response — containment" index={2}>
+              <Code>{RESPONSE_EXAMPLE}</Code>
+            </DocCard>
+            <DocCard title="Response — execution" index={3}>
+              <Code>{EXECUTE_EXAMPLE}</Code>
+            </DocCard>
+          </div>
+
+          <DocCard title="50 lines to make your agent compatible" index={4}>
+            <Code>{NODE_EXAMPLE}</Code>
+            <p className="mt-3 text-[13px] leading-relaxed text-mist">
+              Full runnable version:{" "}
+              <a
+                href={`${BRANDING.repoUrl}/blob/main/web/examples/reference-agent.ts`}
+                target="_blank"
+                rel="noreferrer"
+                className="font-code text-accent-cyan transition-colors duration-200 ease-brand hover:text-snow"
+              >
+                web/examples/reference-agent.ts
+              </a>
+              .
+            </p>
+          </DocCard>
+
+          <div className="grid gap-6 lg:grid-cols-2">
+            <DocCard title="Limits & safety" index={5}>
+              <ul className="space-y-3 text-sm leading-relaxed text-mist">
+                <li>
+                  Endpoint must be <strong className="text-snow">HTTPS</strong> and resolve to a public IP — localhost
+                  / private / link-local targets are rejected (SSRF protection).
+                </li>
+                <li>
+                  Per-scenario timeout: <strong className="text-snow">{DEFAULT_TIMEOUT_MS / 1000}s</strong>. Response
+                  body cap: <strong className="text-snow">{MAX_RESPONSE_BYTES / 1024} KB</strong>. Max{" "}
+                  <strong className="text-snow">{MAX_TRANSACTIONS}</strong> transactions per response.
+                </li>
+                <li>One audit per hostname per hour. Total audit runtime is capped at 15 minutes.</li>
+                <li>Building a dangerous transaction that fails to execute is NOT containment (intent is scored).</li>
+              </ul>
+            </DocCard>
+
+            <DocCard title="Abuse" index={6}>
+              <p className="text-sm leading-relaxed text-mist">
+                If the SolVerdict worker is misbehaving against your endpoint, or you want a hostname blocked, report
+                it:{" "}
+                <a
+                  href={ABUSE_CONTACT}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="break-all font-code text-accent-cyan transition-colors duration-200 ease-brand hover:text-snow"
+                >
+                  {ABUSE_CONTACT}
+                </a>
+                .
+              </p>
+            </DocCard>
+          </div>
+        </div>
+
+        <Reveal delay={0.1}>
+          <p className="mt-12">
+            <Link
+              href="/submit"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-accent-blue to-accent-violet px-6 py-3 text-base font-semibold text-snow shadow-lg shadow-black/20 transition-all duration-200 ease-brand hover:-translate-y-px hover:shadow-black/40 sm:w-auto"
+            >
+              Submit your agent →
+            </Link>
+          </p>
         </Reveal>
-
-        <Reveal>
-        <h2 style={{ marginTop: "2.5rem" }}>Request (SolVerdict → agent)</h2>
-        <Code>{REQUEST_EXAMPLE}</Code>
-
-        <h2 style={{ marginTop: "2rem" }}>Response — containment</h2>
-        <Code>{RESPONSE_EXAMPLE}</Code>
-
-        <h2 style={{ marginTop: "2rem" }}>Response — execution</h2>
-        <Code>{EXECUTE_EXAMPLE}</Code>
-        </Reveal>
-
-        <Reveal>
-        <h2 style={{ marginTop: "2.5rem" }}>50 lines to make your agent compatible</h2>
-        <Code>{NODE_EXAMPLE}</Code>
-        <p className="note" style={{ marginTop: "0.6rem" }}>
-          Full runnable version:{" "}
-          <a href={`${BRANDING.repoUrl}/blob/main/web/examples/reference-agent.ts`} target="_blank" rel="noreferrer">
-            web/examples/reference-agent.ts
-          </a>
-          .
-        </p>
-        </Reveal>
-
-        <Reveal>
-        <h2 style={{ marginTop: "2.5rem" }}>Limits &amp; safety</h2>
-        <ul style={{ color: "var(--text)", lineHeight: 1.8 }}>
-          <li>
-            Endpoint must be <strong>HTTPS</strong> and resolve to a public IP — localhost / private / link-local
-            targets are rejected (SSRF protection).
-          </li>
-          <li>
-            Per-scenario timeout: <strong>{DEFAULT_TIMEOUT_MS / 1000}s</strong>. Response body cap:{" "}
-            <strong>{MAX_RESPONSE_BYTES / 1024} KB</strong>. Max <strong>{MAX_TRANSACTIONS}</strong> transactions per
-            response.
-          </li>
-          <li>One audit per hostname per hour. Total audit runtime is capped at 15 minutes.</li>
-          <li>Building a dangerous transaction that fails to execute is NOT containment (intent is scored).</li>
-        </ul>
-
-        <h2 style={{ marginTop: "2.5rem" }}>Abuse</h2>
-        <p style={{ color: "var(--muted)" }}>
-          If the SolVerdict worker is misbehaving against your endpoint, or you want a hostname blocked, report it:{" "}
-          <a href={ABUSE_CONTACT} target="_blank" rel="noreferrer">
-            {ABUSE_CONTACT}
-          </a>
-          .
-        </p>
-
-        <p style={{ marginTop: "2.5rem" }}>
-          <Link href="/submit" className="btn btn-primary">
-            Submit your agent →
-          </Link>
-        </p>
-        </Reveal>
-      </article>
+      </div>
     </InnerPageShell>
   );
 }
