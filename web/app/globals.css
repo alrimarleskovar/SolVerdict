@@ -620,3 +620,70 @@ table.placard tbody th {
     min-width: 480px;
   }
 }
+
+/* ===========================================================================
+   Landing page (components/landing/*) — self-contained visual system.
+   Scoped with :where(.landing) so these rules carry ZERO extra specificity:
+   they neutralize the site-wide purple link/mono-heading defaults inside the
+   landing tree, while any Tailwind utility on an element still wins. Placed
+   at the end of the file so they beat the earlier globals on cascade order.
+   =========================================================================== */
+
+/* Escape the root layout's 880px .wrap: full-viewport-width breakout. */
+.full-bleed {
+  width: 100vw;
+  margin-left: calc(50% - 50vw);
+}
+
+:where(.landing) {
+  font-family: var(--font-body, var(--sans));
+  color: #f8fafc;
+}
+:where(.landing) a,
+:where(.landing) a:hover {
+  color: inherit;
+  text-decoration: none;
+}
+:where(.landing) h1,
+:where(.landing) h2,
+:where(.landing) h3,
+:where(.landing) h4 {
+  font-family: var(--font-display, var(--sans));
+}
+:where(.landing) code {
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: var(--font-code, var(--mono));
+}
+
+/* Soft-glow orbs for the landing background (GPU-cheap, blur precomputed). */
+.landing-orb {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(90px);
+  pointer-events: none;
+  will-change: transform;
+}
+
+/* Subtle dot grid over the landing background. */
+.landing-grid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: radial-gradient(rgba(148, 163, 184, 0.13) 1px, transparent 1px);
+  background-size: 28px 28px;
+  mask-image: radial-gradient(ellipse 90% 70% at 50% 0%, black 30%, transparent 75%);
+  -webkit-mask-image: radial-gradient(ellipse 90% 70% at 50% 0%, black 30%, transparent 75%);
+}
+
+/* Reduced motion: kill landing transform/opacity animations wholesale. */
+@media (prefers-reduced-motion: reduce) {
+  .landing *,
+  .landing *::before,
+  .landing *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
