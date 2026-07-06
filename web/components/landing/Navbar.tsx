@@ -40,7 +40,7 @@ function LangToggle() {
         type="button"
         onClick={() => setLang("en")}
         aria-pressed={lang === "en"}
-        className={`rounded px-1 py-0.5 transition-colors ${lang === "en" ? "font-bold text-snow" : "hover:text-snow"}`}
+        className={`rounded-lg px-1 py-0.5 transition-colors duration-200 ease-brand ${lang === "en" ? "font-bold text-snow" : "hover:text-snow"}`}
       >
         EN
       </button>
@@ -49,7 +49,7 @@ function LangToggle() {
         type="button"
         onClick={() => setLang("pt")}
         aria-pressed={lang === "pt"}
-        className={`rounded px-1 py-0.5 transition-colors ${lang === "pt" ? "font-bold text-snow" : "hover:text-snow"}`}
+        className={`rounded-lg px-1 py-0.5 transition-colors duration-200 ease-brand ${lang === "pt" ? "font-bold text-snow" : "hover:text-snow"}`}
       >
         PT
       </button>
@@ -82,8 +82,8 @@ export function Navbar({ showWallet = false }: { showWallet?: boolean }) {
 
   return (
     <header
-      className={`sticky top-0 z-50 transition-[background-color,border-color,backdrop-filter] duration-300 ${
-        scrolled || open ? "border-b border-ink-line bg-ink/75 backdrop-blur-xl" : "border-b border-transparent"
+      className={`sticky top-0 z-50 transition-[background-color,border-color,backdrop-filter] duration-350 ${
+        scrolled || open ? "border-b border-ink-line bg-ink/80 backdrop-blur-xl" : "border-b border-transparent"
       }`}
     >
       <nav className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6" aria-label="Primary">
@@ -140,7 +140,7 @@ export function Navbar({ showWallet = false }: { showWallet?: boolean }) {
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.2, ease: [0.2, 0.8, 0.2, 1] }}
-            className="overflow-hidden border-b border-ink-line bg-ink/95 backdrop-blur-xl md:hidden"
+            className="overflow-hidden border-b border-ink-line bg-ink/80 backdrop-blur-xl md:hidden"
           >
             <div className="flex flex-col gap-1 px-6 pb-4 pt-2">
               {NAV_LINKS.map((l) =>
