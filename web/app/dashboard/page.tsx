@@ -6,6 +6,7 @@ import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { InnerPageShell } from "../../components/InnerPageShell";
+import { Reveal, SectionHeading } from "../../components/landing/ui";
 import { useLang } from "../../components/LangProvider";
 import type { TKey } from "../../lib/i18n";
 
@@ -60,9 +61,10 @@ export default function DashboardPage() {
 
   return (
     <InnerPageShell>
-      <section>
-        <h1 style={{ fontSize: "1.8rem", color: "var(--text-strong)", margin: "0 0 1rem" }}>{t("dash.h1")}</h1>
+      <section className="pt-8">
+        <SectionHeading as="h1" eyebrow={t("dash.eyebrow")} title={t("dash.h1")} className="mb-8" />
 
+        <Reveal delay={0.1}>
         {!connected || !wallet ? (
           <div className="glass" style={{ padding: "1.75rem 2rem" }}>
             <p style={{ color: "var(--text-strong)", margin: "0 0 1.25rem" }}>{t("dash.connect")}</p>
@@ -122,6 +124,7 @@ export default function DashboardPage() {
             </div>
           </>
         )}
+        </Reveal>
       </section>
     </InnerPageShell>
   );

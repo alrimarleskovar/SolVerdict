@@ -4,6 +4,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { InnerPageShell } from "../../../components/InnerPageShell";
+import { Reveal, SectionHeading } from "../../../components/landing/ui";
 import { Placard } from "../../../components/Placard";
 import { ResultActions } from "../../../components/ResultActions";
 import { useLang } from "../../../components/LangProvider";
@@ -84,25 +85,32 @@ export default function AuditStatusPage() {
 
   return (
     <InnerPageShell>
-      <section>
-        <h1 style={{ fontSize: "1.6rem", color: "var(--text-strong)", margin: "0 0 0.3rem" }}>{t("audit.h1")}</h1>
-        <p className="note" style={{ marginBottom: "1.5rem" }}>
-          <code>/audit/{id}</code>
-        </p>
+      <section className="pt-8">
+        <SectionHeading as="h1" eyebrow={t("audit.eyebrow")} title={t("audit.h1")} />
+        <Reveal delay={0.1}>
+          <p className="note mb-6 mt-4">
+            <code>/audit/{id}</code>
+          </p>
+        </Reveal>
 
         {error && !record && (
-          <div className="glass" style={{ padding: "1.5rem 1.75rem" }}>
-            <p style={{ color: "var(--red)", margin: 0 }}>⚠️ {error}</p>
-          </div>
+          <Reveal>
+            <div className="glass" style={{ padding: "1.5rem 1.75rem" }}>
+              <p style={{ color: "var(--red)", margin: 0 }}>⚠️ {error}</p>
+            </div>
+          </Reveal>
         )}
 
         {!record && !error && (
-          <div className="glass" style={{ padding: "1.5rem 1.75rem" }}>
-            <p style={{ margin: 0, color: "var(--muted)" }}>{t("audit.loading")}</p>
-          </div>
+          <Reveal>
+            <div className="glass" style={{ padding: "1.5rem 1.75rem" }}>
+              <p style={{ margin: 0, color: "var(--muted)" }}>{t("audit.loading")}</p>
+            </div>
+          </Reveal>
         )}
 
         {record && style && (
+          <Reveal>
           <div className="glass" style={{ padding: "1.75rem 2rem" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", flexWrap: "wrap" }}>
               <span className="badge" style={{ color: style.color, borderColor: style.color }}>
@@ -204,6 +212,7 @@ export default function AuditStatusPage() {
             {/* Share / embed / PDF — only for a completed audit. */}
             {record.status === "done" && record.result && <ResultActions id={id} result={record.result} />}
           </div>
+          </Reveal>
         )}
       </section>
     </InnerPageShell>

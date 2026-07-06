@@ -243,6 +243,7 @@ const en = {
     "SolVerdict never accepts money, equity, or any consideration from any project, framework, model, or guardrail layer it evaluates.",
 
   // submit
+  "submit.eyebrow": "Audit intake",
   "submit.h1": "Start an audit",
   "submit.intro.a": "Your agent must implement the",
   "submit.intro.protocol": "SolVerdict Audit Protocol",
@@ -278,6 +279,7 @@ const en = {
   "submit.done.cta": "View audit status →",
 
   // pricing
+  "pricing.eyebrow": "Free vs Paid",
   "pricing.h1": "Pricing",
   "pricing.intro":
     "Both tiers run the same 14 adversarial scenarios against your live agent. They differ only in how many times each scenario runs — which determines the statistical confidence of the verdict.",
@@ -294,6 +296,7 @@ const en = {
   "pricing.cta": "Start an audit →",
 
   // audit status
+  "audit.eyebrow": "Audit result",
   "audit.h1": "Audit verdict",
   "audit.tested": "This audit tested:",
   "audit.framework": "framework:",
@@ -319,6 +322,7 @@ const en = {
   "status.payment_failed": "Payment failed",
 
   // dashboard
+  "dash.eyebrow": "Your account",
   "dash.h1": "Your audits",
   "dash.connect": "Connect your wallet to see your audit history.",
   "dash.empty": "You haven't submitted any audits yet.",
@@ -334,6 +338,7 @@ const en = {
   "dash.newaudit": "Start a new audit →",
 
   // leaderboard
+  "lb.eyebrow": "Public results",
   "lb.h1": "Public leaderboard",
   "lb.intro":
     "Audits whose submitters opted in to publish. Ranked by containment rate (contained scenarios out of those with valid runs).",
@@ -346,6 +351,42 @@ const en = {
   "lb.col.wallet": "Wallet",
   "lb.col.date": "Date",
   "lb.col.link": "",
+
+  // methodology page (/methodology) — faithful transcription of
+  // docs/METHODOLOGY.md (Benchmark vs Audit vs Leaderboard separation).
+  "meth.eyebrow": "Methodology",
+  "meth.h1": "Benchmark, Audit, and Leaderboard",
+  "meth.intro":
+    "SolVerdict has three surfaces. They share one scoring engine but serve different purposes and carry different guarantees. Keeping them separate is what lets a commercial service exist without compromising the scientific claim.",
+  "meth.can": "Can",
+  "meth.cannot": "Cannot",
+  "meth.bench.t": "The Benchmark",
+  "meth.bench.p1":
+    "The benchmark is the scientific core. It runs a fixed roster of setups (framework + model combinations) through 14 adversarial scenarios in 5 categories and scores every run by an objective, machine-checkable rule on a local Solana mainnet fork — no real funds.",
+  "meth.bench.p2":
+    "Its rules are pre-registered and git-timestamped before any run, and frozen once a run is scored under them (prereg §8). Results are published in full, including setups that score well (prereg §2.4). This is the only surface whose numbers are “official.”",
+  "meth.bench.can": "Produce reproducible, pre-registered containment rates with Wilson 95% CIs.",
+  "meth.bench.cannot":
+    "Be influenced by any evaluated party; measure performance, profitability, MEV resistance, or on-chain protocol security (prereg §1).",
+  "meth.audit.t": "The Audit product (SaaS)",
+  "meth.audit.p1":
+    "The Audit is a paid service that runs your agent — reached over an HTTPS endpoint — through the same 14-scenario rubric. It is a convenience: it applies the frozen benchmark methodology to an agent that isn't part of the published roster. Results are private by default — the only key to a result is its unguessable URL.",
+  "meth.audit.can": "Run the exact pre-registered rubric against your endpoint and return a private verdict placard.",
+  "meth.audit.cannot":
+    "Change which scenarios run, move the tier thresholds, or promise any outcome. Payment is a service fee for compute, not a ranking input.",
+  "meth.lb.t": "The Leaderboard",
+  "meth.lb.p1":
+    "The Leaderboard is a public, opt-in view of Audit results. A submitter must tick a box on the submit form to appear; wallets are anonymized. Entries are ranked by containment rate and are shown truthfully whether the result is good or bad. It is curated only for policy violations (spam, malicious endpoints) — never for score.",
+  "meth.lb.can": "Show self-selected public audits ranked by the same objective metric.",
+  "meth.lb.cannot": "Be bought into, be reordered by payment, or hide a poor result a submitter chose to publish.",
+  "meth.why.t": "Why separate",
+  "meth.why.p1":
+    "The benchmark's credibility rests on being un-buyable and pre-registered. The Audit and Leaderboard are downstream applications of that frozen methodology. By keeping the rubric immutable and the money strictly a compute fee, a paid service and a public board can exist without the evaluated party ever gaining leverage over the rules or their own score. The wall between “methodology” and “service” is the product.",
+  "meth.refs.t": "Read the full documents on GitHub",
+  "meth.refs.d": "This page is a summary. The complete, canonical sources:",
+  "meth.refs.prereg": "Full pre-registration",
+  "meth.refs.threat": "Threat model",
+  "meth.refs.coi": "Conflict of interest",
 } as const;
 
 export type TKey = keyof typeof en;
@@ -567,6 +608,7 @@ const pt: Record<TKey, string> = {
   "land.foot.pledge":
     "O SolVerdict nunca aceita dinheiro, participação societária ou qualquer contrapartida de nenhum projeto, framework, modelo ou camada de guardrail que avalia.",
 
+  "submit.eyebrow": "Entrada de auditoria",
   "submit.h1": "Iniciar uma auditoria",
   "submit.intro.a": "Seu agente deve implementar o",
   "submit.intro.protocol": "Protocolo de Auditoria SolVerdict",
@@ -601,6 +643,7 @@ const pt: Record<TKey, string> = {
   "submit.done.note": "É a chave para o seu resultado — nenhum login é necessário para vê-lo.",
   "submit.done.cta": "Ver status da auditoria →",
 
+  "pricing.eyebrow": "Grátis vs Pago",
   "pricing.h1": "Preços",
   "pricing.intro":
     "Ambos os planos executam os mesmos 14 cenários adversariais contra seu agente ao vivo. Diferem apenas em quantas vezes cada cenário roda — o que determina a confiança estatística do veredito.",
@@ -616,6 +659,7 @@ const pt: Record<TKey, string> = {
   "pricing.how": "Como funciona o pagamento",
   "pricing.cta": "Iniciar uma auditoria →",
 
+  "audit.eyebrow": "Resultado da auditoria",
   "audit.h1": "Veredito da auditoria",
   "audit.tested": "Esta auditoria testou:",
   "audit.framework": "framework:",
@@ -640,6 +684,7 @@ const pt: Record<TKey, string> = {
   "status.failed": "Falhou",
   "status.payment_failed": "Pagamento falhou",
 
+  "dash.eyebrow": "Sua conta",
   "dash.h1": "Suas auditorias",
   "dash.connect": "Conecte sua carteira para ver seu histórico de auditorias.",
   "dash.empty": "Você ainda não enviou nenhuma auditoria.",
@@ -654,6 +699,7 @@ const pt: Record<TKey, string> = {
   "dash.next": "Próxima →",
   "dash.newaudit": "Iniciar nova auditoria →",
 
+  "lb.eyebrow": "Resultados públicos",
   "lb.h1": "Ranking público",
   "lb.intro":
     "Auditorias cujos autores optaram por publicar. Ordenadas pela taxa de contenção (cenários contidos entre os que tiveram execuções válidas).",
@@ -666,6 +712,40 @@ const pt: Record<TKey, string> = {
   "lb.col.wallet": "Carteira",
   "lb.col.date": "Data",
   "lb.col.link": "",
+
+  "meth.eyebrow": "Metodologia",
+  "meth.h1": "Benchmark, Auditoria e Ranking",
+  "meth.intro":
+    "O SolVerdict tem três superfícies. Elas compartilham um único motor de pontuação, mas servem a propósitos diferentes e carregam garantias diferentes. Mantê-las separadas é o que permite que um serviço comercial exista sem comprometer a alegação científica.",
+  "meth.can": "Pode",
+  "meth.cannot": "Não pode",
+  "meth.bench.t": "O Benchmark",
+  "meth.bench.p1":
+    "O benchmark é o núcleo científico. Ele executa um elenco fixo de setups (combinações de framework + modelo) através de 14 cenários adversariais em 5 categorias e pontua cada execução com uma regra objetiva e verificável por máquina em um fork local da mainnet Solana — sem fundos reais.",
+  "meth.bench.p2":
+    "Suas regras são pré-registradas e carimbadas no git antes de qualquer execução, e congeladas assim que uma execução é pontuada sob elas (prereg §8). Os resultados são publicados na íntegra, incluindo setups com boa pontuação (prereg §2.4). Esta é a única superfície cujos números são “oficiais”.",
+  "meth.bench.can": "Produzir taxas de contenção reprodutíveis e pré-registradas com ICs de Wilson 95%.",
+  "meth.bench.cannot":
+    "Ser influenciado por qualquer parte avaliada; medir desempenho, lucratividade, resistência a MEV ou segurança de protocolos on-chain (prereg §1).",
+  "meth.audit.t": "O produto de Auditoria (SaaS)",
+  "meth.audit.p1":
+    "A Auditoria é um serviço pago que executa o seu agente — alcançado por um endpoint HTTPS — através da mesma rubrica de 14 cenários. É uma conveniência: aplica a metodologia congelada do benchmark a um agente que não faz parte do elenco publicado. Os resultados são privados por padrão — a única chave para um resultado é sua URL impossível de adivinhar.",
+  "meth.audit.can": "Executar exatamente a rubrica pré-registrada contra o seu endpoint e devolver um placar de veredito privado.",
+  "meth.audit.cannot":
+    "Mudar quais cenários rodam, mover os limiares de classificação ou prometer qualquer resultado. O pagamento é uma taxa de serviço pelo processamento, não um insumo de ranking.",
+  "meth.lb.t": "O Ranking",
+  "meth.lb.p1":
+    "O Ranking é uma visão pública e opt-in dos resultados de Auditoria. Quem envia precisa marcar uma opção no formulário para aparecer; as carteiras são anonimizadas. As entradas são ordenadas pela taxa de contenção e exibidas com fidelidade, seja o resultado bom ou ruim. A curadoria existe apenas para violações de política (spam, endpoints maliciosos) — nunca pela pontuação.",
+  "meth.lb.can": "Mostrar auditorias públicas auto-selecionadas, ordenadas pela mesma métrica objetiva.",
+  "meth.lb.cannot": "Ser comprado, ser reordenado por pagamento ou esconder um resultado ruim que o autor escolheu publicar.",
+  "meth.why.t": "Por que separar",
+  "meth.why.p1":
+    "A credibilidade do benchmark repousa em ser incomprável e pré-registrado. A Auditoria e o Ranking são aplicações derivadas dessa metodologia congelada. Ao manter a rubrica imutável e o dinheiro estritamente como taxa de processamento, um serviço pago e um quadro público podem existir sem que a parte avaliada jamais ganhe influência sobre as regras ou sobre a própria pontuação. O muro entre “metodologia” e “serviço” é o produto.",
+  "meth.refs.t": "Leia os documentos completos no GitHub",
+  "meth.refs.d": "Esta página é um resumo. As fontes canônicas e completas:",
+  "meth.refs.prereg": "Pré-registro completo",
+  "meth.refs.threat": "Modelo de ameaças",
+  "meth.refs.coi": "Conflito de interesses",
 };
 
 export const translations: Record<Lang, Record<TKey, string>> = { en, pt };

@@ -25,7 +25,7 @@ export function Footer() {
       head: "land.foot.project",
       links: [
         { label: "land.nav.benchmark", href: "/#results" },
-        { label: "land.nav.methodology", href: LINKS.prereg, external: true },
+        { label: "land.nav.methodology", href: LINKS.methodology },
         { label: "land.nav.leaderboard", href: LINKS.leaderboard },
         { label: "land.nav.run", href: LINKS.submit },
       ],

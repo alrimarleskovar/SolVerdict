@@ -12,6 +12,7 @@ import {
   createAssociatedTokenAccountInstruction,
 } from "@solana/spl-token";
 import { InnerPageShell } from "../../components/InnerPageShell";
+import { Reveal, SectionHeading } from "../../components/landing/ui";
 import { useLang } from "../../components/LangProvider";
 
 const WalletMultiButton = dynamic(
@@ -139,20 +140,22 @@ export default function SubmitPage() {
     const link = `/audit/${state.auditId}`;
     return (
       <InnerPageShell>
-        <section style={{ maxWidth: "640px" }}>
-          <div className="glass" style={{ padding: "1.75rem 2rem" }}>
-            <span className="badge">{t("submit.done.badge")}</span>
-            <h1 style={{ fontSize: "1.5rem", margin: "1rem 0 0.5rem", color: "var(--text-strong)" }}>
-              {t("submit.done.h1")}
-            </h1>
-            <p style={{ color: "var(--muted)" }}>{t("submit.done.note")}</p>
-            <p style={{ margin: "1rem 0" }}>
-              <code style={{ fontSize: "0.95rem", padding: "0.5rem 0.7rem", display: "inline-block" }}>{link}</code>
-            </p>
-            <Link href={link} className="btn btn-primary">
-              {t("submit.done.cta")}
-            </Link>
-          </div>
+        <section style={{ maxWidth: "640px" }} className="pt-8">
+          <Reveal>
+            <div className="glass" style={{ padding: "1.75rem 2rem" }}>
+              <span className="badge">{t("submit.done.badge")}</span>
+              <h1 style={{ fontSize: "1.5rem", margin: "1rem 0 0.5rem", color: "var(--text-strong)" }}>
+                {t("submit.done.h1")}
+              </h1>
+              <p style={{ color: "var(--muted)" }}>{t("submit.done.note")}</p>
+              <p style={{ margin: "1rem 0" }}>
+                <code style={{ fontSize: "0.95rem", padding: "0.5rem 0.7rem", display: "inline-block" }}>{link}</code>
+              </p>
+              <Link href={link} className="btn btn-primary">
+                {t("submit.done.cta")}
+              </Link>
+            </div>
+          </Reveal>
         </section>
       </InnerPageShell>
     );
@@ -168,13 +171,16 @@ export default function SubmitPage() {
 
   return (
     <InnerPageShell>
-      <section style={{ maxWidth: "640px" }}>
-        <h1 style={{ fontSize: "1.8rem", color: "var(--text-strong)", margin: "0 0 0.4rem" }}>{t("submit.h1")}</h1>
-        <p style={{ color: "var(--muted)", marginBottom: "1.75rem" }}>
-          {t("submit.intro.a")} <Link href="/docs/protocol">{t("submit.intro.protocol")}</Link>. {t("submit.intro.b")}{" "}
-          <Link href="/pricing">{t("submit.intro.pricing")}</Link> {t("submit.intro.c")}
-        </p>
+      <section style={{ maxWidth: "640px" }} className="pt-8">
+        <SectionHeading as="h1" eyebrow={t("submit.eyebrow")} title={t("submit.h1")} />
+        <Reveal delay={0.1}>
+          <p style={{ color: "var(--muted)" }} className="mb-7 mt-6">
+            {t("submit.intro.a")} <Link href="/docs/protocol">{t("submit.intro.protocol")}</Link>. {t("submit.intro.b")}{" "}
+            <Link href="/pricing">{t("submit.intro.pricing")}</Link> {t("submit.intro.c")}
+          </p>
+        </Reveal>
 
+        <Reveal delay={0.15}>
         {!connected ? (
           <div className="glass" style={{ padding: "1.75rem 2rem" }}>
             <p style={{ color: "var(--text-strong)", margin: "0 0 1rem" }}>{t("submit.connect")}</p>
@@ -259,6 +265,7 @@ export default function SubmitPage() {
             </button>
           </form>
         )}
+        </Reveal>
       </section>
     </InnerPageShell>
   );

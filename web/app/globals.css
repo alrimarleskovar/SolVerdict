@@ -704,12 +704,28 @@ table.placard tbody th {
   letter-spacing: 0.1em;
 }
 
-/* placard / data tables on ink surfaces */
+/* placard / data tables on ink surfaces.
+   Overflow containment (audit page, 375–1280px): the legacy 560px table
+   minimum + nowrap headers made the category table wider than the card, so
+   cells escaped past the right edge. Inside the design-system scope the table
+   may shrink to the card and headers wrap cleanly; .table-scroll (overflow-x:
+   auto) stays as the fallback for genuinely wide tables — scrolling happens
+   INSIDE the card, never the page. */
+:where(.landing) .table-scroll {
+  max-width: 100%;
+  min-width: 0;
+}
+:where(.landing) table.placard {
+  min-width: 0;
+}
 :where(.landing) table.placard thead th {
   background: rgba(11, 18, 37, 0.85);
+  white-space: normal;
 }
 :where(.landing) table.placard tbody th {
   background: rgba(5, 8, 22, 0.7);
+  white-space: normal;
+  word-break: break-word;
 }
 :where(.landing) .t-green {
   border-color: rgba(34, 197, 94, 0.3);

@@ -15,10 +15,12 @@ export const LINKS = {
   license: `${BRANDING.repoUrl}/blob/main/LICENSE`,
   contributing: `${BRANDING.repoUrl}/blob/main/CONTRIBUTING.md`,
   threatModel: `${BRANDING.repoUrl}/blob/main/docs/THREAT_MODEL.md`,
+  coi: `${BRANDING.repoUrl}/blob/main/docs/CONFLICT_OF_INTEREST.md`,
   quickstart: `${BRANDING.repoUrl}/blob/main/docs/QUICKSTART.md`,
   fork: `${BRANDING.repoUrl}/fork`,
   runBJson: `${BRANDING.repoUrl}/blob/main/report/results-OFFICIAL-v022-runB-0149.json`,
   docs: "/docs/protocol",
+  methodology: "/methodology",
   leaderboard: "/leaderboard",
   submit: "/submit",
 } as const;

@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { cookies } from "next/headers";
 import { InnerPageShell } from "../../components/InnerPageShell";
+import { Reveal, SectionHeading } from "../../components/landing/ui";
 import { PAID_AMOUNT_USDC, USDC_MINT } from "../../lib/payment";
 import { LANG_COOKIE, parseLang, t as translate } from "../../lib/i18n";
 
@@ -52,48 +53,56 @@ export default function PricingPage() {
 
   return (
     <InnerPageShell>
-      <section style={{ maxWidth: "760px" }}>
-        <h1 style={{ fontSize: "2rem", color: "var(--text-strong)", margin: "0 0 0.4rem" }}>{t("pricing.h1")}</h1>
-        <p style={{ color: "var(--muted)", maxWidth: "62ch" }}>{t("pricing.intro")}</p>
+      <section style={{ maxWidth: "760px" }} className="pt-8">
+        <SectionHeading as="h1" eyebrow={t("pricing.eyebrow")} title={t("pricing.h1")} />
+        <Reveal delay={0.1}>
+          <p style={{ color: "var(--muted)", maxWidth: "62ch" }} className="mt-6">
+            {t("pricing.intro")}
+          </p>
+        </Reveal>
 
-        <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", margin: "2rem 0" }}>
-          <Tier
-            name={t("pricing.free.name")}
-            price="0 USDC"
-            points={[t("pricing.free.p1"), t("pricing.free.p2"), t("pricing.free.p3")]}
-          />
-          <Tier
-            name={t("pricing.paid.name")}
-            price={`${PAID_AMOUNT_USDC} USDC`}
-            highlight
-            points={[t("pricing.paid.p1"), t("pricing.paid.p2"), t("pricing.paid.p3"), t("pricing.paid.p4")]}
-          />
-        </div>
+        <Reveal delay={0.15}>
+          <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", margin: "2rem 0" }}>
+            <Tier
+              name={t("pricing.free.name")}
+              price="0 USDC"
+              points={[t("pricing.free.p1"), t("pricing.free.p2"), t("pricing.free.p3")]}
+            />
+            <Tier
+              name={t("pricing.paid.name")}
+              price={`${PAID_AMOUNT_USDC} USDC`}
+              highlight
+              points={[t("pricing.paid.p1"), t("pricing.paid.p2"), t("pricing.paid.p3"), t("pricing.paid.p4")]}
+            />
+          </div>
+        </Reveal>
 
-        <h2 style={{ marginTop: "2rem" }}>{t("pricing.how")}</h2>
-        <p style={{ color: "var(--text)" }}>
-          On a paid submission your wallet sends {PAID_AMOUNT_USDC} USDC to the SolVerdict payment address with the audit
-          id in the transaction memo. SolVerdict verifies the transfer on-chain (amount + destination + memo) before the
-          audit is queued. No custodial account — you pay per submission.
-        </p>
-        <p className="note">
-          Payment address: <code style={{ wordBreak: "break-all" }}>{PAYMENT_WALLET}</code>
-          <br />
-          USDC mint: <code style={{ wordBreak: "break-all" }}>{USDC_MINT}</code>
-        </p>
+        <Reveal>
+          <h2 style={{ marginTop: "2rem" }}>{t("pricing.how")}</h2>
+          <p style={{ color: "var(--text)" }}>
+            On a paid submission your wallet sends {PAID_AMOUNT_USDC} USDC to the SolVerdict payment address with the
+            audit id in the transaction memo. SolVerdict verifies the transfer on-chain (amount + destination + memo)
+            before the audit is queued. No custodial account — you pay per submission.
+          </p>
+          <p className="note">
+            Payment address: <code style={{ wordBreak: "break-all" }}>{PAYMENT_WALLET}</code>
+            <br />
+            USDC mint: <code style={{ wordBreak: "break-all" }}>{USDC_MINT}</code>
+          </p>
 
-        <p style={{ marginTop: "2rem" }}>
-          <Link href="/submit" className="btn btn-primary">
-            {t("pricing.cta")}
-          </Link>
-        </p>
+          <p style={{ marginTop: "2rem" }}>
+            <Link href="/submit" className="btn btn-primary">
+              {t("pricing.cta")}
+            </Link>
+          </p>
 
-        <p className="note" style={{ marginTop: "2.5rem", borderTop: "1px solid var(--divider-soft)", paddingTop: "1rem" }}>
-          Disclaimer: SolVerdict audits measure containment of dangerous wallet actions under a fixed, pre-registered
-          rubric on a local mainnet fork. Results are for informational purposes only and are not legal, financial, or
-          security advice, nor a guarantee of an agent&rsquo;s safety in production. Payments are non-refundable once an
-          audit has been queued.
-        </p>
+          <p className="note" style={{ marginTop: "2.5rem", borderTop: "1px solid var(--divider-soft)", paddingTop: "1rem" }}>
+            Disclaimer: SolVerdict audits measure containment of dangerous wallet actions under a fixed, pre-registered
+            rubric on a local mainnet fork. Results are for informational purposes only and are not legal, financial, or
+            security advice, nor a guarantee of an agent&rsquo;s safety in production. Payments are non-refundable once
+            an audit has been queued.
+          </p>
+        </Reveal>
       </section>
     </InnerPageShell>
   );

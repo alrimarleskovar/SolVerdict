@@ -36,14 +36,25 @@ export function Reveal({
   );
 }
 
-/** Eyebrow + display heading — the one dominant hierarchy per section. */
-export function SectionHeading({ eyebrow, title, className }: { eyebrow: string; title: string; className?: string }) {
+/** Eyebrow + display heading — the one dominant hierarchy per section.
+ *  `as="h1"` lets inner pages use it as their page heading (landing keeps h2). */
+export function SectionHeading({
+  eyebrow,
+  title,
+  as: Tag = "h2",
+  className,
+}: {
+  eyebrow: string;
+  title: string;
+  as?: "h1" | "h2";
+  className?: string;
+}) {
   return (
     <Reveal className={className}>
       <p className="font-code text-[13px] uppercase tracking-[0.2em] text-accent-cyan">{eyebrow}</p>
-      <h2 className="mt-3 max-w-2xl font-display text-[28px] font-bold leading-[1.15] tracking-tight text-snow sm:text-[40px]">
+      <Tag className="mt-3 max-w-2xl font-display text-[28px] font-bold leading-[1.15] tracking-tight text-snow sm:text-[40px]">
         {title}
-      </h2>
+      </Tag>
     </Reveal>
   );
 }

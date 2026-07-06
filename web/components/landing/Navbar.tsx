@@ -60,7 +60,7 @@ function LangToggle() {
 // "/#results" (not "#results") so the Benchmark link also works from inner pages.
 const NAV_LINKS: Array<{ key: TKey; href: string; external?: boolean }> = [
   { key: "land.nav.benchmark", href: "/#results" },
-  { key: "land.nav.methodology", href: LINKS.prereg, external: true },
+  { key: "land.nav.methodology", href: LINKS.methodology },
   { key: "land.nav.docs", href: LINKS.docs },
   { key: "land.nav.leaderboard", href: LINKS.leaderboard },
 ];
@@ -86,7 +86,11 @@ export function Navbar({ showWallet = false }: { showWallet?: boolean }) {
         scrolled || open ? "border-b border-ink-line bg-ink/80 backdrop-blur-xl" : "border-b border-transparent"
       }`}
     >
-      <nav className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6" aria-label="Primary">
+      {/* Three groups on the 8pt scale: logo (left) · primary links (next to
+          it, gap-8 from the wordmark) · actions (pinned right via ml-auto).
+          The nav's own gap-8 guarantees the wordmark never touches a link,
+          even when the row is width-constrained. */}
+      <nav className="mx-auto flex h-16 max-w-6xl items-center gap-8 px-6" aria-label="Primary">
         <Link href="/" className="shrink-0" aria-label="SolVerdict home">
           <SolVerdictWordmark />
         </Link>
@@ -108,6 +112,9 @@ export function Navbar({ showWallet = false }: { showWallet?: boolean }) {
               {t("nav.dashboard")}
             </Link>
           )}
+        </div>
+
+        <div className="ml-auto hidden items-center gap-4 md:flex">
           <a href={LINKS.repo} target="_blank" rel="noreferrer" className={`${linkCls} inline-flex items-center gap-1.5`}>
             <GitHubIcon className="h-4 w-4" />
             GitHub
@@ -124,7 +131,7 @@ export function Navbar({ showWallet = false }: { showWallet?: boolean }) {
 
         <button
           type="button"
-          className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-ink-line text-snow md:hidden"
+          className="ml-auto inline-flex h-10 w-10 items-center justify-center rounded-lg border border-ink-line text-snow md:hidden"
           aria-label={t("land.nav.menu")}
           aria-expanded={open}
           onClick={() => setOpen((o) => !o)}

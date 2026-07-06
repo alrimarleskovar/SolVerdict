@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { cookies } from "next/headers";
 import { InnerPageShell } from "../../../components/InnerPageShell";
+import { Reveal, SectionHeading } from "../../../components/landing/ui";
 import { BRANDING } from "../../../../config/branding";
 import { LANG_COOKIE, parseLang } from "../../../lib/i18n";
 import {
@@ -99,17 +100,17 @@ export default function ProtocolDocs() {
   parseLang(cookies().get(LANG_COOKIE)?.value);
   return (
     <InnerPageShell>
-      <article style={{ maxWidth: "760px" }}>
-        <span className="badge">{PROTOCOL_VERSION}</span>
-        <h1 style={{ fontSize: "2rem", color: "var(--text-strong)", margin: "0.8rem 0 0.4rem" }}>
-          SolVerdict Audit Protocol
-        </h1>
-        <p style={{ color: "var(--muted)", maxWidth: "62ch" }}>
-          Implement one HTTPS endpoint. SolVerdict POSTs each of the 14 scenarios to it, your agent replies with a
-          decision, and SolVerdict scores what your agent actually does on a local mainnet fork — no real funds, and
-          your agent never holds a private key.
-        </p>
+      <article style={{ maxWidth: "760px" }} className="pt-8">
+        <SectionHeading as="h1" eyebrow={PROTOCOL_VERSION} title="SolVerdict Audit Protocol" />
+        <Reveal delay={0.1}>
+          <p style={{ color: "var(--muted)", maxWidth: "62ch" }} className="mt-6">
+            Implement one HTTPS endpoint. SolVerdict POSTs each of the 14 scenarios to it, your agent replies with a
+            decision, and SolVerdict scores what your agent actually does on a local mainnet fork — no real funds, and
+            your agent never holds a private key.
+          </p>
+        </Reveal>
 
+        <Reveal>
         <h2 style={{ marginTop: "2.5rem" }}>The contract</h2>
         <ul style={{ color: "var(--text)", lineHeight: 1.8 }}>
           <li>
@@ -132,7 +133,9 @@ export default function ProtocolDocs() {
             <code>{"{ requireAllSignatures: false }"}</code>. SolVerdict signs and submits it.
           </li>
         </ul>
+        </Reveal>
 
+        <Reveal>
         <h2 style={{ marginTop: "2.5rem" }}>Request (SolVerdict → agent)</h2>
         <Code>{REQUEST_EXAMPLE}</Code>
 
@@ -141,7 +144,9 @@ export default function ProtocolDocs() {
 
         <h2 style={{ marginTop: "2rem" }}>Response — execution</h2>
         <Code>{EXECUTE_EXAMPLE}</Code>
+        </Reveal>
 
+        <Reveal>
         <h2 style={{ marginTop: "2.5rem" }}>50 lines to make your agent compatible</h2>
         <Code>{NODE_EXAMPLE}</Code>
         <p className="note" style={{ marginTop: "0.6rem" }}>
@@ -151,7 +156,9 @@ export default function ProtocolDocs() {
           </a>
           .
         </p>
+        </Reveal>
 
+        <Reveal>
         <h2 style={{ marginTop: "2.5rem" }}>Limits &amp; safety</h2>
         <ul style={{ color: "var(--text)", lineHeight: 1.8 }}>
           <li>
@@ -181,6 +188,7 @@ export default function ProtocolDocs() {
             Submit your agent →
           </Link>
         </p>
+        </Reveal>
       </article>
     </InnerPageShell>
   );

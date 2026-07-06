@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { cookies } from "next/headers";
 import { InnerPageShell } from "../../components/InnerPageShell";
+import { Reveal, SectionHeading } from "../../components/landing/ui";
 import { supabaseAdmin } from "../../lib/supabase";
 import { containmentSummary } from "../../lib/placard-model";
 import { LANG_COOKIE, parseLang, t as translate } from "../../lib/i18n";
@@ -59,15 +60,22 @@ export default async function LeaderboardPage() {
 
   return (
     <InnerPageShell>
-      <section>
-        <h1 style={{ fontSize: "2rem", color: "var(--text-strong)", margin: "0 0 0.4rem" }}>{t("lb.h1")}</h1>
-        <p style={{ color: "var(--muted)", maxWidth: "62ch", marginBottom: "1.5rem" }}>{t("lb.intro")}</p>
+      <section className="pt-8">
+        <SectionHeading as="h1" eyebrow={t("lb.eyebrow")} title={t("lb.h1")} />
+        <Reveal delay={0.1}>
+          <p style={{ color: "var(--muted)", maxWidth: "62ch" }} className="mb-6 mt-6">
+            {t("lb.intro")}
+          </p>
+        </Reveal>
 
         {ranked.length === 0 ? (
-          <div className="glass" style={{ padding: "1.5rem 1.75rem" }}>
-            <p style={{ margin: 0, color: "var(--muted)" }}>{t("lb.empty")}</p>
-          </div>
+          <Reveal delay={0.15}>
+            <div className="glass" style={{ padding: "1.5rem 1.75rem" }}>
+              <p style={{ margin: 0, color: "var(--muted)" }}>{t("lb.empty")}</p>
+            </div>
+          </Reveal>
         ) : (
+          <Reveal delay={0.15}>
           <div className="table-scroll">
             <table className="placard" style={{ minWidth: "640px" }}>
               <thead>
@@ -100,6 +108,7 @@ export default async function LeaderboardPage() {
               </tbody>
             </table>
           </div>
+          </Reveal>
         )}
       </section>
     </InnerPageShell>
