@@ -49,7 +49,7 @@ export function Footer() {
   ];
 
   return (
-    <footer className="border-t border-ink-line bg-ink-surface/40">
+    <footer className="relative border-t border-ink-line bg-ink-surface/40">
       <div className="mx-auto max-w-6xl px-6 py-16">
         <div className="grid gap-12 md:grid-cols-[1.4fr_1fr_1fr_1fr]">
           <div>
@@ -59,11 +59,11 @@ export function Footer() {
               href={LINKS.repo}
               target="_blank"
               rel="noreferrer"
-              className="mt-4 inline-flex items-center gap-2 text-sm text-mist transition-colors duration-200 ease-brand hover:text-snow"
+              className="mt-4 inline-flex items-center gap-2 rounded-lg border border-ink-line bg-ink/60 px-3 py-2 text-sm font-medium text-snow transition-colors duration-200 ease-brand hover:border-mist/40 hover:bg-ink-surface"
               aria-label="SolVerdict on GitHub"
             >
               <GitHubIcon className="h-5 w-5" />
-              alrimarleskovar/SolVerdict
+              github.com/alrimarleskovar/SolVerdict
             </a>
           </div>
 
@@ -90,7 +90,8 @@ export function Footer() {
         </div>
 
         <div className="mt-12 border-t border-ink-line pt-8">
-          <p className="max-w-3xl text-[13px] italic leading-relaxed text-mist/80">{t("land.foot.pledge")}</p>
+          {/* pledge flows as one full-width paragraph */}
+          <p className="text-[13px] italic leading-relaxed text-mist/80">{t("land.foot.pledge")}</p>
           <div className="mt-4 flex flex-col gap-2 font-code text-[13px] text-mist/60 sm:flex-row sm:items-center sm:justify-between">
             <span>© 2026 SolVerdict contributors · Apache-2.0 (harness) · CC-BY-4.0 (results)</span>
             <span>{t("home.foot.maintainer")}</span>

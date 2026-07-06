@@ -24,7 +24,7 @@ export function FeaturesGrid() {
 
   return (
     <section className="mx-auto max-w-6xl px-6 py-16 sm:py-24">
-      <SectionHeading eyebrow={t("land.grid.eyebrow")} title={t("land.grid.h2")} />
+      <SectionHeading eyebrow={t("land.grid.eyebrow")} title={t("land.grid.h2")} titleMax="max-w-none" />
       <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {GRID_ITEMS.map((item, i) => {
           const Icon = ICONS[i];

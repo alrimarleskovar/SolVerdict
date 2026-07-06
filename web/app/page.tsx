@@ -15,6 +15,7 @@ import type { Metadata } from "next";
 import { BRANDING } from "../../config/branding";
 import { Navbar } from "../components/landing/Navbar";
 import { HeroBackground } from "../components/landing/Background";
+import { ParticleField } from "../components/landing/ParticleField";
 import { Hero } from "../components/landing/Hero";
 import { Stats } from "../components/landing/Stats";
 import { FeatureCards } from "../components/landing/FeatureCards";
@@ -44,6 +45,7 @@ export default function Home() {
           while the landing is mounted — its purple/green clashes with the
           landing palette. Inner pages keep the bar. */}
       <div className="fixed inset-x-0 top-0 z-10 h-[3px] bg-ink" aria-hidden="true" />
+      <ParticleField />
       <HeroBackground />
       <Navbar />
       <main className="relative">

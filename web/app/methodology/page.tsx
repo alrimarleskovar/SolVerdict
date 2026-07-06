@@ -81,9 +81,9 @@ export default function MethodologyPage() {
   return (
     <InnerPageShell>
       <section className="pb-8 pt-8">
-        <SectionHeading as="h1" eyebrow={t("meth.eyebrow")} title={t("meth.h1")} />
+        <SectionHeading as="h1" eyebrow={t("meth.eyebrow")} title={t("meth.h1")} titleMax="max-w-none" />
         <Reveal delay={0.1}>
-          <p className="mt-6 max-w-2xl text-base leading-relaxed text-mist">{t("meth.intro")}</p>
+          <p className="mt-6 text-base leading-relaxed text-mist">{t("meth.intro")}</p>
         </Reveal>
       </section>
 
@@ -103,9 +103,9 @@ export default function MethodologyPage() {
       </section>
 
       <section className="py-8">
-        <SectionHeading eyebrow={t("meth.eyebrow")} title={t("meth.why.t")} />
+        <SectionHeading eyebrow={t("meth.eyebrow")} title={t("meth.why.t")} titleMax="max-w-none" />
         <Reveal delay={0.1}>
-          <p className="mt-6 max-w-2xl text-base leading-relaxed text-mist">{t("meth.why.p1")}</p>
+          <p className="mt-6 text-base leading-relaxed text-mist">{t("meth.why.p1")}</p>
         </Reveal>
       </section>
 

@@ -43,7 +43,10 @@ export function BenchmarkFlow() {
                 transition={{ duration: DUR.normal, delay: 0.08 * i, ease: EASE }}
                 className="flex flex-col items-start"
               >
-                <span className="z-10 flex h-10 w-10 items-center justify-center rounded-full border border-ink-line bg-ink font-code text-[13px] text-accent-cyan">
+                <span
+                  className="flow-node z-10 flex h-10 w-10 items-center justify-center rounded-full border border-ink-line bg-ink font-code text-[13px] text-accent-cyan"
+                  style={{ "--flow-i": i } as React.CSSProperties}
+                >
                   {String(i + 1).padStart(2, "0")}
                 </span>
                 <h3 className="mt-4 font-display text-sm font-semibold leading-snug text-snow">{t(s.t)}</h3>

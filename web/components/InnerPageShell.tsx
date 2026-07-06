@@ -18,6 +18,7 @@
 import type { ReactNode } from "react";
 import { Navbar } from "./landing/Navbar";
 import { Footer } from "./landing/Footer";
+import { ParticleField } from "./landing/ParticleField";
 import { BackLink } from "./Brand";
 
 export function InnerPageShell({ children }: { children: ReactNode }) {
@@ -26,6 +27,7 @@ export function InnerPageShell({ children }: { children: ReactNode }) {
       {/* Cover the site-wide fixed Solana-gradient top bar (body::before, z-5)
           so all pages share the landing's clean top edge. */}
       <div className="fixed inset-x-0 top-0 z-10 h-[3px] bg-ink" aria-hidden="true" />
+      <ParticleField />
       <Navbar showWallet />
       <main className="relative mx-auto w-full max-w-5xl flex-1 px-6 pb-24 pt-8">
         <BackLink />

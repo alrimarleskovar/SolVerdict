@@ -61,9 +61,9 @@ export default async function LeaderboardPage() {
   return (
     <InnerPageShell>
       <section className="pt-8">
-        <SectionHeading as="h1" eyebrow={t("lb.eyebrow")} title={t("lb.h1")} />
+        <SectionHeading as="h1" eyebrow={t("lb.eyebrow")} title={t("lb.h1")} titleMax="max-w-none" />
         <Reveal delay={0.1}>
-          <p style={{ color: "var(--muted)", maxWidth: "62ch" }} className="mb-6 mt-6">
+          <p style={{ color: "var(--muted)" }} className="mb-6 mt-6">
             {t("lb.intro")}
           </p>
         </Reveal>

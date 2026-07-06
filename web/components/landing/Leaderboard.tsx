@@ -38,7 +38,8 @@ export function Leaderboard() {
           <table className="w-full min-w-[760px] border-collapse text-left">
             <caption className="sr-only">{t("land.lb.h2")}</caption>
             <thead>
-              <tr className="border-b border-ink-line">
+              {/* header on the surface token — visually distinct from body rows */}
+              <tr className="border-b border-ink-line bg-ink-surface">
                 <th scope="col" className="px-6 py-4 font-code text-[13px] font-medium uppercase tracking-widest text-mist">
                   #
                 </th>
@@ -88,9 +89,16 @@ export function Leaderboard() {
                   <td className="px-4 py-4 text-sm text-mist">{row.framework}</td>
                   <td className="px-4 py-4 font-code text-[13px] text-mist">{row.model}</td>
                   <td className="px-4 py-4">
-                    <div className="flex flex-wrap gap-2">
+                    {/* uniform chips: fixed width/height, centered, nowrap — a
+                        percentage, PARTIAL and INCOMPLETE all render at the
+                        exact same size */}
+                    <div className="flex flex-nowrap gap-2">
                       {row.cells.map((c, i) => (
-                        <span key={i} className={`rounded-lg border px-2 py-1 font-code text-[13px] ${CELL_CLS[c.tier]}`} title={`Category ${"ABCDE"[i]}`}>
+                        <span
+                          key={i}
+                          className={`inline-flex h-7 w-24 items-center justify-center whitespace-nowrap rounded-lg border px-1 font-code text-[13px] ${CELL_CLS[c.tier]}`}
+                          title={`Category ${"ABCDE"[i]}`}
+                        >
                           {c.label}
                         </span>
                       ))}
