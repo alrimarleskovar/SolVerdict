@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
-/** Hero: massive display headline, positioning subtitle, CTAs, trust badges,
- *  and the animated evaluation dashboard on the right. */
+/** Hero: the dominant H1, positioning subtitle, two CTAs, property badges,
+ *  and the telemetry panel. One entrance sequence — nothing else moves. */
 "use client";
 
 import Link from "next/link";
@@ -10,31 +10,27 @@ import { useLang } from "../LangProvider";
 import { GitHubIcon } from "./Navbar";
 import { HeroDashboard } from "./HeroDashboard";
 import { LINKS } from "./data";
+import { EASE, DUR } from "./ui";
 
 export function Hero() {
   const { t } = useLang();
   const reduced = useReducedMotion();
 
   const item = (i: number) => ({
-    initial: reduced ? false : { opacity: 0, y: 18 },
+    initial: reduced ? false : { opacity: 0, y: 16 },
     animate: { opacity: 1, y: 0 },
-    transition: { duration: 0.55, delay: 0.08 * i, ease: [0.21, 0.65, 0.36, 1] as [number, number, number, number] },
+    transition: { duration: DUR.normal, delay: 0.08 * i, ease: EASE },
   });
 
-  const badges = [
-    "Apache-2.0",
-    t("land.badge.oss"),
-    t("land.badge.det"),
-    t("land.badge.agnostic"),
-  ];
+  const badges = ["Apache-2.0", t("land.badge.oss"), t("land.badge.det"), t("land.badge.agnostic")];
 
   return (
-    <section className="relative mx-auto max-w-6xl px-5 pb-10 pt-16 sm:pt-24">
-      <div className="grid items-center gap-14 lg:grid-cols-[1.05fr_0.95fr]">
+    <section className="relative mx-auto max-w-6xl px-6 pb-12 pt-16 sm:pt-24">
+      <div className="grid items-center gap-12 lg:grid-cols-[1.05fr_0.95fr]">
         <div>
           <motion.h1
             {...item(0)}
-            className="font-display text-[2.6rem] font-extrabold leading-[1.05] tracking-tight text-snow sm:text-6xl"
+            className="font-display text-[40px] font-extrabold leading-[1.1] tracking-tight text-snow sm:text-[56px] lg:text-[64px]"
           >
             {t("land.hero.h1a")}{" "}
             <span className="bg-gradient-to-r from-accent-blue via-accent-cyan to-accent-violet bg-clip-text text-transparent">
@@ -42,25 +38,25 @@ export function Hero() {
             </span>
           </motion.h1>
 
-          <motion.p {...item(1)} className="mt-6 max-w-xl text-lg leading-relaxed text-mist">
+          <motion.p {...item(1)} className="mt-6 max-w-xl text-base leading-relaxed text-mist sm:text-lg">
             {t("land.hero.sub")}
           </motion.p>
 
           <motion.div {...item(2)} className="mt-8 flex flex-wrap items-center gap-3">
             <Link
               href={LINKS.submit}
-              className="group inline-flex items-center gap-2 rounded-xl bg-accent-blue px-6 py-3 text-base font-semibold text-snow shadow-xl shadow-accent-blue/25 transition-all hover:-translate-y-0.5 hover:bg-blue-500 hover:shadow-accent-blue/40"
+              className="group inline-flex items-center gap-2 rounded-xl bg-accent-blue px-6 py-3 text-base font-semibold text-snow shadow-lg shadow-black/20 transition-colors duration-200 ease-brand hover:bg-accent-blue/80"
             >
               {t("land.nav.run")}
-              <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
+              <ArrowRight className="h-4 w-4 transition-transform duration-200 ease-brand group-hover:translate-x-1" aria-hidden="true" />
             </Link>
             <a
               href={LINKS.repo}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center gap-2 rounded-xl border border-ink-line bg-ink-surface/60 px-6 py-3 text-base font-semibold text-snow transition-all hover:-translate-y-0.5 hover:border-mist/40 hover:bg-ink-surface"
+              className="inline-flex items-center gap-2 rounded-xl border border-ink-line bg-ink-surface/60 px-6 py-3 text-base font-semibold text-snow transition-colors duration-200 ease-brand hover:border-mist/40 hover:bg-ink-surface"
             >
-              <GitHubIcon className="h-5 w-5" />
+              <GitHubIcon className="h-4 w-4" />
               GitHub
             </a>
           </motion.div>
@@ -69,7 +65,7 @@ export function Hero() {
             {badges.map((b) => (
               <li
                 key={b}
-                className="rounded-full border border-ink-line bg-ink-surface/50 px-3 py-1 font-code text-[0.7rem] uppercase tracking-[0.1em] text-mist"
+                className="rounded-lg border border-ink-line bg-ink-surface/40 px-3 py-1 font-code text-[13px] uppercase tracking-[0.1em] text-mist"
               >
                 {b}
               </li>
@@ -78,9 +74,9 @@ export function Hero() {
         </div>
 
         <motion.div
-          initial={reduced ? false : { opacity: 0, y: 26 }}
+          initial={reduced ? false : { opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.7, delay: 0.25, ease: [0.21, 0.65, 0.36, 1] }}
+          transition={{ duration: DUR.normal, delay: 0.24, ease: EASE }}
         >
           <HeroDashboard />
         </motion.div>

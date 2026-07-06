@@ -78,7 +78,7 @@ export function Navbar({ showWallet = false }: { showWallet?: boolean }) {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  const linkCls = "text-sm text-mist transition-colors hover:text-snow";
+  const linkCls = "text-sm text-mist transition-colors duration-200 ease-brand hover:text-snow";
 
   return (
     <header
@@ -86,12 +86,12 @@ export function Navbar({ showWallet = false }: { showWallet?: boolean }) {
         scrolled || open ? "border-b border-ink-line bg-ink/75 backdrop-blur-xl" : "border-b border-transparent"
       }`}
     >
-      <nav className="mx-auto flex h-16 max-w-6xl items-center justify-between px-5" aria-label="Primary">
+      <nav className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6" aria-label="Primary">
         <Link href="/" className="shrink-0" aria-label="SolVerdict home">
           <SolVerdictWordmark />
         </Link>
 
-        <div className="hidden items-center gap-7 md:flex">
+        <div className="hidden items-center gap-8 md:flex">
           {NAV_LINKS.map((l) =>
             l.external ? (
               <a key={l.key} href={l.href} target="_blank" rel="noreferrer" className={linkCls}>
@@ -116,7 +116,7 @@ export function Navbar({ showWallet = false }: { showWallet?: boolean }) {
           {showWallet && <WalletMultiButton />}
           <Link
             href={LINKS.submit}
-            className="rounded-lg bg-accent-blue px-4 py-2 text-sm font-semibold text-snow shadow-lg shadow-accent-blue/25 transition-all hover:-translate-y-0.5 hover:bg-blue-500 hover:shadow-accent-blue/40"
+            className="rounded-lg bg-accent-blue px-4 py-2 text-sm font-semibold text-snow transition-colors duration-200 ease-brand hover:bg-accent-blue/80"
           >
             {t("land.nav.run")}
           </Link>
@@ -139,27 +139,27 @@ export function Navbar({ showWallet = false }: { showWallet?: boolean }) {
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.22, ease: "easeOut" }}
+            transition={{ duration: 0.2, ease: [0.2, 0.8, 0.2, 1] }}
             className="overflow-hidden border-b border-ink-line bg-ink/95 backdrop-blur-xl md:hidden"
           >
-            <div className="flex flex-col gap-1 px-5 pb-5 pt-2">
+            <div className="flex flex-col gap-1 px-6 pb-4 pt-2">
               {NAV_LINKS.map((l) =>
                 l.external ? (
-                  <a key={l.key} href={l.href} target="_blank" rel="noreferrer" className="rounded-lg px-2 py-2.5 text-mist hover:bg-ink-surface hover:text-snow" onClick={() => setOpen(false)}>
+                  <a key={l.key} href={l.href} target="_blank" rel="noreferrer" className="rounded-lg px-2 py-2 text-mist hover:bg-ink-surface hover:text-snow" onClick={() => setOpen(false)}>
                     {t(l.key)}
                   </a>
                 ) : (
-                  <Link key={l.key} href={l.href} className="rounded-lg px-2 py-2.5 text-mist hover:bg-ink-surface hover:text-snow" onClick={() => setOpen(false)}>
+                  <Link key={l.key} href={l.href} className="rounded-lg px-2 py-2 text-mist hover:bg-ink-surface hover:text-snow" onClick={() => setOpen(false)}>
                     {t(l.key)}
                   </Link>
                 ),
               )}
               {connected && (
-                <Link href="/dashboard" className="rounded-lg px-2 py-2.5 text-mist hover:bg-ink-surface hover:text-snow" onClick={() => setOpen(false)}>
+                <Link href="/dashboard" className="rounded-lg px-2 py-2 text-mist hover:bg-ink-surface hover:text-snow" onClick={() => setOpen(false)}>
                   {t("nav.dashboard")}
                 </Link>
               )}
-              <a href={LINKS.repo} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-lg px-2 py-2.5 text-mist hover:bg-ink-surface hover:text-snow" onClick={() => setOpen(false)}>
+              <a href={LINKS.repo} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-lg px-2 py-2 text-mist hover:bg-ink-surface hover:text-snow" onClick={() => setOpen(false)}>
                 <GitHubIcon className="h-4 w-4" /> GitHub
               </a>
               {showWallet && (

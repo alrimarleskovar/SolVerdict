@@ -1,60 +1,42 @@
 // SPDX-License-Identifier: Apache-2.0
 /**
- * Architecture — the real harness components as a vertical pipeline with
- * animated connectors. Node names map 1:1 to the repo (bench.ts, setups/*,
- * env/surfpool, RPC recorder, scoring/*, report JSON, verdict placard).
+ * Architecture — the real harness components as a left-to-right flow of clean
+ * nodes with subtle connectors. Node code labels map 1:1 to the repo
+ * (bench.ts, setups/*, env/surfpool, RPC recorder, scoring/*, report JSON).
  */
 "use client";
 
-import { motion, useReducedMotion } from "framer-motion";
+import { ArrowRight } from "lucide-react";
 import { useLang } from "../LangProvider";
 import { ARCH_NODES } from "./data";
-import { SectionHeading } from "./ui";
-import { SectionGlow } from "./Background";
+import { Reveal, SectionHeading } from "./ui";
 
 export function Architecture() {
   const { t } = useLang();
-  const reduced = useReducedMotion();
 
   return (
-    <section className="relative overflow-hidden border-y border-ink-line bg-ink-surface/30 py-16 sm:py-24">
-      <SectionGlow />
-      <div className="relative mx-auto max-w-6xl px-5">
+    <section className="border-y border-ink-line bg-ink-surface/40 py-16 sm:py-24">
+      <div className="mx-auto max-w-6xl px-6">
         <SectionHeading eyebrow={t("land.arch.eyebrow")} title={t("land.arch.h2")} />
 
-        <div className="mx-auto mt-14 max-w-2xl">
+        <ol className="mt-12 flex flex-wrap items-stretch gap-y-4">
           {ARCH_NODES.map((n, i) => (
-            <div key={n.t} className="flex flex-col items-stretch">
-              <motion.div
-                initial={reduced ? false : { opacity: 0, y: 16 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, margin: "-60px" }}
-                transition={{ duration: 0.45, ease: [0.21, 0.65, 0.36, 1] }}
-                className="flex items-center justify-between gap-4 rounded-2xl border border-ink-line bg-ink-card/80 px-5 py-4 shadow-lg shadow-black/20"
-              >
-                <div>
-                  <h3 className="font-display text-base font-semibold text-snow">{t(n.t)}</h3>
-                  <p className="mt-0.5 text-sm leading-relaxed text-mist">{t(n.d)}</p>
+            <li key={n.t} className="flex items-center">
+              <Reveal delay={0.05 * i} className="h-full">
+                <div className="flex h-full w-[168px] flex-col rounded-xl border border-ink-line bg-ink-card px-4 py-3 transition-colors duration-200 ease-brand hover:border-mist/20">
+                  <code className="border-0 bg-transparent p-0 font-code text-[13px] text-accent-cyan">{n.code}</code>
+                  <span className="mt-1 font-display text-sm font-semibold text-snow">{t(n.t)}</span>
+                  <span className="mt-1 text-[13px] leading-snug text-mist">{t(n.d)}</span>
                 </div>
-                <code className="hidden shrink-0 rounded-md border border-ink-line bg-ink px-2.5 py-1 font-code text-[0.7rem] text-accent-cyan sm:block">
-                  {n.code}
-                </code>
-              </motion.div>
-
+              </Reveal>
               {i < ARCH_NODES.length - 1 && (
-                <div className="flex justify-center py-1" aria-hidden="true">
-                  <motion.div
-                    initial={reduced ? { scaleY: 1 } : { scaleY: 0 }}
-                    whileInView={{ scaleY: 1 }}
-                    viewport={{ once: true, margin: "-60px" }}
-                    transition={{ duration: 0.35, ease: "easeOut" }}
-                    className="h-8 w-px origin-top bg-gradient-to-b from-accent-blue/70 to-accent-violet/70"
-                  />
-                </div>
+                <span className="flex w-8 shrink-0 items-center justify-center" aria-hidden="true">
+                  <ArrowRight className="h-4 w-4 text-mist/40" />
+                </span>
               )}
-            </div>
+            </li>
           ))}
-        </div>
+        </ol>
       </div>
     </section>
   );

@@ -1,167 +1,170 @@
 // SPDX-License-Identifier: Apache-2.0
 /**
- * Animated evaluation dashboard for the hero. It replays the REAL A2 headline
- * finding from v0.2.2 Run B as a live simulation: the same task and the same
- * model produce opposite verdicts with and without the framework —
- * model-only-claude contains 20/20, sak+claude drains 0/20. The two cases
- * alternate. Under reduced motion it renders the first case, completed.
+ * Hero telemetry panel — a deterministic pipeline replay:
+ *   Prompt → Agent → Tools → Wallet → Verdict
+ * with one failure-state event ("prompt injection detected") and ONE live
+ * metric (containment score). Every value is the REAL v0.2.2 Run B result for
+ * scenario B2 under model-only-claude: 20/20 contained at N=20 → 100%.
+ * Styled as engineering telemetry: mono type, quiet surfaces, no glow.
  */
 "use client";
 
 import { useEffect, useState } from "react";
-import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { CheckCircle2, XCircle } from "lucide-react";
+import { AnimatePresence, animate, motion, useMotionValue, useReducedMotion, useTransform } from "framer-motion";
+import { CheckCircle2, TriangleAlert } from "lucide-react";
 import { useLang } from "../LangProvider";
-import { DASHBOARD_CASES, DASHBOARD_TASK, LINKS } from "./data";
+import { DASH_DETECT_EVENT, DASH_EVIDENCE, DASH_SCORE, DASH_SCORE_SOURCE, DASH_TASK, DASH_VERDICT, LINKS } from "./data";
+import { EASE, DUR } from "./ui";
 import type { TKey } from "../../lib/i18n";
 
-const STEP_KEYS: TKey[] = ["land.dash.step1", "land.dash.step2", "land.dash.step3", "land.dash.step4"];
-const STEP_MS = 950;
-const HOLD_MS = 3400;
+const NODE_KEYS: TKey[] = ["land.dash.n1", "land.dash.n2", "land.dash.n3", "land.dash.n4", "land.dash.n5"];
+const STEP_MS = 900;
+const HOLD_MS = 4200;
+const DETECT_AT = 2; // the injection is caught at the Tools stage
 
-type StepState = "pending" | "active" | "done";
+function Score({ run }: { run: boolean }) {
+  const reduced = useReducedMotion();
+  const mv = useMotionValue(0);
+  const text = useTransform(mv, (v) => `${Math.round(v)}%`);
 
-function StepDot({ state, danger }: { state: StepState; danger: boolean }) {
-  if (state === "done") {
-    return <span className={`h-2.5 w-2.5 rounded-full ${danger ? "bg-state-bad" : "bg-state-ok"}`} />;
-  }
-  if (state === "active") {
-    return (
-      <span className="relative flex h-2.5 w-2.5">
-        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-state-warn opacity-60" />
-        <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-state-warn" />
-      </span>
-    );
-  }
-  return <span className="h-2.5 w-2.5 rounded-full bg-mist/30" />;
+  useEffect(() => {
+    if (!run) {
+      mv.set(0);
+      return;
+    }
+    if (reduced) {
+      mv.set(DASH_SCORE);
+      return;
+    }
+    const controls = animate(mv, DASH_SCORE, { duration: DUR.slow, ease: EASE });
+    return () => controls.stop();
+  }, [run, reduced, mv]);
+
+  return <motion.span>{text}</motion.span>;
 }
 
 export function HeroDashboard() {
   const { t } = useLang();
   const reduced = useReducedMotion();
-  const [caseIdx, setCaseIdx] = useState(0);
-  const [phase, setPhase] = useState(reduced ? STEP_KEYS.length : 0); // steps completed
-
-  const current = DASHBOARD_CASES[caseIdx];
-  const finished = phase >= STEP_KEYS.length;
-  const danger = current.verdict === "UNCONTAINED";
+  // phase = number of pipeline nodes completed (0..5); 5 = verdict shown
+  const [phase, setPhase] = useState(reduced ? NODE_KEYS.length : 0);
+  const finished = phase >= NODE_KEYS.length;
 
   useEffect(() => {
     if (reduced) return;
-    const timer = setTimeout(
-      () => {
-        if (!finished) {
-          setPhase((p) => p + 1);
-        } else {
-          setCaseIdx((i) => (i + 1) % DASHBOARD_CASES.length);
-          setPhase(0);
-        }
-      },
-      finished ? HOLD_MS : STEP_MS,
-    );
+    const timer = setTimeout(() => setPhase((p) => (finished ? 0 : p + 1)), finished ? HOLD_MS : STEP_MS);
     return () => clearTimeout(timer);
   }, [phase, finished, reduced]);
 
   return (
-    <div className="relative">
-      {/* soft glow behind the card */}
-      <div className="absolute -inset-6 rounded-3xl bg-accent-blue/10 blur-2xl" aria-hidden="true" />
+    <div className="relative overflow-hidden rounded-2xl border border-ink-line bg-ink-surface/80 shadow-2xl shadow-black/40 backdrop-blur">
+      {/* header */}
+      <div className="flex items-center justify-between border-b border-ink-line px-6 py-3">
+        <span className="inline-flex items-center gap-2 font-code text-[13px] text-mist">
+          <span className={`h-2 w-2 rounded-full ${finished ? "bg-state-ok" : "bg-accent-cyan"}`} />
+          {t("land.dash.title")}
+        </span>
+        <span className="font-code text-[13px] text-mist/60">{t("land.dash.sub")}</span>
+      </div>
 
-      <div className="relative overflow-hidden rounded-2xl border border-ink-line bg-ink-surface/90 shadow-2xl shadow-black/50 backdrop-blur">
-        {/* window chrome */}
-        <div className="flex items-center justify-between border-b border-ink-line px-4 py-3">
-          <div className="flex items-center gap-2" aria-hidden="true">
-            <span className="h-2.5 w-2.5 rounded-full bg-state-bad/80" />
-            <span className="h-2.5 w-2.5 rounded-full bg-state-warn/80" />
-            <span className="h-2.5 w-2.5 rounded-full bg-state-ok/80" />
-          </div>
-          <span className="font-code text-[0.68rem] uppercase tracking-widest text-mist">{t("land.dash.sub")}</span>
-        </div>
+      <div className="p-6">
+        {/* task under evaluation */}
+        <p className="rounded-lg border border-ink-line bg-ink px-3 py-2 font-code text-[13px] leading-relaxed text-snow/80">
+          {DASH_TASK}
+        </p>
 
-        <div className="p-5">
-          <p className="font-code text-xs text-mist">{t("land.dash.title")}</p>
-          <p className="mt-2 rounded-lg border border-ink-line bg-ink px-3 py-2 font-code text-[0.78rem] leading-relaxed text-snow/90">
-            {DASHBOARD_TASK}
-          </p>
-
-          {/* setup under test */}
-          <div className="mt-4 flex items-center justify-between">
-            <span className="font-code text-xs text-mist">setup</span>
-            <AnimatePresence mode="popLayout" initial={false}>
-              <motion.span
-                key={current.setup}
-                initial={reduced ? false : { opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -6 }}
-                className="rounded-md border border-ink-line bg-ink px-2 py-1 font-code text-xs text-snow"
-              >
-                {current.setup}
-              </motion.span>
-            </AnimatePresence>
-          </div>
-
-          {/* pipeline steps */}
-          <ul className="mt-4 space-y-2.5">
-            {STEP_KEYS.map((k, i) => {
-              const state: StepState = i < phase ? "done" : i === phase ? "active" : "pending";
-              const isVerdictStep = i === STEP_KEYS.length - 1;
-              return (
-                <li key={k} className="flex items-center gap-3">
-                  <StepDot state={state} danger={danger && isVerdictStep} />
-                  <span className={`text-sm ${state === "pending" ? "text-mist/50" : "text-snow/90"}`}>{t(k)}</span>
-                  {i === 1 && state !== "pending" && (
-                    <span className="ml-auto hidden font-code text-[0.68rem] text-mist sm:inline">{current.decision}</span>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-
-          {/* verdict */}
-          <div className="mt-5 min-h-[92px]">
-            <AnimatePresence mode="wait" initial={false}>
-              {finished && (
-                <motion.div
-                  key={current.setup + current.verdict}
-                  initial={reduced ? false : { opacity: 0, scale: 0.96 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.98 }}
-                  transition={{ duration: 0.3 }}
-                  className={`rounded-xl border px-4 py-3 ${
-                    danger ? "border-state-bad/40 bg-state-bad/10" : "border-state-ok/40 bg-state-ok/10"
+        {/* pipeline: Prompt → Agent → Tools → Wallet → Verdict */}
+        <ol className="mt-6 flex items-center" aria-label="Evaluation pipeline">
+          {NODE_KEYS.map((k, i) => {
+            const done = i < phase;
+            const active = i === phase;
+            const isVerdict = i === NODE_KEYS.length - 1;
+            return (
+              <li key={k} className="flex min-w-0 flex-1 items-center">
+                <span
+                  className={`w-full truncate rounded-lg border px-2 py-2 text-center font-code text-[13px] transition-colors duration-350 ease-brand ${
+                    done && isVerdict
+                      ? "border-state-ok/40 bg-state-ok/10 text-state-ok"
+                      : done
+                        ? "border-accent-blue/40 bg-accent-blue/10 text-snow"
+                        : active
+                          ? "border-accent-cyan/40 bg-accent-cyan/10 text-snow"
+                          : "border-ink-line bg-ink text-mist/60"
                   }`}
                 >
-                  <div className="flex items-center gap-2">
-                    {danger ? (
-                      <XCircle className="h-5 w-5 text-state-bad" aria-hidden="true" />
-                    ) : (
-                      <CheckCircle2 className="h-5 w-5 text-state-ok" aria-hidden="true" />
-                    )}
-                    <span className={`font-code text-sm font-bold tracking-wide ${danger ? "text-state-bad" : "text-state-ok"}`}>
-                      {current.verdict}
-                    </span>
-                    <span className="ml-auto font-code text-xs text-mist">{t("land.dash.containment")}: {current.score}</span>
-                  </div>
-                  <p className="mt-1.5 font-code text-[0.72rem] text-mist">{current.evidence}</p>
+                  {t(k)}
+                </span>
+                {i < NODE_KEYS.length - 1 && (
+                  <span className={`h-px w-3 shrink-0 sm:w-4 ${done ? "bg-accent-blue/40" : "bg-ink-line"}`} aria-hidden="true" />
+                )}
+              </li>
+            );
+          })}
+        </ol>
+
+        {/* failure-state event: injection detected at the Tools stage */}
+        <div className="mt-4 min-h-[40px]">
+          <AnimatePresence initial={false}>
+            {phase > DETECT_AT && (
+              <motion.p
+                initial={reduced ? false : { opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: DUR.fast, ease: EASE }}
+                className="inline-flex items-center gap-2 rounded-lg border border-state-warn/40 bg-state-warn/10 px-3 py-2 font-code text-[13px] text-state-warn"
+              >
+                <TriangleAlert className="h-4 w-4 shrink-0" aria-hidden="true" />
+                {DASH_DETECT_EVENT}
+              </motion.p>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* verdict + the one live metric */}
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto]">
+          <div className="min-h-[76px] rounded-xl border border-ink-line bg-ink px-4 py-3">
+            <AnimatePresence initial={false} mode="wait">
+              {finished ? (
+                <motion.div
+                  key="verdict"
+                  initial={reduced ? false : { opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: DUR.fast, ease: EASE }}
+                >
+                  <span className="inline-flex items-center gap-2 font-code text-sm font-bold text-state-ok">
+                    <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+                    {DASH_VERDICT}
+                  </span>
+                  <p className="mt-1 font-code text-[13px] text-mist">{DASH_EVIDENCE}</p>
                 </motion.div>
+              ) : (
+                <motion.p
+                  key="running"
+                  initial={false}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="font-code text-[13px] text-mist/60"
+                >
+                  running…
+                </motion.p>
               )}
             </AnimatePresence>
           </div>
-
-          {/* footer: both real rates, source-linked */}
-          <div className="mt-2 flex flex-wrap items-center justify-between gap-2 border-t border-ink-line pt-3">
-            <span className="font-code text-[0.68rem] text-mist">
-              model-only <span className="text-state-ok">20/20</span> · sak+claude <span className="text-state-bad">0/20</span>
+          <div className="rounded-xl border border-ink-line bg-ink px-4 py-3 text-right sm:min-w-[128px]">
+            <span className="block font-code text-[13px] text-mist">{t("land.dash.score")}</span>
+            <span className="block font-display text-[28px] font-bold leading-[1.2] text-state-ok">
+              <Score run={finished} />
             </span>
-            <a
-              href={LINKS.runBJson}
-              target="_blank"
-              rel="noreferrer"
-              className="font-code text-[0.68rem] text-mist underline-offset-2 transition-colors hover:text-snow"
-            >
-              results JSON ↗
-            </a>
           </div>
+        </div>
+
+        {/* provenance */}
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-ink-line pt-3">
+          <span className="font-code text-[13px] text-mist/60">{DASH_SCORE_SOURCE}</span>
+          <a href={LINKS.runBJson} target="_blank" rel="noreferrer" className="font-code text-[13px] text-mist transition-colors duration-200 ease-brand hover:text-snow">
+            results JSON ↗
+          </a>
         </div>
       </div>
     </div>

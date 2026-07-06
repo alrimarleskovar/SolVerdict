@@ -445,135 +445,18 @@ table.placard tbody th {
   color: var(--purple-soft);
 }
 
-/* --- landing restyle (Pegana-inspired: near-black, heavy display type, mono
-       data, sparing accent). Additive — nothing above this block changed. --- */
-
-/* Heavy sans display type for landing headlines (overrides the mono h1/h2/h3
-   default via class specificity; other pages keep the mono headings). */
-.display {
-  font-family: var(--sans);
-  font-weight: 800;
-  letter-spacing: -0.03em;
-  line-height: 1.08;
-  color: var(--text-strong);
-  text-wrap: balance;
-}
-
-/* Small mono uppercase section label. */
-.eyebrow {
-  display: block;
-  font-family: var(--mono);
-  font-size: 0.72rem;
-  text-transform: uppercase;
-  letter-spacing: 0.18em;
-  color: var(--muted);
-}
-
-/* Pegana-style status badge: small, mono, uppercase, subtle border. */
-.tag {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4em;
-  font-family: var(--mono);
-  font-size: 0.66rem;
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  color: var(--muted);
-  border: 1px solid rgba(230, 237, 243, 0.14);
-  border-radius: 999px;
-  padding: 0.3rem 0.75rem;
-  white-space: nowrap;
-}
-.tag-green {
-  color: var(--sol-green);
-  border-color: rgba(20, 241, 149, 0.35);
-}
-.tag-red {
-  color: #ff8d88;
-  border-color: rgba(224, 99, 94, 0.45);
-}
-
-/* Exposed formula block — mono, technical, scrolls instead of wrapping. */
-.formula {
-  display: inline-block;
-  max-width: 100%;
-  overflow-x: auto;
-  text-align: left;
-  font-family: var(--mono);
-  font-size: clamp(0.74rem, 2.3vw, 0.95rem);
-  line-height: 1.75;
-  color: var(--text-strong);
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(230, 237, 243, 0.12);
-  border-radius: 10px;
-  padding: 0.75rem 1.15rem;
-  white-space: nowrap;
-}
-.formula .dim {
-  color: var(--muted);
-}
-.formula .em {
-  color: var(--sol-green);
-}
-
-/* Flat near-black card — quieter than .glass (which stays for inner pages). */
-.card {
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(230, 237, 243, 0.1);
-  border-radius: 14px;
-  transition: border-color 0.2s ease, background 0.2s ease;
-}
-@media (hover: hover) {
-  .card-hover:hover {
-    border-color: rgba(230, 237, 243, 0.24);
-    background: rgba(255, 255, 255, 0.035);
-  }
-}
-
-/* Hairline data strip (stats): 1px gaps read as rules between solid cells. */
+/* --- landing data strip (Stats.tsx): 1px gaps read as hairline rules. --- */
 .strip {
   display: grid;
   gap: 1px;
-  background: rgba(230, 237, 243, 0.09);
-  border: 1px solid rgba(230, 237, 243, 0.09);
-  border-radius: 14px;
+  background: rgba(148, 163, 184, 0.1);
+  border: 1px solid rgba(148, 163, 184, 0.1);
+  border-radius: 16px;
   overflow: hidden;
 }
 .strip > div {
-  background: #0b0b13;
-  padding: 1.15rem 1.25rem;
-}
-.stat-num {
-  display: block;
-  font-family: var(--mono);
-  font-weight: 700;
-  font-size: clamp(1.5rem, 3vw, 2.1rem);
-  line-height: 1.1;
-  color: var(--text-strong);
-}
-
-/* The striking A2 drain cell — the one loud element on the page. */
-.cell-drain {
-  background: rgba(224, 99, 94, 0.14);
-  color: #ff8d88;
-  border-color: rgba(224, 99, 94, 0.55);
-  font-weight: 700;
-}
-
-/* Muted mono "tested against" wall. */
-.wall {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 0.6rem 2.2rem;
-  font-family: var(--mono);
-  font-size: 0.92rem;
-  color: var(--text);
-}
-.wall .wall-item {
-  opacity: 0.75;
-  white-space: nowrap;
+  background: #0b1225;
+  padding: 16px 24px;
 }
 
 /* --- mobile (≤ 640px) --- */
@@ -643,11 +526,11 @@ table.placard tbody th {
    Zero specificity, so any Tailwind color utility on a link still wins; the
    .btn exceptions below keep button-styled anchors on their own colors. */
 :where(.landing) a {
-  color: #60a5fa;
+  color: #3b82f6;
   text-decoration: none;
 }
 :where(.landing) a:hover {
-  color: #93c5fd;
+  color: #06b6d4;
   text-decoration: none;
 }
 :where(.landing) a.btn,
@@ -668,8 +551,8 @@ table.placard tbody th {
    via utilities or inline styles override this — zero specificity). */
 :where(.landing) code {
   background: rgba(11, 18, 37, 0.8);
-  border: 1px solid rgba(148, 163, 184, 0.16);
-  border-radius: 6px;
+  border: 1px solid rgba(148, 163, 184, 0.1);
+  border-radius: 8px;
   padding: 0.1em 0.4em;
   font-family: var(--font-code, var(--mono));
 }
@@ -688,7 +571,7 @@ table.placard tbody th {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background-image: radial-gradient(rgba(148, 163, 184, 0.13) 1px, transparent 1px);
+  background-image: radial-gradient(rgba(148, 163, 184, 0.1) 1px, transparent 1px);
   background-size: 28px 28px;
   mask-image: radial-gradient(ellipse 90% 70% at 50% 0%, black 30%, transparent 75%);
   -webkit-mask-image: radial-gradient(ellipse 90% 70% at 50% 0%, black 30%, transparent 75%);
@@ -722,7 +605,7 @@ table.placard tbody th {
   --bg: #050816;
   --panel: #111827;
   --panel-2: #0b1225;
-  --border: rgba(148, 163, 184, 0.18);
+  --border: rgba(148, 163, 184, 0.2);
   --text: #cbd5e1;
   --text-strong: #f8fafc;
   --muted: #94a3b8;
@@ -730,7 +613,7 @@ table.placard tbody th {
   --purple-soft: #8b5cf6;
   --sol-purple: #3b82f6;
   --sol-green: #22c55e;
-  --divider-soft: rgba(148, 163, 184, 0.14);
+  --divider-soft: rgba(148, 163, 184, 0.1);
   --green: #22c55e;
   --green-bg: rgba(34, 197, 94, 0.1);
   --partial: #f59e0b;
@@ -739,9 +622,9 @@ table.placard tbody th {
   --red-bg: rgba(239, 68, 68, 0.1);
   --incomplete: #94a3b8;
   --incomplete-bg: rgba(148, 163, 184, 0.1);
-  --glass-bg: rgba(17, 24, 39, 0.65);
-  --glass-border: rgba(148, 163, 184, 0.14);
-  --glass-border-hover: rgba(148, 163, 184, 0.32);
+  --glass-bg: rgba(17, 24, 39, 0.6);
+  --glass-border: rgba(148, 163, 184, 0.1);
+  --glass-border-hover: rgba(148, 163, 184, 0.4);
   --grad: linear-gradient(90deg, #3b82f6, #06b6d4);
   --grad-bright: linear-gradient(90deg, #3b82f6, #8b5cf6);
   --mono: var(--font-code, ui-monospace, SFMono-Regular, Menlo, monospace);
@@ -764,11 +647,12 @@ table.placard tbody th {
 /* buttons: quiet ink secondary + solid accent-blue primary */
 :where(.landing) .btn {
   font-family: var(--font-body, var(--sans));
-  font-size: 0.9rem;
+  font-size: 14px;
   font-weight: 500;
-  border: 1px solid rgba(148, 163, 184, 0.25);
+  padding: 8px 16px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
   background: rgba(11, 18, 37, 0.6);
-  border-radius: 10px;
+  border-radius: 12px;
   color: var(--text-strong);
 }
 :where(.landing) .btn:hover {
@@ -782,21 +666,21 @@ table.placard tbody th {
   border-color: transparent;
   color: #f8fafc;
   font-weight: 600;
-  box-shadow: 0 8px 24px rgba(59, 130, 246, 0.25);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
 }
 :where(.landing) .btn-primary:hover {
-  background: #2f74e8;
+  background: rgba(59, 130, 246, 0.8);
   border-color: transparent;
   filter: none;
-  box-shadow: 0 10px 28px rgba(59, 130, 246, 0.4);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
   transform: translateY(-1px);
 }
 
 /* form controls */
 :where(.landing) .field {
   background: rgba(5, 8, 22, 0.6);
-  border: 1px solid rgba(148, 163, 184, 0.22);
-  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 12px;
   font-family: var(--font-body, var(--sans));
 }
 :where(.landing) .field:focus {
@@ -805,7 +689,7 @@ table.placard tbody th {
 }
 :where(.landing) .label {
   font-family: var(--font-code, var(--mono));
-  font-size: 0.75rem;
+  font-size: 13px;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--muted);
@@ -813,9 +697,9 @@ table.placard tbody th {
 
 /* status badge: pill, mist by default (pages override color inline per status) */
 :where(.landing) .badge {
-  border: 1px solid rgba(148, 163, 184, 0.3);
-  border-radius: 999px;
-  padding: 0.22rem 0.65rem;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  border-radius: 8px;
+  padding: 4px 12px;
   color: var(--muted);
   letter-spacing: 0.1em;
 }
@@ -846,7 +730,7 @@ table.placard tbody th {
   color: var(--muted);
 }
 :where(.landing) .back-link:hover {
-  color: #93c5fd;
+  color: #06b6d4;
 }
 
 /* wallet-adapter button → match the design system. Deliberately .landing (not
@@ -854,13 +738,13 @@ table.placard tbody th {
    the extra specificity to win. */
 .landing .wallet-adapter-button {
   font-family: var(--font-body, var(--sans));
-  font-size: 0.88rem;
-  border-radius: 10px;
-  height: 2.6rem;
+  font-size: 14px;
+  border-radius: 12px;
+  height: 40px;
 }
 .landing .wallet-adapter-button-trigger {
   background: #3b82f6;
 }
 .landing .wallet-adapter-button-trigger:not([disabled]):hover {
-  background: #2f74e8;
+  background: rgba(59, 130, 246, 0.8);
 }

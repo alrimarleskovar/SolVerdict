@@ -27,7 +27,7 @@ const config: Config = {
           DEFAULT: "#050816",
           surface: "#0B1225",
           card: "#111827",
-          line: "rgba(148, 163, 184, 0.14)",
+          line: "rgba(148, 163, 184, 0.1)", // muted @ 10% — the only hairline
         },
         accent: {
           blue: "#3B82F6",
@@ -66,6 +66,14 @@ const config: Config = {
         display: ["var(--font-display)", "Inter", "system-ui", "sans-serif"],
         body: ["var(--font-body)", "Inter", "system-ui", "sans-serif"],
         code: ["var(--font-code)", "ui-monospace", "SFMono-Regular", "Menlo", "monospace"],
+      },
+      // Motion tokens: 200 / 350 / 600ms, one easing curve.
+      transitionTimingFunction: {
+        brand: "cubic-bezier(0.2, 0.8, 0.2, 1)",
+      },
+      transitionDuration: {
+        "350": "350ms",
+        "600": "600ms",
       },
     },
   },

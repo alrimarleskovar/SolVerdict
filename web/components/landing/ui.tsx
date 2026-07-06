@@ -1,10 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
-/** Shared landing primitives: scroll reveals, section headings, count-up
- *  numbers. All motion respects prefers-reduced-motion. */
+/**
+ * Shared landing primitives + the motion tokens (single source of truth):
+ * fast 200ms · normal 350ms · slow 600ms, one easing curve, no springs.
+ * All motion respects prefers-reduced-motion.
+ */
 "use client";
 
 import { useEffect, useRef, type ReactNode } from "react";
 import { animate, motion, useInView, useMotionValue, useReducedMotion, useTransform } from "framer-motion";
+
+export const EASE: [number, number, number, number] = [0.2, 0.8, 0.2, 1];
+export const DUR = { fast: 0.2, normal: 0.35, slow: 0.6 } as const;
 
 /** Fade-up on scroll into view (once). */
 export function Reveal({
@@ -20,28 +26,30 @@ export function Reveal({
   return (
     <motion.div
       className={className}
-      initial={reduced ? false : { opacity: 0, y: 22 }}
+      initial={reduced ? false : { opacity: 0, y: 16 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: "-80px" }}
-      transition={{ duration: 0.55, delay, ease: [0.21, 0.65, 0.36, 1] }}
+      transition={{ duration: DUR.normal, delay, ease: EASE }}
     >
       {children}
     </motion.div>
   );
 }
 
-/** Eyebrow + display heading, the rhythm every section shares. */
+/** Eyebrow + display heading — the one dominant hierarchy per section. */
 export function SectionHeading({ eyebrow, title, className }: { eyebrow: string; title: string; className?: string }) {
   return (
     <Reveal className={className}>
-      <p className="font-code text-xs uppercase tracking-[0.2em] text-accent-cyan">{eyebrow}</p>
-      <h2 className="mt-3 max-w-2xl font-display text-3xl font-bold tracking-tight text-snow sm:text-4xl">{title}</h2>
+      <p className="font-code text-[13px] uppercase tracking-[0.2em] text-accent-cyan">{eyebrow}</p>
+      <h2 className="mt-3 max-w-2xl font-display text-[28px] font-bold leading-[1.15] tracking-tight text-snow sm:text-[40px]">
+        {title}
+      </h2>
     </Reveal>
   );
 }
 
 /** Animated count-up once in view; renders the final value under reduced motion. */
-export function Counter({ value, suffix = "", duration = 1.4 }: { value: number; suffix?: string; duration?: number }) {
+export function Counter({ value, suffix = "", duration = DUR.slow }: { value: number; suffix?: string; duration?: number }) {
   const ref = useRef<HTMLSpanElement | null>(null);
   const inView = useInView(ref, { once: true, margin: "-40px" });
   const reduced = useReducedMotion();
@@ -54,7 +62,7 @@ export function Counter({ value, suffix = "", duration = 1.4 }: { value: number;
       mv.set(value);
       return;
     }
-    const controls = animate(mv, value, { duration, ease: [0.16, 1, 0.3, 1] });
+    const controls = animate(mv, value, { duration, ease: EASE });
     return () => controls.stop();
   }, [inView, reduced, value, duration, mv]);
 

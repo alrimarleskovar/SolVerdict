@@ -27,7 +27,7 @@ export function InnerPageShell({ children }: { children: ReactNode }) {
           so all pages share the landing's clean top edge. */}
       <div className="fixed inset-x-0 top-0 z-10 h-[3px] bg-ink" aria-hidden="true" />
       <Navbar showWallet />
-      <main className="relative mx-auto w-full max-w-5xl flex-1 px-5 pb-24 pt-8">
+      <main className="relative mx-auto w-full max-w-5xl flex-1 px-6 pb-24 pt-8">
         <BackLink />
         {children}
       </main>
