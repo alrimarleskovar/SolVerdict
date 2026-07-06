@@ -88,9 +88,14 @@ jobs:
       - name: Pin npm 11 (matches the committed lockfile)
         run: npm install -g npm@11
 
+      # --legacy-peer-deps: the wallet-adapter → react-native chain declares a
+      # react@^19 peer while the app is on react@18; without this npm errors on
+      # the peer conflict. (The utf-8-validate lock issue is fixed by the npm 11
+      # pin above, not by this flag.) Kept for web only — the smoke/parent job
+      # must NOT use it, so the @pump-fun/pump-sdk override is respected there.
       - name: Install web dependencies
         working-directory: web
-        run: npm ci
+        run: npm ci --legacy-peer-deps
 
       # `npm test` runs tsc against tsconfig.check.json (NOT the plain
       # tsconfig.json, whose "../" exclude makes a bare `tsc` report TS18003

@@ -22,7 +22,6 @@ import path from "node:path";
 import "dotenv/config";
 import { N_RUNS } from "./config/params.js";
 import { SCENARIOS } from "./scenarios/index.js";
-import { SETUPS, SELFTEST_SETUPS, getSetup } from "./setups/index.js";
 import { scoreSetup, classifyOutcome, type RunRecord } from "./scoring/index.js";
 import {
   ensureSurfpool,
@@ -38,6 +37,50 @@ import {
 } from "./env/index.js";
 import type { RunLogs, Setup } from "./lib/types.js";
 import { generateReport, type ResultsFile } from "./report/generate.js";
+
+/**
+ * Setups are loaded LAZILY (dynamic import), never eagerly. Importing every
+ * setup at module load (as `./setups/index.js` does) pulls in the SAK modules,
+ * which evaluate the `@pump-fun/pump-sdk` ESM bundle just by being imported —
+ * so a run that only uses `selftest-scripted` would still crash if that bundle
+ * has issues. Keyed by setup id (which uses "+"); the file names use "-".
+ */
+const SETUP_LOADERS: Record<string, () => Promise<{ default: Setup }>> = {
+  "baseline-scripted": () => import("./setups/baseline-scripted.js"),
+  "model-only-claude": () => import("./setups/model-only-claude.js"),
+  "sak+claude": () => import("./setups/sak-claude.js"),
+  "sak+gpt": () => import("./setups/sak-gpt.js"),
+  "sak+claude+onlyfence": () => import("./setups/sak-claude-onlyfence.js"),
+  "eliza+claude": () => import("./setups/eliza-claude.js"),
+  "rig+claude": () => import("./setups/rig-claude.js"),
+  "selftest-scripted": () => import("./setups/selftest-scripted.js"),
+};
+
+/** Published board order (prereg §7) — the default when no --setups is given.
+ *  Excludes the harness self-test (`selftest-scripted`). */
+const PUBLISHED_SETUP_IDS = [
+  "baseline-scripted",
+  "model-only-claude",
+  "sak+claude",
+  "sak+gpt",
+  "sak+claude+onlyfence",
+  "eliza+claude",
+  "rig+claude",
+];
+
+/** Load only the requested setups (or the published set by default). */
+async function loadSetups(ids: string[]): Promise<Setup[]> {
+  const setups: Setup[] = [];
+  for (const id of ids) {
+    const load = SETUP_LOADERS[id];
+    if (!load) {
+      console.warn(`[bench] unknown setup id "${id}" — skipping`);
+      continue;
+    }
+    setups.push((await load()).default);
+  }
+  return setups;
+}
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname));
 const RUNS_DIR = path.join(ROOT, "runs");
@@ -112,12 +155,9 @@ async function main(): Promise<void> {
   const setupFilter = arg("--setups")?.split(",").map((s) => s.trim());
   const scenFilter = arg("--scenarios")?.split(",").map((s) => s.trim());
 
-  let setups: Setup[];
-  if (setupFilter) {
-    setups = setupFilter.map((id) => getSetup(id)).filter((s): s is Setup => !!s);
-  } else {
-    setups = SETUPS;
-  }
+  // Lazily import ONLY the requested setups (default: the published board),
+  // so a smoke run never evaluates SAK / @pump-fun/pump-sdk.
+  const setups = await loadSetups(setupFilter ?? PUBLISHED_SETUP_IDS);
   const scenarios = scenFilter ? SCENARIOS.filter((s) => scenFilter.includes(s.id)) : SCENARIOS;
 
   // Resolve the run id. Priority: explicit --run-id / BENCH_RUN_ID, else a
