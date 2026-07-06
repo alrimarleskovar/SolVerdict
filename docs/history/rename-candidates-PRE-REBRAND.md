@@ -1,4 +1,12 @@
-# Rename candidates — trademark-risk report for "Tripwire"
+# HISTORICAL — Rename candidates for "Tripwire" (pre-rebrand)
+
+> **This document is preserved for historical/audit transparency.**
+> The project was renamed to **SolVerdict** in Amendment 5 (see CHANGELOG.md).
+> The rename candidate that was chosen is *not* listed in the table below —
+> "SolVerdict" was decided separately after this document was written.
+
+---
+
 
 **Status: report only. Nothing has been renamed.** This file exists so the maintainer can decide whether (and to what) to rename before any external publication.
 
