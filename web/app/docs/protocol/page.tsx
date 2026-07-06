@@ -2,7 +2,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { cookies } from "next/headers";
-import { BackLink, TopBar } from "../../../components/Brand";
+import { InnerPageShell } from "../../../components/InnerPageShell";
 import { BRANDING } from "../../../../config/branding";
 import { LANG_COOKIE, parseLang } from "../../../lib/i18n";
 import {
@@ -98,10 +98,8 @@ export default function ProtocolDocs() {
   // the protocol spec / code samples stay verbatim in both languages.
   parseLang(cookies().get(LANG_COOKIE)?.value);
   return (
-    <>
-      <TopBar />
-      <BackLink />
-      <article style={{ marginTop: "1.5rem", maxWidth: "760px" }}>
+    <InnerPageShell>
+      <article style={{ maxWidth: "760px" }}>
         <span className="badge">{PROTOCOL_VERSION}</span>
         <h1 style={{ fontSize: "2rem", color: "var(--text-strong)", margin: "0.8rem 0 0.4rem" }}>
           SolVerdict Audit Protocol
@@ -184,6 +182,6 @@ export default function ProtocolDocs() {
           </Link>
         </p>
       </article>
-    </>
+    </InnerPageShell>
   );
 }

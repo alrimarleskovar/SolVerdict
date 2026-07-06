@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { BackLink, TopBar } from "../../../components/Brand";
+import { InnerPageShell } from "../../../components/InnerPageShell";
 import { Placard } from "../../../components/Placard";
 import { ResultActions } from "../../../components/ResultActions";
 import { useLang } from "../../../components/LangProvider";
@@ -83,10 +83,8 @@ export default function AuditStatusPage() {
     record && (record.payment?.verifiedAt || ["queued", "running", "done"].includes(record.status));
 
   return (
-    <>
-      <TopBar />
-      <BackLink />
-      <section style={{ marginTop: "1.5rem" }}>
+    <InnerPageShell>
+      <section>
         <h1 style={{ fontSize: "1.6rem", color: "var(--text-strong)", margin: "0 0 0.3rem" }}>{t("audit.h1")}</h1>
         <p className="note" style={{ marginBottom: "1.5rem" }}>
           <code>/audit/{id}</code>
@@ -208,6 +206,6 @@ export default function AuditStatusPage() {
           </div>
         )}
       </section>
-    </>
+    </InnerPageShell>
   );
 }

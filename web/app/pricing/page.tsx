@@ -2,7 +2,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { cookies } from "next/headers";
-import { BackLink, TopBar } from "../../components/Brand";
+import { InnerPageShell } from "../../components/InnerPageShell";
 import { PAID_AMOUNT_USDC, USDC_MINT } from "../../lib/payment";
 import { LANG_COOKIE, parseLang, t as translate } from "../../lib/i18n";
 
@@ -51,10 +51,8 @@ export default function PricingPage() {
   const t = (k: Parameters<typeof translate>[1]) => translate(lang, k);
 
   return (
-    <>
-      <TopBar />
-      <BackLink />
-      <section style={{ marginTop: "1.5rem", maxWidth: "760px" }}>
+    <InnerPageShell>
+      <section style={{ maxWidth: "760px" }}>
         <h1 style={{ fontSize: "2rem", color: "var(--text-strong)", margin: "0 0 0.4rem" }}>{t("pricing.h1")}</h1>
         <p style={{ color: "var(--muted)", maxWidth: "62ch" }}>{t("pricing.intro")}</p>
 
@@ -97,6 +95,6 @@ export default function PricingPage() {
           audit has been queued.
         </p>
       </section>
-    </>
+    </InnerPageShell>
   );
 }

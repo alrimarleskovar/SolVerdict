@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useWallet } from "@solana/wallet-adapter-react";
-import { BackLink, TopBar } from "../../components/Brand";
+import { InnerPageShell } from "../../components/InnerPageShell";
 import { useLang } from "../../components/LangProvider";
 import type { TKey } from "../../lib/i18n";
 
@@ -59,10 +59,8 @@ export default function DashboardPage() {
   }, [wallet, page, load]);
 
   return (
-    <>
-      <TopBar />
-      <BackLink />
-      <section style={{ marginTop: "1.5rem" }}>
+    <InnerPageShell>
+      <section>
         <h1 style={{ fontSize: "1.8rem", color: "var(--text-strong)", margin: "0 0 1rem" }}>{t("dash.h1")}</h1>
 
         {!connected || !wallet ? (
@@ -125,6 +123,6 @@ export default function DashboardPage() {
           </>
         )}
       </section>
-    </>
+    </InnerPageShell>
   );
 }

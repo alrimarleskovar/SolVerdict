@@ -12,7 +12,6 @@
  * components/landing/data.ts for the canonical citations.
  */
 import type { Metadata } from "next";
-import { Inter, Inter_Tight, JetBrains_Mono } from "next/font/google";
 import { BRANDING } from "../../config/branding";
 import { Navbar } from "../components/landing/Navbar";
 import { HeroBackground } from "../components/landing/Background";
@@ -28,10 +27,6 @@ import { OpenSource } from "../components/landing/OpenSource";
 import { CTA } from "../components/landing/CTA";
 import { Footer } from "../components/landing/Footer";
 
-const fontBody = Inter({ subsets: ["latin"], variable: "--font-body", display: "swap" });
-const fontDisplay = Inter_Tight({ subsets: ["latin"], variable: "--font-display", display: "swap" });
-const fontCode = JetBrains_Mono({ subsets: ["latin"], variable: "--font-code", display: "swap" });
-
 export const metadata: Metadata = {
   title: "SolVerdict — the benchmark for secure Solana AI agents",
   description: BRANDING.description,
@@ -44,9 +39,7 @@ export const metadata: Metadata = {
 
 export default function Home() {
   return (
-    <div
-      className={`landing full-bleed relative min-h-screen bg-ink font-body text-snow antialiased ${fontBody.variable} ${fontDisplay.variable} ${fontCode.variable}`}
-    >
+    <div className="landing full-bleed relative min-h-screen bg-ink font-body text-snow antialiased">
       {/* Cover the site-wide fixed Solana-gradient top bar (body::before, z-5)
           while the landing is mounted — its purple/green clashes with the
           landing palette. Inner pages keep the bar. */}

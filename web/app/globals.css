@@ -639,10 +639,24 @@ table.placard tbody th {
   font-family: var(--font-body, var(--sans));
   color: #f8fafc;
 }
-:where(.landing) a,
-:where(.landing) a:hover {
-  color: inherit;
+/* Default link treatment inside the scope: accessible blue for prose links.
+   Zero specificity, so any Tailwind color utility on a link still wins; the
+   .btn exceptions below keep button-styled anchors on their own colors. */
+:where(.landing) a {
+  color: #60a5fa;
   text-decoration: none;
+}
+:where(.landing) a:hover {
+  color: #93c5fd;
+  text-decoration: none;
+}
+:where(.landing) a.btn,
+:where(.landing) a.btn:hover {
+  color: var(--text-strong);
+}
+:where(.landing) a.btn-primary,
+:where(.landing) a.btn-primary:hover {
+  color: #f8fafc;
 }
 :where(.landing) h1,
 :where(.landing) h2,
@@ -650,10 +664,13 @@ table.placard tbody th {
 :where(.landing) h4 {
   font-family: var(--font-display, var(--sans));
 }
+/* Inline code as a quiet chip (landing components that style their own <code>
+   via utilities or inline styles override this — zero specificity). */
 :where(.landing) code {
-  background: none;
-  border: none;
-  padding: 0;
+  background: rgba(11, 18, 37, 0.8);
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 6px;
+  padding: 0.1em 0.4em;
   font-family: var(--font-code, var(--mono));
 }
 
@@ -686,4 +703,164 @@ table.placard tbody th {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* ===========================================================================
+   Inner pages inside the design-system scope (components/InnerPageShell.tsx).
+
+   The inner pages' markup — including the payment form, the verdict placard
+   and the share/embed actions — is written against the legacy component
+   classes (.glass, .btn, .field, table.placard, tier cells) and the brand CSS
+   variables. Rather than rewriting that battle-tested markup, the variables
+   and classes are RE-THEMED here inside the .landing scope: same DOM, same
+   logic, new palette. Zero-specificity :where() keeps Tailwind utilities and
+   inline styles in charge wherever they are set.
+   =========================================================================== */
+
+:where(.landing) {
+  /* brand variable remap → ink palette (drives every inline style + legacy rule) */
+  --bg: #050816;
+  --panel: #111827;
+  --panel-2: #0b1225;
+  --border: rgba(148, 163, 184, 0.18);
+  --text: #cbd5e1;
+  --text-strong: #f8fafc;
+  --muted: #94a3b8;
+  --accent: #60a5fa;
+  --purple-soft: #8b5cf6;
+  --sol-purple: #3b82f6;
+  --sol-green: #22c55e;
+  --divider-soft: rgba(148, 163, 184, 0.14);
+  --green: #22c55e;
+  --green-bg: rgba(34, 197, 94, 0.1);
+  --partial: #f59e0b;
+  --partial-bg: rgba(245, 158, 11, 0.12);
+  --red: #ef4444;
+  --red-bg: rgba(239, 68, 68, 0.1);
+  --incomplete: #94a3b8;
+  --incomplete-bg: rgba(148, 163, 184, 0.1);
+  --glass-bg: rgba(17, 24, 39, 0.65);
+  --glass-border: rgba(148, 163, 184, 0.14);
+  --glass-border-hover: rgba(148, 163, 184, 0.32);
+  --grad: linear-gradient(90deg, #3b82f6, #06b6d4);
+  --grad-bright: linear-gradient(90deg, #3b82f6, #8b5cf6);
+  --mono: var(--font-code, ui-monospace, SFMono-Regular, Menlo, monospace);
+  --sans: var(--font-body, system-ui, sans-serif);
+}
+
+/* cards: flat ink surfaces instead of purple glass */
+:where(.landing) .glass {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.25);
+}
+:where(.landing) .glass-hover:hover {
+  border-color: var(--glass-border-hover);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
+  transform: translateY(-2px);
+}
+
+/* buttons: quiet ink secondary + solid accent-blue primary */
+:where(.landing) .btn {
+  font-family: var(--font-body, var(--sans));
+  font-size: 0.9rem;
+  font-weight: 500;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  background: rgba(11, 18, 37, 0.6);
+  border-radius: 10px;
+  color: var(--text-strong);
+}
+:where(.landing) .btn:hover {
+  background: #111827;
+  border-color: rgba(148, 163, 184, 0.45);
+  box-shadow: none;
+  transform: translateY(-1px);
+}
+:where(.landing) .btn-primary {
+  background: #3b82f6;
+  border-color: transparent;
+  color: #f8fafc;
+  font-weight: 600;
+  box-shadow: 0 8px 24px rgba(59, 130, 246, 0.25);
+}
+:where(.landing) .btn-primary:hover {
+  background: #2f74e8;
+  border-color: transparent;
+  filter: none;
+  box-shadow: 0 10px 28px rgba(59, 130, 246, 0.4);
+  transform: translateY(-1px);
+}
+
+/* form controls */
+:where(.landing) .field {
+  background: rgba(5, 8, 22, 0.6);
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 10px;
+  font-family: var(--font-body, var(--sans));
+}
+:where(.landing) .field:focus {
+  outline: 2px solid #3b82f6;
+  border-color: #3b82f6;
+}
+:where(.landing) .label {
+  font-family: var(--font-code, var(--mono));
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+/* status badge: pill, mist by default (pages override color inline per status) */
+:where(.landing) .badge {
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 999px;
+  padding: 0.22rem 0.65rem;
+  color: var(--muted);
+  letter-spacing: 0.1em;
+}
+
+/* placard / data tables on ink surfaces */
+:where(.landing) table.placard thead th {
+  background: rgba(11, 18, 37, 0.85);
+}
+:where(.landing) table.placard tbody th {
+  background: rgba(5, 8, 22, 0.7);
+}
+:where(.landing) .t-green {
+  border-color: rgba(34, 197, 94, 0.3);
+}
+:where(.landing) .t-yellow {
+  border-color: rgba(245, 158, 11, 0.3);
+}
+:where(.landing) .t-red {
+  border-color: rgba(239, 68, 68, 0.3);
+}
+:where(.landing) .legend .ly::before {
+  background: #f59e0b;
+}
+
+/* back-link */
+:where(.landing) .back-link {
+  font-family: var(--font-code, var(--mono));
+  color: var(--muted);
+}
+:where(.landing) .back-link:hover {
+  color: #93c5fd;
+}
+
+/* wallet-adapter button → match the design system. Deliberately .landing (not
+   :where) — the adapter's stylesheet loads after globals.css, so this needs
+   the extra specificity to win. */
+.landing .wallet-adapter-button {
+  font-family: var(--font-body, var(--sans));
+  font-size: 0.88rem;
+  border-radius: 10px;
+  height: 2.6rem;
+}
+.landing .wallet-adapter-button-trigger {
+  background: #3b82f6;
+}
+.landing .wallet-adapter-button-trigger:not([disabled]):hover {
+  background: #2f74e8;
 }

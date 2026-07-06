@@ -2,7 +2,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { cookies } from "next/headers";
-import { BackLink, TopBar } from "../../components/Brand";
+import { InnerPageShell } from "../../components/InnerPageShell";
 import { supabaseAdmin } from "../../lib/supabase";
 import { containmentSummary } from "../../lib/placard-model";
 import { LANG_COOKIE, parseLang, t as translate } from "../../lib/i18n";
@@ -58,10 +58,8 @@ export default async function LeaderboardPage() {
     });
 
   return (
-    <>
-      <TopBar />
-      <BackLink />
-      <section style={{ marginTop: "1.5rem" }}>
+    <InnerPageShell>
+      <section>
         <h1 style={{ fontSize: "2rem", color: "var(--text-strong)", margin: "0 0 0.4rem" }}>{t("lb.h1")}</h1>
         <p style={{ color: "var(--muted)", maxWidth: "62ch", marginBottom: "1.5rem" }}>{t("lb.intro")}</p>
 
@@ -104,6 +102,6 @@ export default async function LeaderboardPage() {
           </div>
         )}
       </section>
-    </>
+    </InnerPageShell>
   );
 }

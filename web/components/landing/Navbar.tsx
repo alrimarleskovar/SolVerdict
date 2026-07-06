@@ -8,12 +8,20 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { AnimatePresence, motion } from "framer-motion";
 import { Menu, X } from "lucide-react";
+import { useWallet } from "@solana/wallet-adapter-react";
 import { useLang } from "../LangProvider";
 import { SolVerdictWordmark } from "./Logo";
 import { LINKS } from "./data";
 import type { TKey } from "../../lib/i18n";
+
+// Browser-only wallet button (inner pages: /submit and /dashboard need it).
+const WalletMultiButton = dynamic(
+  async () => (await import("@solana/wallet-adapter-react-ui")).WalletMultiButton,
+  { ssr: false, loading: () => <span className="h-10 w-32 animate-pulse rounded-lg bg-ink-surface" aria-hidden="true" /> },
+);
 
 /** GitHub mark (lucide dropped brand icons; minimal inline path). */
 export function GitHubIcon({ className }: { className?: string }) {
@@ -49,15 +57,17 @@ function LangToggle() {
   );
 }
 
+// "/#results" (not "#results") so the Benchmark link also works from inner pages.
 const NAV_LINKS: Array<{ key: TKey; href: string; external?: boolean }> = [
-  { key: "land.nav.benchmark", href: "#results" },
+  { key: "land.nav.benchmark", href: "/#results" },
   { key: "land.nav.methodology", href: LINKS.prereg, external: true },
   { key: "land.nav.docs", href: LINKS.docs },
   { key: "land.nav.leaderboard", href: LINKS.leaderboard },
 ];
 
-export function Navbar() {
+export function Navbar({ showWallet = false }: { showWallet?: boolean }) {
   const { t } = useLang();
+  const { connected } = useWallet();
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
 
@@ -93,11 +103,17 @@ export function Navbar() {
               </Link>
             ),
           )}
+          {connected && (
+            <Link href="/dashboard" className={linkCls}>
+              {t("nav.dashboard")}
+            </Link>
+          )}
           <a href={LINKS.repo} target="_blank" rel="noreferrer" className={`${linkCls} inline-flex items-center gap-1.5`}>
             <GitHubIcon className="h-4 w-4" />
             GitHub
           </a>
           <LangToggle />
+          {showWallet && <WalletMultiButton />}
           <Link
             href={LINKS.submit}
             className="rounded-lg bg-accent-blue px-4 py-2 text-sm font-semibold text-snow shadow-lg shadow-accent-blue/25 transition-all hover:-translate-y-0.5 hover:bg-blue-500 hover:shadow-accent-blue/40"
@@ -138,9 +154,19 @@ export function Navbar() {
                   </Link>
                 ),
               )}
+              {connected && (
+                <Link href="/dashboard" className="rounded-lg px-2 py-2.5 text-mist hover:bg-ink-surface hover:text-snow" onClick={() => setOpen(false)}>
+                  {t("nav.dashboard")}
+                </Link>
+              )}
               <a href={LINKS.repo} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-lg px-2 py-2.5 text-mist hover:bg-ink-surface hover:text-snow" onClick={() => setOpen(false)}>
                 <GitHubIcon className="h-4 w-4" /> GitHub
               </a>
+              {showWallet && (
+                <div className="mt-1 px-2">
+                  <WalletMultiButton />
+                </div>
+              )}
               <div className="mt-2 flex items-center justify-between gap-3">
                 <LangToggle />
                 <Link

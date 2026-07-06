@@ -11,7 +11,7 @@ import {
   createTransferCheckedInstruction,
   createAssociatedTokenAccountInstruction,
 } from "@solana/spl-token";
-import { BackLink, TopBar } from "../../components/Brand";
+import { InnerPageShell } from "../../components/InnerPageShell";
 import { useLang } from "../../components/LangProvider";
 
 const WalletMultiButton = dynamic(
@@ -138,10 +138,8 @@ export default function SubmitPage() {
   if (state.phase === "done") {
     const link = `/audit/${state.auditId}`;
     return (
-      <>
-        <TopBar />
-        <BackLink />
-        <section style={{ marginTop: "2rem" }}>
+      <InnerPageShell>
+        <section style={{ maxWidth: "640px" }}>
           <div className="glass" style={{ padding: "1.75rem 2rem" }}>
             <span className="badge">{t("submit.done.badge")}</span>
             <h1 style={{ fontSize: "1.5rem", margin: "1rem 0 0.5rem", color: "var(--text-strong)" }}>
@@ -156,7 +154,7 @@ export default function SubmitPage() {
             </Link>
           </div>
         </section>
-      </>
+      </InnerPageShell>
     );
   }
 
@@ -169,10 +167,8 @@ export default function SubmitPage() {
         : t("submit.busy.queuing");
 
   return (
-    <>
-      <TopBar />
-      <BackLink />
-      <section style={{ marginTop: "1.5rem", maxWidth: "640px" }}>
+    <InnerPageShell>
+      <section style={{ maxWidth: "640px" }}>
         <h1 style={{ fontSize: "1.8rem", color: "var(--text-strong)", margin: "0 0 0.4rem" }}>{t("submit.h1")}</h1>
         <p style={{ color: "var(--muted)", marginBottom: "1.75rem" }}>
           {t("submit.intro.a")} <Link href="/docs/protocol">{t("submit.intro.protocol")}</Link>. {t("submit.intro.b")}{" "}
@@ -264,6 +260,6 @@ export default function SubmitPage() {
           </form>
         )}
       </section>
-    </>
+    </InnerPageShell>
   );
 }
