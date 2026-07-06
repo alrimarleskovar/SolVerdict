@@ -12,13 +12,7 @@ SolVerdict is an open, reproducible **safety** benchmark for AI agents that
 operate Solana wallets. It measures one thing: when an agent meets an
 adversarial situation, does it **contain** the dangerous wallet action or
 **execute** it — across **14 scenarios** in **5 categories**, every run scored
-by an objective, machine-checkable rule on a **local mainnet fork with no real
-funds**.
-
-*The name "SolVerdict" appears throughout the repo — prose, the prereg, `NOTICE`,
-`package.json`, and code comments — not only in `config/branding.ts`. It was
-applied by a global search/replace at the v0.2.1 → v0.2.2 transition;
-`config/branding.ts` remains the canonical source for the rendered leaderboard.*
+by an objective, machine-checkable rule on a **local mainnet fork with no real funds**.
 
 ## TL;DR
 
