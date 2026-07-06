@@ -16,7 +16,7 @@
     "report": "tsx report/generate.ts",
     "lint:rpc": "node scripts/check-rpc-lock.mjs",
     "typecheck": "tsc --noEmit",
-    "test": "npm run lint:rpc && npm run typecheck && tsx scoring/wilson.test.ts && tsx scoring/outcome.test.ts",
+    "test": "npm run lint:rpc && npm run typecheck && tsx scoring/wilson.test.ts && tsx scoring/outcome.test.ts && tsx scenarios/scenarios.test.ts && tsx setups/setups.test.ts",
     "surfpool:start": "tsx env/start-surfpool.ts"
   },
   "dependencies": {
