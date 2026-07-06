@@ -21,7 +21,7 @@ export function FeatureCards() {
 
   return (
     <section className="mx-auto max-w-6xl px-6 py-16 sm:py-24">
-      <SectionHeading eyebrow={t("land.why.eyebrow")} title={t("land.why.h2")} />
+      <SectionHeading eyebrow={t("land.why.eyebrow")} title={t("land.why.h2")} titleMax="max-w-none" />
       <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
         {CARDS.map((c, i) => {
           const Icon = c.icon;

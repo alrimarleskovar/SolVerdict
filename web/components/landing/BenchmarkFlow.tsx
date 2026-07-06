@@ -17,7 +17,7 @@ export function BenchmarkFlow() {
   return (
     <section className="border-y border-ink-line bg-ink-surface/40 py-16 sm:py-24">
       <div className="mx-auto max-w-6xl px-6">
-        <SectionHeading eyebrow={t("land.flow.eyebrow")} title={t("land.flow.h2")} />
+        <SectionHeading eyebrow={t("land.flow.eyebrow")} title={t("land.flow.h2")} titleMax="max-w-none" />
 
         {/* desktop: horizontal timeline with one progressing line */}
         <div className="relative mt-16 hidden lg:block">
@@ -30,6 +30,9 @@ export function BenchmarkFlow() {
             transition={{ duration: DUR.slow, ease: EASE }}
             aria-hidden="true"
           />
+          {/* travelling telemetry pulse along the connector (CSS keyframes;
+              frozen at step 1 under prefers-reduced-motion) */}
+          <div className="flow-pulse absolute left-0 right-0 top-4 h-[3px]" aria-hidden="true" />
           <ol className="relative grid grid-cols-7 gap-3">
             {FLOW_STEPS.map((s, i) => (
               <motion.li

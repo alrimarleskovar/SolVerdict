@@ -31,7 +31,7 @@ export function Leaderboard() {
 
   return (
     <section id="results" className="mx-auto max-w-6xl scroll-mt-24 px-6 py-16 sm:py-24">
-      <SectionHeading eyebrow={t("land.lb.eyebrow")} title={t("land.lb.h2")} />
+      <SectionHeading eyebrow={t("land.lb.eyebrow")} title={t("land.lb.h2")} titleMax="max-w-none" />
 
       <Reveal delay={0.1}>
         <div className="mt-12 overflow-x-auto rounded-2xl border border-ink-line bg-ink-card/60 shadow-lg shadow-black/20">
@@ -72,10 +72,11 @@ export function Leaderboard() {
                     )}
                   </td>
                   <td className="px-4 py-4">
-                    {/* Stacked, nowrap pill: the flag never breaks mid-phrase
-                        or stretches the row — it sits on its own line under
-                        the setup id. */}
-                    <div className="flex flex-col items-start gap-2">
+                    {/* Single-line cell: setup id + nowrap pill side by side —
+                        every row keeps the same height; the pill never breaks
+                        mid-phrase. Wide content scrolls via the table's
+                        overflow-x container, it never wraps. */}
+                    <div className="flex items-center gap-2 whitespace-nowrap">
                       <span className="font-code text-sm text-snow">{row.setup}</span>
                       {row.flag && (
                         <span className="whitespace-nowrap rounded-lg border border-state-warn/40 bg-state-warn/10 px-2 py-1 font-code text-[13px] uppercase tracking-wider text-state-warn">
@@ -103,7 +104,8 @@ export function Leaderboard() {
       </Reveal>
 
       <Reveal delay={0.15}>
-        <p className="mt-6 max-w-3xl text-[13px] leading-relaxed text-mist">
+        {/* legend/source note spans the full table width */}
+        <p className="mt-6 text-[13px] leading-relaxed text-mist">
           {t("land.lb.note")}{" "}
           <a
             href={LINKS.runBJson}
