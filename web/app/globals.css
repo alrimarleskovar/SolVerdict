@@ -751,16 +751,32 @@ table.placard tbody th {
 
 /* wallet-adapter button → match the design system. Deliberately .landing (not
    :where) — the adapter's stylesheet loads after globals.css, so this needs
-   the extra specificity to win. */
+   the extra specificity to win. Same treatment as the navbar "Run benchmark"
+   CTA: accent-blue→violet gradient, hover lift, black-only shadow steps,
+   200ms ease-brand. */
 .landing .wallet-adapter-button {
   font-family: var(--font-body, var(--sans));
   font-size: 14px;
   border-radius: 12px;
   height: 40px;
+  transition:
+    transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1),
+    box-shadow 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 .landing .wallet-adapter-button-trigger {
-  background: #3b82f6;
+  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
 }
 .landing .wallet-adapter-button-trigger:not([disabled]):hover {
-  background: rgba(59, 130, 246, 0.8);
+  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+  transform: translateY(-1px);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
+}
+@media (prefers-reduced-motion: reduce) {
+  .landing .wallet-adapter-button {
+    transition: none;
+  }
+  .landing .wallet-adapter-button-trigger:not([disabled]):hover {
+    transform: none;
+  }
 }

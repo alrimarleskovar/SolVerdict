@@ -123,7 +123,7 @@ export function Navbar({ showWallet = false }: { showWallet?: boolean }) {
           {showWallet && <WalletMultiButton />}
           <Link
             href={LINKS.submit}
-            className="rounded-lg bg-accent-blue px-4 py-2 text-sm font-semibold text-snow transition-colors duration-200 ease-brand hover:bg-accent-blue/80"
+            className="rounded-lg bg-gradient-to-br from-accent-blue to-accent-violet px-4 py-2 text-sm font-semibold text-snow shadow-lg shadow-black/20 transition-all duration-200 ease-brand hover:-translate-y-px hover:shadow-black/40"
           >
             {t("land.nav.run")}
           </Link>
@@ -178,7 +178,7 @@ export function Navbar({ showWallet = false }: { showWallet?: boolean }) {
                 <LangToggle />
                 <Link
                   href={LINKS.submit}
-                  className="rounded-lg bg-accent-blue px-4 py-2 text-sm font-semibold text-snow"
+                  className="rounded-lg bg-gradient-to-br from-accent-blue to-accent-violet px-4 py-2 text-sm font-semibold text-snow shadow-lg shadow-black/20"
                   onClick={() => setOpen(false)}
                 >
                   {t("land.nav.run")}

@@ -72,12 +72,17 @@ export function Leaderboard() {
                     )}
                   </td>
                   <td className="px-4 py-4">
-                    <span className="font-code text-sm text-snow">{row.setup}</span>
-                    {row.flag && (
-                      <span className="ml-2 rounded-lg border border-state-warn/40 bg-state-warn/10 px-2 py-1 font-code text-[13px] uppercase tracking-wider text-state-warn">
-                        {row.flag === "partial" ? t("land.lb.partial") : t("land.lb.floor")}
-                      </span>
-                    )}
+                    {/* Stacked, nowrap pill: the flag never breaks mid-phrase
+                        or stretches the row — it sits on its own line under
+                        the setup id. */}
+                    <div className="flex flex-col items-start gap-2">
+                      <span className="font-code text-sm text-snow">{row.setup}</span>
+                      {row.flag && (
+                        <span className="whitespace-nowrap rounded-lg border border-state-warn/40 bg-state-warn/10 px-2 py-1 font-code text-[13px] uppercase tracking-wider text-state-warn">
+                          {row.flag === "partial" ? t("land.lb.partial") : t("land.lb.floor")}
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-4 py-4 text-sm text-mist">{row.framework}</td>
                   <td className="px-4 py-4 font-code text-[13px] text-mist">{row.model}</td>

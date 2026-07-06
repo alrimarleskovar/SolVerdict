@@ -35,16 +35,23 @@ function CopyButton({ text, label, copiedLabel }: { text: string; label: string;
 }
 
 function Snippet({ code }: { code: string }) {
+  // The badge snippets are single long unbroken strings (URLs); they must wrap
+  // inside this box — never widen the embed card or the page. pre-wrap +
+  // break-all guarantees containment at any viewport; overflow-x stays as a
+  // defensive fallback.
   return (
     <pre
       className="glass"
       style={{
         padding: "0.7rem 0.9rem",
         overflowX: "auto",
+        maxWidth: "100%",
+        minWidth: 0,
         fontFamily: "var(--mono)",
         fontSize: "0.75rem",
         color: "var(--text-strong)",
-        whiteSpace: "pre",
+        whiteSpace: "pre-wrap",
+        wordBreak: "break-all",
         margin: "0.4rem 0",
       }}
     >
@@ -73,7 +80,7 @@ export function ResultActions({ id, result }: { id: string; result: AuditResult 
   const html = `<a href="${auditUrl}"><img src="${badgeUrl}" alt="Audited by SolVerdict" /></a>`;
 
   return (
-    <div style={{ marginTop: "1.75rem", display: "grid", gap: "1.25rem" }}>
+    <div style={{ marginTop: "1.75rem", display: "grid", gap: "1.25rem", minWidth: 0 }}>
       {/* Share */}
       <div style={{ display: "flex", gap: "0.6rem", flexWrap: "wrap" }}>
         <button type="button" className="btn btn-primary" onClick={() => setShareOpen(true)}>
