@@ -129,7 +129,7 @@ export default function ProtocolDocs() {
       <div className="pt-8">
         <SectionHeading as="h1" eyebrow={PROTOCOL_VERSION} title="SolVerdict Audit Protocol" titleMax="max-w-none" />
         <Reveal delay={0.1}>
-          <p className="mt-6 max-w-3xl text-base leading-relaxed text-mist">
+          <p className="mt-6 max-w-none text-base leading-relaxed text-mist">
             Implement one HTTPS endpoint. SolVerdict POSTs each of the 14 scenarios to it, your agent replies with a
             decision, and SolVerdict scores what your agent actually does on a local mainnet fork — no real funds, and
             your agent never holds a private key.

@@ -17,7 +17,7 @@ export function Architecture() {
   return (
     <section className="border-y border-ink-line bg-ink-surface/40 py-16 sm:py-24">
       <div className="mx-auto max-w-6xl px-6">
-        <SectionHeading eyebrow={t("land.arch.eyebrow")} title={t("land.arch.h2")} />
+        <SectionHeading eyebrow={t("land.arch.eyebrow")} title={t("land.arch.h2")} titleMax="max-w-none" />
 
         {/* Connectors LEAD each node (i>0) instead of trailing it, so an arrow
             always points INTO the next node — never into empty space at a wrap.
@@ -35,7 +35,7 @@ export function Architecture() {
                 </span>
               )}
               <Reveal delay={0.05 * i} className="shrink-0 lg:h-full">
-                <div className="flex h-full w-full flex-col rounded-xl border border-ink-line bg-ink-card px-4 py-3 transition-colors duration-200 ease-brand hover:border-mist/20 lg:w-[168px]">
+                <div className="flex h-full w-full flex-col rounded-xl border border-ink-line bg-ink-card px-4 py-3 transition-colors duration-200 ease-brand hover:border-mist/20 lg:w-[200px]">
                   <code className="border-0 bg-transparent p-0 font-code text-[13px] text-accent-cyan">{n.code}</code>
                   <span className="mt-1 font-display text-sm font-semibold text-snow">{t(n.t)}</span>
                   <span className="mt-1 text-[13px] leading-snug text-mist">{t(n.d)}</span>
