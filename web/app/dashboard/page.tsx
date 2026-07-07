@@ -60,7 +60,7 @@ export default function DashboardPage() {
   }, [wallet, page, load]);
 
   return (
-    <InnerPageShell>
+    <InnerPageShell showWallet>
       <section className="pt-8">
         <SectionHeading as="h1" eyebrow={t("dash.eyebrow")} title={t("dash.h1")} className="mb-8" />
 

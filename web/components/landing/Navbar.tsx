@@ -108,7 +108,7 @@ export function Navbar({ showWallet = false }: { showWallet?: boolean }) {
               </Link>
             ),
           )}
-          {connected && (
+          {showWallet && connected && (
             <Link href="/dashboard" className={linkCls}>
               {t("nav.dashboard")}
             </Link>
@@ -162,7 +162,7 @@ export function Navbar({ showWallet = false }: { showWallet?: boolean }) {
                   </Link>
                 ),
               )}
-              {connected && (
+              {showWallet && connected && (
                 <Link href="/dashboard" className="rounded-lg px-2 py-2 text-mist hover:bg-ink-surface hover:text-snow" onClick={() => setOpen(false)}>
                   {t("nav.dashboard")}
                 </Link>

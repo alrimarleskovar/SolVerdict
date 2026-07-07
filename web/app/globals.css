@@ -60,6 +60,15 @@ body::before {
   opacity: 0.85;
   z-index: 5;
 }
+/* Every page is now a .landing surface (landing + every InnerPageShell page),
+   whose near-black palette owns the top edge. The in-tree "cover" divs can't
+   hide this strip — they live inside .wrap (a z-index:1 stacking context) and
+   so paint BELOW this z-index:5 pseudo-element. Remove the gradient at the
+   source whenever a .landing root is present, giving landing AND inner pages
+   the same clean top edge. (Kept for any non-.landing surface.) */
+body:has(.landing)::before {
+  display: none;
+}
 
 a {
   color: var(--accent);

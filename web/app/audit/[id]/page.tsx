@@ -91,7 +91,7 @@ export default function AuditStatusPage() {
     record && (record.payment?.verifiedAt || ["queued", "running", "done"].includes(record.status));
 
   return (
-    <InnerPageShell>
+    <InnerPageShell showWallet>
       <section className="pt-8">
         <SectionHeading as="h1" eyebrow={t("audit.eyebrow")} title={t("audit.h1")} />
         <Reveal delay={0.1}>

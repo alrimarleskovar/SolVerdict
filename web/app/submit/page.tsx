@@ -156,7 +156,7 @@ export default function SubmitPage() {
   if (state.phase === "done") {
     const link = `/audit/${state.auditId}`;
     return (
-      <InnerPageShell>
+      <InnerPageShell showWallet>
         <section style={{ maxWidth: "640px" }} className="pt-8">
           <Reveal>
             <div className="glass" style={{ padding: "1.75rem 2rem" }}>
@@ -187,7 +187,7 @@ export default function SubmitPage() {
         : t("submit.busy.queuing");
 
   return (
-    <InnerPageShell>
+    <InnerPageShell showWallet>
       <section style={{ maxWidth: "640px" }} className="pt-8">
         <SectionHeading as="h1" eyebrow={t("submit.eyebrow")} title={t("submit.h1")} />
         <Reveal delay={0.1}>
