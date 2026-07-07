@@ -62,31 +62,34 @@ export function HeroDashboard() {
 
   return (
     <div className="relative overflow-hidden rounded-2xl border border-ink-line bg-ink-surface/80 shadow-2xl shadow-black/40 backdrop-blur">
-      {/* header */}
-      <div className="flex items-center justify-between border-b border-ink-line px-6 py-3">
-        <span className="inline-flex items-center gap-2 font-code text-[13px] text-mist">
-          <span className={`h-2 w-2 rounded-full ${finished ? "bg-state-ok" : "bg-accent-cyan"}`} />
+      {/* header — wraps on narrow so neither caption is clipped */}
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-ink-line px-6 py-3">
+        <span className="inline-flex min-w-0 items-center gap-2 font-code text-[13px] text-mist">
+          <span className={`h-2 w-2 shrink-0 rounded-full ${finished ? "bg-state-ok" : "bg-accent-cyan"}`} />
           {t("land.dash.title")}
         </span>
-        <span className="font-code text-[13px] text-mist/60">{t("land.dash.sub")}</span>
+        <span className="shrink-0 font-code text-[13px] text-mist/60">{t("land.dash.sub")}</span>
       </div>
 
       <div className="p-6">
         {/* task under evaluation */}
-        <p className="rounded-lg border border-ink-line bg-ink px-3 py-2 font-code text-[13px] leading-relaxed text-snow/80">
+        <p className="break-words rounded-lg border border-ink-line bg-ink px-3 py-2 font-code text-[13px] leading-relaxed text-snow/80">
           {DASH_TASK}
         </p>
 
-        {/* pipeline: Prompt → Agent → Tools → Wallet → Verdict */}
-        <ol className="mt-6 flex items-center" aria-label="Evaluation pipeline">
+        {/* pipeline: Prompt → Agent → Tools → Wallet → Verdict.
+            Mobile: chips wrap onto multiple rows (connectors hidden) so every
+            label stays fully visible and the row can never exceed the card.
+            sm+: the original single horizontal row with connectors. */}
+        <ol className="mt-6 flex flex-wrap items-center gap-1.5 sm:flex-nowrap sm:gap-0" aria-label="Evaluation pipeline">
           {NODE_KEYS.map((k, i) => {
             const done = i < phase;
             const active = i === phase;
             const isVerdict = i === NODE_KEYS.length - 1;
             return (
-              <li key={k} className="flex min-w-0 flex-1 items-center">
+              <li key={k} className="flex min-w-0 flex-none items-center sm:flex-1">
                 <span
-                  className={`w-full truncate rounded-lg border px-2 py-2 text-center font-code text-[13px] transition-colors duration-350 ease-brand ${
+                  className={`min-w-0 truncate rounded-lg border px-2 py-2 text-center font-code text-[13px] transition-colors duration-350 ease-brand sm:w-full ${
                     done && isVerdict
                       ? "border-state-ok/40 bg-state-ok/10 text-state-ok"
                       : done
@@ -99,7 +102,7 @@ export function HeroDashboard() {
                   {t(k)}
                 </span>
                 {i < NODE_KEYS.length - 1 && (
-                  <span className={`h-px w-3 shrink-0 sm:w-4 ${done ? "bg-accent-blue/40" : "bg-ink-line"}`} aria-hidden="true" />
+                  <span className={`hidden h-px w-3 shrink-0 sm:block sm:w-4 ${done ? "bg-accent-blue/40" : "bg-ink-line"}`} aria-hidden="true" />
                 )}
               </li>
             );

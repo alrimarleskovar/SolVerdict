@@ -134,7 +134,7 @@ export function ResultActions({ id, result }: { id: string; result: AuditResult 
       <div className="glass" style={{ padding: "1.25rem 1.5rem" }}>
         <h2 style={{ margin: "0 0 0.75rem", fontSize: "1.1rem", color: "var(--text-strong)" }}>{t("audit.embed")}</h2>
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={badgeUrl} alt="Audited by SolVerdict" style={{ display: "block", marginBottom: "0.75rem" }} />
+        <img src={badgeUrl} alt="Audited by SolVerdict" style={{ display: "block", maxWidth: "100%", marginBottom: "0.75rem" }} />
         <p className="label" style={{ margin: "0.5rem 0 0" }}>
           {t("audit.embed.markdown")}
         </p>

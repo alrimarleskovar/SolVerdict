@@ -26,10 +26,10 @@ const HOLD_MS = 4500; // verdict on screen before the other example plays
 function TerminalChrome({ label }: { label: string }) {
   return (
     <div className="flex items-center gap-2 border-b border-ink-line px-4 py-2">
-      <span className="h-2 w-2 rounded-full bg-state-bad/80" aria-hidden="true" />
-      <span className="h-2 w-2 rounded-full bg-state-warn/80" aria-hidden="true" />
-      <span className="h-2 w-2 rounded-full bg-state-ok/80" aria-hidden="true" />
-      <span className="ml-2 whitespace-nowrap font-code text-[13px] uppercase tracking-widest text-mist">{label}</span>
+      <span className="h-2 w-2 shrink-0 rounded-full bg-state-bad/80" aria-hidden="true" />
+      <span className="h-2 w-2 shrink-0 rounded-full bg-state-warn/80" aria-hidden="true" />
+      <span className="h-2 w-2 shrink-0 rounded-full bg-state-ok/80" aria-hidden="true" />
+      <span className="ml-2 min-w-0 truncate font-code text-[13px] uppercase tracking-widest text-mist">{label}</span>
     </div>
   );
 }

@@ -59,11 +59,11 @@ export function Footer() {
               href={LINKS.repo}
               target="_blank"
               rel="noreferrer"
-              className="mt-4 inline-flex items-center gap-2 rounded-lg border border-ink-line bg-ink/60 px-3 py-2 text-sm font-medium text-snow transition-colors duration-200 ease-brand hover:border-mist/40 hover:bg-ink-surface"
+              className="mt-4 inline-flex max-w-full items-center gap-2 rounded-lg border border-ink-line bg-ink/60 px-3 py-2 text-sm font-medium text-snow transition-colors duration-200 ease-brand hover:border-mist/40 hover:bg-ink-surface"
               aria-label="SolVerdict on GitHub"
             >
-              <GitHubIcon className="h-5 w-5" />
-              github.com/alrimarleskovar/SolVerdict
+              <GitHubIcon className="h-5 w-5 shrink-0" />
+              <span className="min-w-0 break-all">github.com/alrimarleskovar/SolVerdict</span>
             </a>
           </div>
 

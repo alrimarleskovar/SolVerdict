@@ -122,10 +122,10 @@ export default function MethodologyPage() {
                 href={r.href}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center gap-2 rounded-xl border border-ink-line bg-ink/60 px-4 py-3 text-sm font-medium text-snow transition-colors duration-200 ease-brand hover:border-mist/40"
+                className="inline-flex max-w-full flex-wrap items-center gap-2 rounded-xl border border-ink-line bg-ink/60 px-4 py-3 text-sm font-medium text-snow transition-colors duration-200 ease-brand hover:border-mist/40"
               >
                 {t(r.label)}
-                <code className="rounded-lg border border-ink-line px-2 py-1 font-code text-[13px] text-mist">{r.file}</code>
+                <code className="min-w-0 break-all rounded-lg border border-ink-line px-2 py-1 font-code text-[13px] text-mist">{r.file}</code>
               </a>
             ))}
           </div>

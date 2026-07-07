@@ -38,6 +38,13 @@
   box-sizing: border-box;
 }
 
+/* Backstop against horizontal scroll: no page should ever slide sideways.
+   This is a safety net — components are fixed to actually fit; it must never be
+   the primary containment. (body also carries overflow-x: hidden below.) */
+html {
+  overflow-x: hidden;
+}
+
 body {
   margin: 0;
   background-color: var(--bg);

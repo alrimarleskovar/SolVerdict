@@ -27,7 +27,7 @@ export function Hero() {
   return (
     <section className="relative mx-auto max-w-6xl px-6 pb-12 pt-16 sm:pt-24">
       <div className="grid items-center gap-12 lg:grid-cols-[1.05fr_0.95fr]">
-        <div>
+        <div className="min-w-0">
           <motion.h1
             {...item(0)}
             className="font-display text-[40px] font-extrabold leading-[1.1] tracking-tight text-snow sm:text-[56px] lg:text-[64px]"
@@ -74,6 +74,7 @@ export function Hero() {
         </div>
 
         <motion.div
+          className="min-w-0"
           initial={reduced ? false : { opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: DUR.normal, delay: 0.24, ease: EASE }}
