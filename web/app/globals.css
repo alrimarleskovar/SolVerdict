@@ -581,26 +581,34 @@ table.placard tbody th {
   );
   background-size: 160px 100%;
   background-repeat: no-repeat;
+  /* Base (unanimated) state shows the band at step 1 — under the
+     reduced-motion kill-switch the animation collapses and the pulse rests
+     there. The keyframes below override this during normal playback. */
   background-position-x: 0;
   /* linear so the per-step node flashes below stay in sync with the pulse */
   animation: flowPulse 7s linear infinite;
 }
+/* The band enters fully off-canvas (-160px) and exits fully off-canvas: its
+   centre C(t) = -80px + (t/7s)·(W+320px) sweeps every node position linearly
+   from BEFORE node 1 — this is what keeps the early nodes in sync. */
 @keyframes flowPulse {
   from {
-    background-position-x: 0;
+    background-position-x: -160px;
   }
   to {
     background-position-x: calc(100% + 160px);
   }
 }
 
-/* Step numbers light up as the pulse passes: same 7s linear cycle, staggered
-   per node via --flow-i (pulse centre reaches node i ≈ 0.49s + 0.78s·i into
-   the cycle at the max-w-6xl timeline width). Base state = rest, so the
+/* Step numbers light up exactly as the pulse centre arrives. Node i sits at
+   x_i = i·W/7 + 20px; arrival t_i = 7s·(x_i + 80)/(W + 320) = 0.49s + 0.775s·i
+   at the max-w-6xl timeline (W ≈ 1104px). The flash PEAKS at 4% (0.28s) into
+   its keyframes, so each delay is t_i − 0.28s = 0.21s + 0.775s·i — peak
+   coincides with arrival for node 1 through node 7. Base state = rest, so the
    reduced-motion kill-switch freezes every node at rest. */
 .flow-node {
   animation: flowNodeFlash 7s linear infinite;
-  animation-delay: calc(0.49s + var(--flow-i, 0) * 0.78s);
+  animation-delay: calc(0.21s + var(--flow-i, 0) * 0.775s);
 }
 @keyframes flowNodeFlash {
   0%,
@@ -653,13 +661,22 @@ table.placard tbody th {
   animation: cardBreathe 6s ease-in-out infinite;
   animation-delay: calc(var(--card-i, 0) * -1.3s);
 }
+/* Both frames carry the card's black elevation (shadow-lg @ black/20) so only
+   the accent ring breathes — peak: border accent-blue/40 + 1px ring @ 20%. */
 @keyframes cardBreathe {
   0%,
   100% {
     border-color: rgba(148, 163, 184, 0.1);
+    box-shadow:
+      0 10px 15px -3px rgba(0, 0, 0, 0.2),
+      0 4px 6px -4px rgba(0, 0, 0, 0.2);
   }
   50% {
-    border-color: rgba(59, 130, 246, 0.2);
+    border-color: rgba(59, 130, 246, 0.4);
+    box-shadow:
+      0 10px 15px -3px rgba(0, 0, 0, 0.2),
+      0 4px 6px -4px rgba(0, 0, 0, 0.2),
+      0 0 0 1px rgba(59, 130, 246, 0.2);
   }
 }
 

@@ -83,12 +83,13 @@ app.post("/audit", async (req, res) => {
 
 app.listen(8787, () => console.log("agent on :8787"));`;
 
-/** Code block: JetBrains Mono on the ink surface, scrolls inside its box —
- *  never widens the card or the page. */
+/** Code block: JetBrains Mono on the ink surface. Long lines WRAP (pre-wrap +
+ *  break-words) instead of scrolling — no horizontal scrollbar, the block
+ *  grows taller as needed and never widens the card or the page. */
 function Code({ children }: { children: string }) {
   return (
-    <pre className="overflow-x-auto rounded-xl border border-ink-line bg-ink p-4 font-code text-[13px] leading-relaxed text-snow/80">
-      <code className="block whitespace-pre border-0 bg-transparent p-0">{children}</code>
+    <pre className="whitespace-pre-wrap break-words rounded-xl border border-ink-line bg-ink p-4 font-code text-[13px] leading-relaxed text-snow/80">
+      <code className="block border-0 bg-transparent p-0">{children}</code>
     </pre>
   );
 }
@@ -137,7 +138,8 @@ export default function ProtocolDocs() {
 
         <div className="mt-12 grid gap-6">
           <DocCard title="The contract" index={0}>
-            <ul className="space-y-3 text-sm leading-relaxed text-mist">
+            {/* contract body spans the card — no inner measure cap */}
+            <ul className="w-full max-w-none space-y-3 text-sm leading-relaxed text-mist">
               <li>
                 SolVerdict → you: a JSON <code>AuditRequest</code> (below) via <code>POST</code>.
               </li>
@@ -160,10 +162,12 @@ export default function ProtocolDocs() {
             </ul>
           </DocCard>
 
+          {/* Request full-width on its own row; the two Response cards sit
+              side by side below it (stacking to one column on mobile). */}
+          <DocCard title="Request (SolVerdict → agent)" index={1}>
+            <Code>{REQUEST_EXAMPLE}</Code>
+          </DocCard>
           <div className="grid gap-6 lg:grid-cols-2">
-            <DocCard title="Request (SolVerdict → agent)" index={1} className="lg:row-span-2">
-              <Code>{REQUEST_EXAMPLE}</Code>
-            </DocCard>
             <DocCard title="Response — containment" index={2}>
               <Code>{RESPONSE_EXAMPLE}</Code>
             </DocCard>
