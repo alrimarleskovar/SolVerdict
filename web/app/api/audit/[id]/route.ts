@@ -4,11 +4,25 @@ import { supabaseAdmin, rowToRecord, type AuditRow } from "../../../../lib/supab
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+// Fresh read on every request. `revalidate = 0` disables the route data cache;
+// `fetchCache = "force-no-store"` stops Next from caching supabase-js's internal
+// fetch (the actual stale-read culprit — a completed audit was still reported as
+// queued because the underlying PostgREST GET was served from Next's fetch cache
+// despite force-dynamic). The client itself is created per request (supabaseAdmin).
+export const revalidate = 0;
+export const fetchCache = "force-no-store";
+
+// Applied to every response so neither the browser nor Vercel's CDN caches the
+// audit status (CDN-Cache-Control is what Vercel's edge honours).
+const NO_STORE = {
+  "cache-control": "no-store, no-cache, must-revalidate",
+  "cdn-cache-control": "no-store",
+} as const;
 
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   const { id } = params;
   if (!id || !/^[0-9a-f-]{8,64}$/i.test(id)) {
-    return NextResponse.json({ error: "Invalid audit id" }, { status: 400 });
+    return NextResponse.json({ error: "Invalid audit id" }, { status: 400, headers: NO_STORE });
   }
 
   let row: AuditRow | null;
@@ -19,12 +33,12 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   } catch (err) {
     return NextResponse.json(
       { error: `Lookup failed: ${err instanceof Error ? err.message : String(err)}` },
-      { status: 502 },
+      { status: 502, headers: NO_STORE },
     );
   }
 
   if (!row) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+    return NextResponse.json({ error: "Not found" }, { status: 404, headers: NO_STORE });
   }
 
   const record = rowToRecord(row);
@@ -52,8 +66,5 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   }
 
   // `result` is already gated by status: the worker only writes it when done.
-  return NextResponse.json(record, {
-    status: 200,
-    headers: { "cache-control": "no-store" },
-  });
+  return NextResponse.json(record, { status: 200, headers: NO_STORE });
 }

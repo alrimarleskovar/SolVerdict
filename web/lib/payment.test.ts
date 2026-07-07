@@ -6,7 +6,7 @@
  */
 import assert from "node:assert/strict";
 import { verifyPayment, USDC_MINT, type ParsedTxLike, type RpcLike } from "./payment";
-import { verifyAndQueue, type DbLike } from "./payment-flow";
+import { verifyAndQueue, rescueFailedPayment, type DbLike } from "./payment-flow";
 
 const NOW = 1_800_000_000_000; // fixed clock (ms)
 const DEST = "DesT1111111111111111111111111111111111111111";
@@ -180,6 +180,51 @@ async function main() {
     const fresh = await verifyAndQueue(AUDIT_ID, "sig", { connection: conn(buildTx()), now: NOW, db: makeDb({ data: "queued", error: null }) });
     assert.equal(fresh.ok, true, fresh.reason);
     assert.equal(fresh.status, "queued");
+  }
+
+  // --- FIX 4: rescue a late payment (payment_failed → queued) ---------------
+  {
+    process.env.SOLVERDICT_PAYMENT_WALLET = DEST;
+    const mkDb = (row: Record<string, unknown>): DbLike =>
+      ({
+        from() {
+          return {
+            select() { return { eq() { return { maybeSingle: async () => ({ data: row, error: null }) }; } }; },
+            update() { return { eq: async () => ({ data: null, error: null }) }; },
+            insert: async () => ({ data: null, error: null }),
+          };
+        },
+        rpc: async () => ({ data: "queued", error: null }), // enqueue_paid flips → queued
+      }) as unknown as DbLike;
+
+    const base4 = { id: AUDIT_ID, wallet: SIGNER, tier: "paid", endpoint: "https://x", email: null };
+
+    // valid, fresh (<24h), has signature → rescued to queued
+    const rescued = await rescueFailedPayment(AUDIT_ID, {
+      connection: conn(buildTx()),
+      now: NOW,
+      db: mkDb({ ...base4, status: "payment_failed", payment_signature: "sig", created_at: new Date(NOW - 60_000).toISOString() }),
+    });
+    assert.equal(rescued.ok, true, rescued.reason);
+    assert.equal(rescued.status, "queued");
+
+    // no signature on the row → not rescuable
+    const noSig = await rescueFailedPayment(AUDIT_ID, {
+      connection: conn(buildTx()),
+      now: NOW,
+      db: mkDb({ ...base4, status: "payment_failed", payment_signature: null, created_at: new Date(NOW).toISOString() }),
+    });
+    assert.equal(noSig.ok, false);
+    assert.match(noSig.reason ?? "", /no payment signature/);
+
+    // older than 24h → not rescued
+    const tooOld = await rescueFailedPayment(AUDIT_ID, {
+      connection: conn(buildTx()),
+      now: NOW,
+      db: mkDb({ ...base4, status: "payment_failed", payment_signature: "sig", created_at: new Date(NOW - 25 * 3600 * 1000).toISOString() }),
+    });
+    assert.equal(tooOld.ok, false);
+    assert.match(tooOld.reason ?? "", /too old/);
   }
 
   console.log("payment tests passed");

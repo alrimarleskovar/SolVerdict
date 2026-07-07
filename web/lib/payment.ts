@@ -25,8 +25,11 @@ export const PAID_AMOUNT_USDC = 10;
 /** A payment older than this is rejected (anti-replay of an ancient tx). */
 export const PAYMENT_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
-/** A paid audit stuck awaiting payment longer than this is resolved by cron. */
-export const PAYMENT_STUCK_MS = 5 * 60 * 1000;
+/** A paid audit stuck awaiting payment longer than this is resolved by cron.
+ *  20 min (not 5): real users need time to approve in-wallet, clear "new
+ *  domain" warnings, or buy USDC first. A payment that confirms late is still
+ *  recoverable from payment_failed via rescueFailedPayment (within 24h). */
+export const PAYMENT_STUCK_MS = 20 * 60 * 1000;
 
 const MEMO_PROGRAM = "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr";
 

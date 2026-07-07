@@ -14,6 +14,7 @@ import { supabaseAdmin, type AuditRow } from "./supabase";
 import {
   verifyPayment,
   PAYMENT_STUCK_MS,
+  PAYMENT_MAX_AGE_MS,
   PAID_AMOUNT_USDC,
   type RpcLike,
 } from "./payment";
@@ -183,4 +184,36 @@ export async function resolveStuckPayment(
     status: "payment_failed",
   });
   return { ok: false, status: "payment_failed", reason };
+}
+
+/**
+ * Rescue path: a paid audit was marked `payment_failed` (e.g. its payment
+ * confirmed after the grace window), but a signature is on the row. If that
+ * on-chain payment is actually valid and still fresh (< 24h), move it to
+ * `queued` — a late but legitimate payment should not be lost.
+ *
+ * Delegates to verifyAndQueue, which re-runs the full on-chain check (memo /
+ * amount / destination / signer) and calls enqueue_paid. The signature is
+ * already on this same row, so re-setting it to the same value does NOT trip
+ * the unique index (migration 002) — and any genuine conflict is still handled
+ * gracefully by verifyAndQueue. No-ops unless the row is a payment_failed paid
+ * audit with a signature within PAYMENT_MAX_AGE_MS.
+ */
+export async function rescueFailedPayment(id: string, opts: FlowOpts = {}): Promise<VerifyOutcome> {
+  const db = getDb(opts);
+  const now = opts.now ?? Date.now();
+  const row = await fetchRow(db, id);
+  if (!row) return { ok: false, status: "failed", reason: "audit not found" };
+  if (row.status !== "payment_failed") return { ok: true, status: row.status };
+  if (row.tier !== "paid") return { ok: false, status: row.status, reason: "not a paid audit" };
+  if (!row.payment_signature) return { ok: false, status: row.status, reason: "no payment signature to rescue" };
+
+  const ageMs = now - new Date(row.created_at).getTime();
+  if (ageMs > PAYMENT_MAX_AGE_MS) {
+    return { ok: false, status: row.status, reason: "payment too old to rescue (>24h)" };
+  }
+
+  // verifyAndQueue re-verifies on-chain and, if valid, flips payment_failed →
+  // queued via enqueue_paid (which does not early-return for payment_failed).
+  return verifyAndQueue(id, row.payment_signature, opts);
 }

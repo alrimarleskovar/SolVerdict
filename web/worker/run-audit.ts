@@ -28,7 +28,8 @@ import { Keypair } from "@solana/web3.js";
 import { supabaseAdmin, type AuditRow } from "../lib/supabase";
 import type { AuditResult, ScenarioProgress, ScenarioResult } from "../lib/types";
 import { assertPublicHttpsUrl } from "../lib/ssrf";
-import { resolveStuckPayment } from "../lib/payment-flow";
+import { resolveStuckPayment, rescueFailedPayment } from "../lib/payment-flow";
+import { PAYMENT_MAX_AGE_MS } from "../lib/payment";
 import { sendAuditNotification, type NotifyStatus } from "../lib/notify";
 import { makeHttpAgentSetup } from "../setups/http-agent";
 import { SCENARIOS } from "../../scenarios";
@@ -314,6 +315,34 @@ async function maintenance(): Promise<void> {
     }
   } catch (err) {
     console.warn(`[worker] awaiting_payment scan failed: ${String(err)}`);
+  }
+
+  // Rescue late payments: payment_failed audits that DO have a signature and are
+  // still within the 24h window may have confirmed after the grace period.
+  // Re-verify on-chain and, if valid, move them back to queued.
+  try {
+    const cutoff = new Date(Date.now() - PAYMENT_MAX_AGE_MS).toISOString();
+    const { data, error } = await supabaseAdmin()
+      .from("audits")
+      .select("id")
+      .eq("status", "payment_failed")
+      .not("payment_signature", "is", null)
+      .gte("created_at", cutoff)
+      .order("created_at", { ascending: true })
+      .limit(50);
+    if (error) throw new Error(error.message);
+    for (const r of (data ?? []) as { id: string }[]) {
+      try {
+        const outcome = await rescueFailedPayment(r.id);
+        if (outcome.ok) {
+          console.log(`[worker] rescued late payment ${r.id} → ${outcome.status}`);
+        }
+      } catch (err) {
+        console.warn(`[worker] payment ${r.id} rescue error: ${String(err)}`);
+      }
+    }
+  } catch (err) {
+    console.warn(`[worker] payment_failed rescue scan failed: ${String(err)}`);
   }
 }
 

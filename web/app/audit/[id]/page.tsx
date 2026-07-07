@@ -45,10 +45,14 @@ export default function AuditStatusPage() {
   const id = params.id;
   const [record, setRecord] = useState<AuditRecord | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // After 3 min of polling without a terminal state, hint the user to refresh
+  // rather than spin forever (belt-and-braces behind the fresh-read API fix).
+  const [slow, setSlow] = useState(false);
 
   useEffect(() => {
     let active = true;
     let timer: ReturnType<typeof setTimeout>;
+    const slowTimer = setTimeout(() => active && setSlow(true), 3 * 60 * 1000);
 
     async function poll() {
       try {
@@ -64,6 +68,8 @@ export default function AuditStatusPage() {
         setError(null);
         if (POLLING_STATUSES.includes(data.status)) {
           timer = setTimeout(poll, 4000);
+        } else {
+          setSlow(false); // reached a terminal state — no hint needed
         }
       } catch (err) {
         if (active) setError(String(err));
@@ -74,6 +80,7 @@ export default function AuditStatusPage() {
     return () => {
       active = false;
       clearTimeout(timer);
+      clearTimeout(slowTimer);
     };
   }, [id]);
 
@@ -89,7 +96,7 @@ export default function AuditStatusPage() {
         <SectionHeading as="h1" eyebrow={t("audit.eyebrow")} title={t("audit.h1")} />
         <Reveal delay={0.1}>
           <p className="note mb-6 mt-4">
-            <code>/audit/{id}</code>
+            <code style={{ wordBreak: "break-all" }}>/audit/{id}</code>
           </p>
         </Reveal>
 
@@ -111,7 +118,7 @@ export default function AuditStatusPage() {
 
         {record && style && (
           <Reveal>
-          <div className="glass" style={{ padding: "1.75rem 2rem" }}>
+          <div className="glass" style={{ padding: "1.75rem 2rem", minWidth: 0, overflowWrap: "anywhere" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", flexWrap: "wrap" }}>
               <span className="badge" style={{ color: style.color, borderColor: style.color }}>
                 {t(`status.${record.status}` as TKey)}
@@ -121,7 +128,12 @@ export default function AuditStatusPage() {
               </span>
               {POLLING_STATUSES.includes(record.status) && <span className="note">{t("audit.refreshing")}</span>}
             </div>
-            <p style={{ color: "var(--text)", margin: "1rem 0 0" }}>{style.blurb}</p>
+            <p style={{ color: "var(--text)", margin: "1rem 0 0", overflowWrap: "anywhere" }}>{style.blurb}</p>
+            {slow && POLLING_STATUSES.includes(record.status) && (
+              <p className="note" style={{ margin: "0.75rem 0 0", color: "var(--partial)", overflowWrap: "anywhere" }}>
+                ⏳ {t("audit.slow")}
+              </p>
+            )}
 
             {/* Payment status (paid tier only) */}
             {paid && (
@@ -132,14 +144,19 @@ export default function AuditStatusPage() {
                   </p>
                 )}
                 {record.status === "payment_failed" && (
-                  <p style={{ color: "var(--red)", margin: 0, fontSize: "0.9rem" }}>
+                  <p style={{ color: "var(--red)", margin: 0, fontSize: "0.9rem", overflowWrap: "anywhere" }}>
                     Payment failed{record.payment?.reason ? `: ${record.payment.reason}` : ""}.
                   </p>
                 )}
                 {paymentVerified && record.payment?.signature && (
-                  <p className="note" style={{ margin: 0 }}>
+                  <p className="note" style={{ margin: 0, overflowWrap: "anywhere" }}>
                     ✅ Payment verified on-chain —{" "}
-                    <a href={`https://solscan.io/tx/${record.payment.signature}`} target="_blank" rel="noreferrer">
+                    <a
+                      href={`https://solscan.io/tx/${record.payment.signature}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{ wordBreak: "break-all" }}
+                    >
                       {record.payment.signature.slice(0, 8)}…{record.payment.signature.slice(-8)}
                     </a>
                   </p>
@@ -148,7 +165,7 @@ export default function AuditStatusPage() {
             )}
 
             {/* What was tested */}
-            <p style={{ color: "var(--text-strong)", margin: "1.25rem 0 0", fontSize: "0.95rem" }}>
+            <p style={{ color: "var(--text-strong)", margin: "1.25rem 0 0", fontSize: "0.95rem", overflowWrap: "anywhere" }}>
               {t("audit.tested")} <code style={{ wordBreak: "break-all" }}>{record.form.endpoint}</code>
               <br />
               {t("audit.framework")} <strong>{record.form.framework}</strong> · {t("audit.model")}{" "}
@@ -191,7 +208,7 @@ export default function AuditStatusPage() {
             )}
 
             {(record.status === "failed" || record.status === "payment_failed") && record.error && (
-              <p style={{ color: "var(--red)", marginTop: "1.25rem" }}>
+              <p style={{ color: "var(--red)", marginTop: "1.25rem", overflowWrap: "anywhere" }}>
                 {t("audit.reason")} {record.error}
               </p>
             )}

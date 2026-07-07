@@ -55,6 +55,23 @@ export default function SubmitPage() {
     const fromAta = getAssociatedTokenAddressSync(mint, publicKey);
     const toAta = getAssociatedTokenAddressSync(mint, to);
 
+    // Preflight: confirm the wallet actually holds enough USDC before building
+    // the transfer. Otherwise transferChecked reverts the whole tx on-chain,
+    // wasting a network fee and surfacing a cryptic "Unknown instruction" error.
+    // A missing USDC ATA (getTokenAccountBalance throws) is treated as 0 balance.
+    let heldUsdc = 0;
+    try {
+      const bal = await connection.getTokenAccountBalance(fromAta);
+      heldUsdc = bal.value.uiAmount ?? 0;
+    } catch {
+      heldUsdc = 0;
+    }
+    if (heldUsdc < pay.amountUsdc) {
+      throw new Error(
+        t("submit.insufficient").replace("{need}", String(pay.amountUsdc)).replace("{have}", heldUsdc.toFixed(2)),
+      );
+    }
+
     const tx = new Transaction();
     // Create the destination USDC account if it doesn't exist yet.
     if (!(await connection.getAccountInfo(toAta))) {
