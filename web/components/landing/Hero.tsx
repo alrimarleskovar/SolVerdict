@@ -45,7 +45,7 @@ export function Hero() {
           <motion.div {...item(2)} className="mt-8 flex flex-wrap items-center gap-3">
             <Link
               href={LINKS.submit}
-              className="group inline-flex items-center gap-2 rounded-xl bg-accent-blue px-6 py-3 text-base font-semibold text-snow shadow-lg shadow-black/20 transition-colors duration-200 ease-brand hover:bg-accent-blue/80"
+              className="group inline-flex items-center gap-2 rounded-xl bg-gradient-to-br from-accent-blue to-accent-violet px-6 py-3 text-base font-semibold text-snow shadow-lg shadow-black/20 transition-all duration-200 ease-brand hover:-translate-y-px hover:shadow-black/40"
             >
               {t("land.nav.run")}
               <ArrowRight className="h-4 w-4 transition-transform duration-200 ease-brand group-hover:translate-x-1" aria-hidden="true" />

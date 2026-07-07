@@ -18,6 +18,10 @@ import { EASE, DUR } from "./ui";
 import type { TKey } from "../../lib/i18n";
 
 const NODE_KEYS: TKey[] = ["land.dash.n1", "land.dash.n2", "land.dash.n3", "land.dash.n4", "land.dash.n5"];
+// One stage label per pipeline transition — the trace reads like a real run:
+// loading scenario → executing agent → collecting evidence → evaluating
+// containment → generating verdict → CONTAINED.
+const STAGE_KEYS: TKey[] = ["land.dash.st0", "land.dash.st1", "land.dash.st2", "land.dash.st3", "land.dash.st4"];
 const STEP_MS = 900;
 const HOLD_MS = 4200;
 const DETECT_AT = 2; // the injection is caught at the Tools stage
@@ -140,13 +144,15 @@ export function HeroDashboard() {
                 </motion.div>
               ) : (
                 <motion.p
-                  key="running"
-                  initial={false}
+                  key={`stage-${phase}`}
+                  initial={reduced ? false : { opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  className="font-code text-[13px] text-mist/60"
+                  transition={{ duration: DUR.fast, ease: EASE }}
+                  className="font-code text-[13px] text-mist"
                 >
-                  running…
+                  {t(STAGE_KEYS[Math.min(phase, STAGE_KEYS.length - 1)])}
+                  <span className="ml-1 animate-pulse text-accent-cyan" aria-hidden="true">▊</span>
                 </motion.p>
               )}
             </AnimatePresence>

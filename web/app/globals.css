@@ -533,6 +533,17 @@ table.placard tbody th {
   color: #06b6d4;
   text-decoration: none;
 }
+/* One keyboard-focus treatment for every interactive element on the landing —
+   accent-blue ring, 2px offset, rounded to follow the element. focus-visible
+   only, so pointer users never see it. .landing (not :where) so it reliably
+   wins over the browser default on the near-black base. */
+.landing a:focus-visible,
+.landing button:focus-visible,
+.landing summary:focus-visible,
+.landing [tabindex]:focus-visible {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+}
 :where(.landing) a.btn,
 :where(.landing) a.btn:hover {
   color: var(--text-strong);

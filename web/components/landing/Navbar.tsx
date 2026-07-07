@@ -9,7 +9,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Menu, X } from "lucide-react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useLang } from "../LangProvider";
@@ -68,6 +68,7 @@ const NAV_LINKS: Array<{ key: TKey; href: string; external?: boolean }> = [
 export function Navbar({ showWallet = false }: { showWallet?: boolean }) {
   const { t } = useLang();
   const { connected } = useWallet();
+  const reduced = useReducedMotion();
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
 
@@ -146,7 +147,7 @@ export function Navbar({ showWallet = false }: { showWallet?: boolean }) {
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2, ease: [0.2, 0.8, 0.2, 1] }}
+            transition={{ duration: reduced ? 0 : 0.2, ease: [0.2, 0.8, 0.2, 1] }}
             className="overflow-hidden border-b border-ink-line bg-ink/80 backdrop-blur-xl md:hidden"
           >
             <div className="flex flex-col gap-1 px-6 pb-4 pt-2">
