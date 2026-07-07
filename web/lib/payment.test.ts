@@ -6,6 +6,7 @@
  */
 import assert from "node:assert/strict";
 import { verifyPayment, USDC_MINT, type ParsedTxLike, type RpcLike } from "./payment";
+import { verifyAndQueue, type DbLike } from "./payment-flow";
 
 const NOW = 1_800_000_000_000; // fixed clock (ms)
 const DEST = "DesT1111111111111111111111111111111111111111";
@@ -105,6 +106,80 @@ async function main() {
     const r = await verifyPayment({ ...base, connection: conn(buildTx({ signer: "Wrong111111111111111111111111111111111111111" })) });
     assert.equal(r.valid, false);
     assert.match(r.reason, /signed by/);
+  }
+
+  // --- HIGH-1(b): EXACT memo match — a substring must NOT satisfy ---------
+  // A payment whose memo lists several audit ids can no longer unlock any of
+  // them. (Old .includes() behaviour: "aud-abc-123 other" would satisfy
+  // "aud-abc-123". Now it must not.)
+  {
+    const r = await verifyPayment({ ...base, connection: conn(buildTx({ memo: `${AUDIT_ID} other-audit-9` })) });
+    assert.equal(r.valid, false);
+    assert.match(r.reason, /memo/);
+  }
+  // exact memo (with incidental surrounding whitespace) still validates
+  {
+    const r = await verifyPayment({ ...base, connection: conn(buildTx({ memo: `  ${AUDIT_ID}  ` })) });
+    assert.equal(r.valid, true, r.reason);
+  }
+  // log-fallback path: exact memo parsed from a Memo program log validates …
+  {
+    const tx = buildTx({ memo: null });
+    tx.meta!.logMessages = [`Program log: Memo (len 11): "${AUDIT_ID}"`];
+    const r = await verifyPayment({ ...base, connection: conn(tx) });
+    assert.equal(r.valid, true, r.reason);
+  }
+  // … but a substring inside the log memo must NOT satisfy
+  {
+    const tx = buildTx({ memo: null });
+    tx.meta!.logMessages = [`Program log: Memo (len 21): "${AUDIT_ID} other-audit-9"`];
+    const r = await verifyPayment({ ...base, connection: conn(tx) });
+    assert.equal(r.valid, false);
+  }
+
+  // --- HIGH-1(a): signature reuse → clean conflict, not an unhandled throw --
+  // The unique index rejects a second audit claiming an already-used signature;
+  // enqueue_paid surfaces SQLSTATE 23505, which verifyAndQueue must map to a
+  // controlled `conflict` outcome (the route turns this into a 409).
+  {
+    process.env.SOLVERDICT_PAYMENT_WALLET = DEST; // paymentWallet() → expected destination
+    const row = {
+      id: AUDIT_ID,
+      wallet: SIGNER,
+      tier: "paid",
+      status: "awaiting_payment",
+      payment_signature: null,
+      created_at: new Date(NOW).toISOString(),
+      email: null,
+      endpoint: "https://agent.example.com/audit",
+    };
+    const makeDb = (rpc: { data: unknown; error: { code?: string; message: string } | null }): DbLike =>
+      ({
+        from() {
+          return {
+            select() {
+              return { eq() { return { maybeSingle: async () => ({ data: row, error: null }) }; } };
+            },
+            update() {
+              return { eq: async () => ({ data: null, error: null }) };
+            },
+            insert: async () => ({ data: null, error: null }),
+          };
+        },
+        rpc: async () => rpc,
+      }) as unknown as DbLike;
+
+    // reuse: enqueue_paid raises 23505 → conflict outcome, no throw
+    const dupErr = { code: "23505", message: 'duplicate key value violates unique constraint "idx_audits_payment_signature_unique"' };
+    const reused = await verifyAndQueue(AUDIT_ID, "sig", { connection: conn(buildTx()), now: NOW, db: makeDb({ data: null, error: dupErr }) });
+    assert.equal(reused.ok, false);
+    assert.equal(reused.conflict, true);
+    assert.match(reused.reason ?? "", /already used/);
+
+    // positive control: a first-time valid payment still queues cleanly
+    const fresh = await verifyAndQueue(AUDIT_ID, "sig", { connection: conn(buildTx()), now: NOW, db: makeDb({ data: "queued", error: null }) });
+    assert.equal(fresh.ok, true, fresh.reason);
+    assert.equal(fresh.status, "queued");
   }
 
   console.log("payment tests passed");

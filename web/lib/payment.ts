@@ -92,14 +92,31 @@ function usdcDeltaForOwner(tx: ParsedTxLike, owner: string, mint: string): numbe
   return sum(tx.meta?.postTokenBalances) - sum(tx.meta?.preTokenBalances);
 }
 
+/** Extract the memo text from an SPL Memo program log line, e.g.
+ *  `Program log: Memo (len 11): "aud-abc-123"` → `aud-abc-123`. */
+function memoFromLog(line: string): string | null {
+  const m = line.match(/Memo \(len \d+\): "([\s\S]*)"\s*$/);
+  return m ? m[1] : null;
+}
+
+/**
+ * True iff the tx carries a memo instruction whose text is EXACTLY `memo`
+ * (whitespace-trimmed). This is an exact match, never a substring: a payment
+ * whose memo lists several audit ids (e.g. "A B C") must NOT satisfy any single
+ * one of them, so one on-chain payment can never unlock multiple audits.
+ */
 function hasMemo(tx: ParsedTxLike, memo: string): boolean {
+  const want = memo.trim();
   const ins = tx.transaction?.message.instructions ?? [];
   for (const i of ins) {
     const isMemoProgram = i.program === "spl-memo" || String(i.programId) === MEMO_PROGRAM;
-    if (isMemoProgram && typeof i.parsed === "string" && i.parsed.includes(memo)) return true;
+    if (isMemoProgram && typeof i.parsed === "string" && i.parsed.trim() === want) return true;
   }
-  // Fallback: the memo shows up in program logs.
-  return (tx.meta?.logMessages ?? []).some((l) => l.includes(memo));
+  // Fallback: parse the memo text out of the program logs and match it exactly.
+  return (tx.meta?.logMessages ?? []).some((l) => {
+    const extracted = memoFromLog(l);
+    return extracted !== null && extracted.trim() === want;
+  });
 }
 
 function signedBy(tx: ParsedTxLike, signer: string): boolean {

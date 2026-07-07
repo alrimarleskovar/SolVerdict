@@ -30,8 +30,43 @@ export function solanaRpcUrl(): string {
   return process.env.SOLANA_RPC_URL ?? "https://api.mainnet-beta.solana.com";
 }
 
-async function fetchRow(id: string): Promise<AuditRow | null> {
-  const { data, error } = await supabaseAdmin().from("audits").select("*").eq("id", id).maybeSingle();
+/** Postgres/PostgREST error shape we branch on (subset). */
+type PgError = { code?: string | null; message: string } | null;
+
+/**
+ * Minimal DB surface these flows use — a subset of the Supabase client. Kept as
+ * a seam so tests can inject a fake (no live Supabase / network). At runtime the
+ * real service-role client satisfies it.
+ */
+export interface DbLike {
+  from(table: string): {
+    select(cols: string): { eq(col: string, val: string): { maybeSingle(): Promise<{ data: unknown; error: PgError }> } };
+    update(vals: Record<string, unknown>): { eq(col: string, val: string): Promise<{ data: unknown; error: PgError }> };
+    insert(vals: Record<string, unknown>): Promise<{ data: unknown; error: PgError }>;
+  };
+  rpc(fn: string, args: Record<string, unknown>): Promise<{ data: unknown; error: PgError }>;
+}
+
+/** True for a Postgres unique-violation (23505) — e.g. a payment signature that
+ *  another audit already consumed (idx_audits_payment_signature_unique). */
+function isUniqueViolation(err: PgError): boolean {
+  if (!err) return false;
+  return err.code === "23505" || /duplicate key|unique constraint|payment_signature/i.test(err.message);
+}
+
+interface FlowOpts {
+  connection?: RpcLike;
+  now?: number;
+  /** Test seam: inject a DB double. Defaults to the service-role client. */
+  db?: DbLike;
+}
+
+function getDb(opts: FlowOpts): DbLike {
+  return opts.db ?? (supabaseAdmin() as unknown as DbLike);
+}
+
+async function fetchRow(db: DbLike, id: string): Promise<AuditRow | null> {
+  const { data, error } = await db.from("audits").select("*").eq("id", id).maybeSingle();
   if (error) throw new Error(error.message);
   return (data as AuditRow | null) ?? null;
 }
@@ -40,19 +75,27 @@ export interface VerifyOutcome {
   ok: boolean;
   status: AuditRecord["status"];
   reason?: string;
+  /** The signature is already bound to a different audit — terminal 409, not a
+   *  transient "keep polling" state. */
+  conflict?: boolean;
 }
+
+const SIGNATURE_IN_USE = "payment signature already used for another audit";
 
 /**
  * Verify a payment for a paid audit and, on success, move it to `queued` and
  * enqueue it (atomic `enqueue_paid` RPC). Idempotent: an already
- * queued/running/done audit is returned as-is.
+ * queued/running/done audit is returned as-is. If the payment signature has
+ * already been consumed by another audit, returns a `conflict` outcome (the
+ * unique index rejects the write) instead of throwing.
  */
 export async function verifyAndQueue(
   id: string,
   signature?: string,
-  opts: { connection?: RpcLike; now?: number } = {},
+  opts: FlowOpts = {},
 ): Promise<VerifyOutcome> {
-  const row = await fetchRow(id);
+  const db = getDb(opts);
+  const row = await fetchRow(db, id);
   if (!row) return { ok: false, status: "failed", reason: "audit not found" };
   if (row.tier !== "paid") return { ok: false, status: row.status, reason: "not a paid audit" };
   if (row.status === "queued" || row.status === "running" || row.status === "done") {
@@ -76,16 +119,28 @@ export async function verifyAndQueue(
   if (!result.valid) {
     // Record the signature so a later stuck-payment sweep can retry it, but keep
     // the audit awaiting_payment (transient reasons are returned, not persisted).
-    await supabaseAdmin()
+    // If the signature already belongs to another audit, the unique index blocks
+    // the write — surface that as a clean conflict, not a 500.
+    const { error } = await db
       .from("audits")
       .update({ payment_signature: sig, updated_at: new Date().toISOString() })
       .eq("id", id);
+    if (isUniqueViolation(error)) {
+      return { ok: false, status: row.status, reason: SIGNATURE_IN_USE, conflict: true };
+    }
     return { ok: false, status: row.status, reason: result.reason };
   }
 
   // Atomic: flip to queued + insert into queue + emit event, idempotently.
-  const { data, error } = await supabaseAdmin().rpc("enqueue_paid", { p_id: id, p_signature: sig });
-  if (error) throw new Error(error.message);
+  // enqueue_paid's UPDATE sets payment_signature; if another audit already holds
+  // this signature the unique index raises 23505 — return a conflict, not a 500.
+  const { data, error } = await db.rpc("enqueue_paid", { p_id: id, p_signature: sig });
+  if (error) {
+    if (isUniqueViolation(error)) {
+      return { ok: false, status: row.status, reason: SIGNATURE_IN_USE, conflict: true };
+    }
+    throw new Error(error.message);
+  }
   return { ok: true, status: (data as AuditRecord["status"]) ?? "queued" };
 }
 
@@ -96,10 +151,11 @@ export async function verifyAndQueue(
  */
 export async function resolveStuckPayment(
   id: string,
-  opts: { connection?: RpcLike; now?: number } = {},
+  opts: FlowOpts = {},
 ): Promise<VerifyOutcome> {
+  const db = getDb(opts);
   const now = opts.now ?? Date.now();
-  const row = await fetchRow(id);
+  const row = await fetchRow(db, id);
   if (!row) return { ok: false, status: "failed", reason: "audit not found" };
   if (row.status !== "awaiting_payment") return { ok: true, status: row.status };
 
@@ -111,17 +167,15 @@ export async function resolveStuckPayment(
   // Give a last verification chance if a signature was reported.
   if (row.payment_signature) {
     const outcome = await verifyAndQueue(id, row.payment_signature, opts);
-    if (outcome.ok) return outcome;
+    if (outcome.ok || outcome.conflict) return outcome;
   }
 
   const reason = "payment not received within the grace window";
-  await supabaseAdmin()
+  await db
     .from("audits")
     .update({ status: "payment_failed", error: reason, updated_at: new Date().toISOString() })
     .eq("id", id);
-  await supabaseAdmin()
-    .from("audit_events")
-    .insert({ audit_id: id, event_type: "payment_failed", payload: { reason } });
+  await db.from("audit_events").insert({ audit_id: id, event_type: "payment_failed", payload: { reason } });
   await sendAuditNotification({
     to: row.email ?? undefined,
     auditId: id,

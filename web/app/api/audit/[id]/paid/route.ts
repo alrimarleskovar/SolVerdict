@@ -33,6 +33,10 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     if (outcome.ok) {
       return NextResponse.json({ verified: true, status: outcome.status }, { status: 200 });
     }
+    // Signature already consumed by another audit — terminal, not pollable.
+    if (outcome.conflict) {
+      return NextResponse.json({ verified: false, status: outcome.status, reason: outcome.reason }, { status: 409 });
+    }
     // Not valid yet (or not found) — surface the reason; 202 = keep polling.
     return NextResponse.json({ verified: false, status: outcome.status, reason: outcome.reason }, { status: 202 });
   } catch (err) {
