@@ -177,7 +177,10 @@ export function LockupLogo({
   const textGradId = `sv-tg-${uid}`;
   const scope = `sv-rv-${uid}`;
 
-  const wordmarkY = showTagline ? 98 : 120;
+  // Baselines are explicit rather than dominant-baseline="middle": WebKit
+  // (Safari, and any iOS browser) implements that attribute inconsistently and
+  // shifts the wordmark upward relative to the symbol.
+  const wordmarkY = showTagline ? 141 : 170;
   const wordmarkSize = showTagline ? 120 : 140;
 
   return (
@@ -202,7 +205,6 @@ export function LockupLogo({
         fontSize={wordmarkSize}
         fontFamily="var(--font-exo), Exo, sans-serif"
         fontWeight="500"
-        dominantBaseline="middle"
       >
         <tspan fill="#FFFFFF">Sol</tspan>
         <tspan fill={`url(#${textGradId})`}>Verdict</tspan>
@@ -210,14 +212,13 @@ export function LockupLogo({
       {showTagline && (
         <text
           x="247"
-          y="170"
+          y="185"
           fontSize="34"
           fontFamily="var(--font-exo), Exo, sans-serif"
           fontWeight="400"
           fill="#B0BCC9"
           textLength="560"
           lengthAdjust="spacing"
-          dominantBaseline="middle"
         >
           AI AGENT SECURITY BENCHMARK
         </text>
