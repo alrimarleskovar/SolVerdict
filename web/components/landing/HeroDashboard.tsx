@@ -65,7 +65,7 @@ export function HeroDashboard() {
       {/* header — wraps on narrow so neither caption is clipped */}
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-ink-line px-6 py-3">
         <span className="inline-flex min-w-0 items-center gap-2 font-code text-[13px] text-mist">
-          <span className={`h-2 w-2 shrink-0 rounded-full ${finished ? "bg-state-ok" : "bg-accent-cyan"}`} />
+          <span className={`h-2 w-2 shrink-0 rounded-full ${finished ? "bg-state-ok" : "bg-brand-cyan"}`} />
           {t("land.dash.title")}
         </span>
         <span className="shrink-0 font-code text-[13px] text-mist/60">{t("land.dash.sub")}</span>
@@ -93,16 +93,16 @@ export function HeroDashboard() {
                     done && isVerdict
                       ? "border-state-ok/40 bg-state-ok/10 text-state-ok"
                       : done
-                        ? "border-accent-blue/40 bg-accent-blue/10 text-snow"
+                        ? "border-brand-blue/40 bg-brand-blue/10 text-snow"
                         : active
-                          ? "border-accent-cyan/40 bg-accent-cyan/10 text-snow"
+                          ? "border-brand-cyan/40 bg-brand-cyan/10 text-snow"
                           : "border-ink-line bg-ink text-mist/60"
                   }`}
                 >
                   {t(k)}
                 </span>
                 {i < NODE_KEYS.length - 1 && (
-                  <span className={`hidden h-px w-3 shrink-0 sm:block sm:w-4 ${done ? "bg-accent-blue/40" : "bg-ink-line"}`} aria-hidden="true" />
+                  <span className={`hidden h-px w-3 shrink-0 sm:block sm:w-4 ${done ? "bg-brand-blue/40" : "bg-ink-line"}`} aria-hidden="true" />
                 )}
               </li>
             );
@@ -155,7 +155,7 @@ export function HeroDashboard() {
                   className="font-code text-[13px] text-mist"
                 >
                   {t(STAGE_KEYS[Math.min(phase, STAGE_KEYS.length - 1)])}
-                  <span className="ml-1 animate-pulse text-accent-cyan" aria-hidden="true">▊</span>
+                  <span className="ml-1 animate-pulse text-brand-cyan" aria-hidden="true">▊</span>
                 </motion.p>
               )}
             </AnimatePresence>

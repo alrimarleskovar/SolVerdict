@@ -4,6 +4,9 @@ dist/
 build/
 coverage/
 
+# --- Generated audit PDFs (buildAuditPdf output; regenerate on demand) ---
+solverdict-audit-*.pdf
+
 # --- Secrets: NEVER commit. LLM API keys live in .env (see .env.example). ---
 # There are intentionally NO Solana keys/seeds anywhere — test wallets are
 # ephemeral Keypair.generate() at runtime (see SECURITY.md / prereg §3).

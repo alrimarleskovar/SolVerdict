@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="120 20 1400 440">
+  <defs>
+    <linearGradient id="g" x1="150" y1="0" x2="530" y2="480" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#00E59A"/>
+      <stop offset="25%" stop-color="#00E59A"/>
+      <stop offset="35%" stop-color="#00C2FF"/>
+      <stop offset="48%" stop-color="#00C2FF"/>
+      <stop offset="58%" stop-color="#4673FA"/>
+      <stop offset="75%" stop-color="#4673FA"/>
+      <stop offset="85%" stop-color="#7B5CFF"/>
+      <stop offset="94%" stop-color="#D946EF"/>
+      <stop offset="100%" stop-color="#D946EF"/>
+    </linearGradient>
+    <linearGradient id="text-g" x1="800" y1="170" x2="1300" y2="310" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#00E59A"/>
+      <stop offset="50%" stop-color="#00C2FF"/>
+      <stop offset="100%" stop-color="#4673FA"/>
+    </linearGradient>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Exo:wght@100..900&amp;display=swap');
+      .wordmark { font-family: 'Exo', sans-serif; font-weight: 500; }
+      .tagline { font-family: 'Exo', sans-serif; font-weight: 400; fill: #B0BCC9; }
+    </style>
+  </defs>
+  <path d="M 513.21 224.26 L 513.21 140 L 340 40 L 166.79 140 L 166.79 322.68 A 30 30 0 0 0 181.79 348.66 L 340 440 L 498.21 348.66 A 30 30 0 0 0 513.21 322.68 L 513.21 264.26" fill="none" stroke="url(#g)" stroke-width="20" stroke-linejoin="miter"/>
+  <path d="M 398.89 356.0 L 343.46 388.0 M 336.54 388.0 L 210.10 315 L 210.10 165 L 299.73 113.25" fill="none" stroke="url(#g)" stroke-width="12" stroke-linejoin="miter"/>
+  <circle cx="340" cy="390" r="7" fill="none" stroke="url(#g)" stroke-width="6"/>
+  <circle cx="404.95" cy="352.5" r="10" fill="none" stroke="url(#g)" stroke-width="6"/>
+  <circle cx="307.525" cy="108.75" r="12" fill="none" stroke="url(#g)" stroke-width="6"/>
+  <polygon points="500,266 500,306 546,286 546,246" fill="url(#g)" stroke="none"/>
+  <polygon points="498.04,226.75 527.96,213.74 527.96,239.75 498.04,252.76" fill="url(#g)" stroke="none"/>
+  <path d="M 288 233 L 338 285 L 440 178" fill="none" stroke="#00E59A" stroke-width="26" stroke-linecap="butt" stroke-linejoin="miter"/>
+  <text x="600" y="220" font-size="155" class="wordmark" dominant-baseline="middle"><tspan fill="#FFFFFF">Sol</tspan><tspan fill="url(#text-g)">Verdict</tspan></text>
+  <text x="600" y="330" font-size="32" class="tagline" textLength="720" lengthAdjust="spacing" dominant-baseline="middle">AI AGENT SECURITY BENCHMARK</text>
+</svg>

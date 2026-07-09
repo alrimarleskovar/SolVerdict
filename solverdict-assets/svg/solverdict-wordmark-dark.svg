@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="580 130 760 230">
+  <defs>
+    <linearGradient id="text-g" x1="800" y1="170" x2="1300" y2="310" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#00E59A"/>
+      <stop offset="50%" stop-color="#00C2FF"/>
+      <stop offset="100%" stop-color="#4673FA"/>
+    </linearGradient>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Exo:wght@100..900&amp;display=swap');
+      .wordmark { font-family: 'Exo', sans-serif; font-weight: 500; }
+      .tagline { font-family: 'Exo', sans-serif; font-weight: 400; fill: #B0BCC9; }
+    </style>
+  </defs>
+  <rect x="580" y="130" width="760" height="230" fill="#0B0F14"/>
+  <text x="600" y="220" font-size="155" class="wordmark" dominant-baseline="middle"><tspan fill="#FFFFFF">Sol</tspan><tspan fill="url(#text-g)">Verdict</tspan></text>
+  <text x="600" y="330" font-size="32" class="tagline" textLength="720" lengthAdjust="spacing" dominant-baseline="middle">AI AGENT SECURITY BENCHMARK</text>
+</svg>

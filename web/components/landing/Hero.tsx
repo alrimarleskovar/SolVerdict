@@ -33,7 +33,7 @@ export function Hero() {
             className="font-display text-[40px] font-extrabold leading-[1.1] tracking-tight text-snow sm:text-[56px] lg:text-[64px]"
           >
             {t("land.hero.h1a")}{" "}
-            <span className="bg-gradient-to-r from-accent-blue via-accent-cyan to-accent-violet bg-clip-text text-transparent">
+            <span className="bg-gradient-to-r from-brand-blue via-brand-cyan to-brand-purple bg-clip-text text-transparent">
               {t("land.hero.h1b")}
             </span>
           </motion.h1>
@@ -45,7 +45,7 @@ export function Hero() {
           <motion.div {...item(2)} className="mt-8 flex flex-wrap items-center gap-3">
             <Link
               href={LINKS.submit}
-              className="group inline-flex items-center gap-2 rounded-xl bg-gradient-to-br from-accent-blue to-accent-violet px-6 py-3 text-base font-semibold text-snow shadow-lg shadow-black/20 transition-all duration-200 ease-brand hover:-translate-y-px hover:shadow-black/40"
+              className="group inline-flex items-center gap-2 rounded-xl bg-gradient-to-br from-brand-blue to-brand-purple px-6 py-3 text-base font-semibold text-snow shadow-lg shadow-black/20 transition-all duration-200 ease-brand hover:-translate-y-px hover:shadow-black/40"
             >
               {t("land.nav.run")}
               <ArrowRight className="h-4 w-4 transition-transform duration-200 ease-brand group-hover:translate-x-1" aria-hidden="true" />

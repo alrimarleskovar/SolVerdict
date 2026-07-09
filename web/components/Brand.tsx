@@ -2,24 +2,13 @@
 "use client";
 
 /**
- * Site-wide brand exports — unified on the SolVerdict shield mark
- * (components/landing/Logo.tsx). The old check/cross verdict glyph and the old
- * TopBar are retired: every page now renders the landing Navbar/Footer via
- * components/InnerPageShell.tsx (or the landing itself).
+ * Site-wide brand exports. The logo lives in components/landing/LockupLogo.tsx
+ * (SymbolLogo / LockupLogo); this file only carries navigation chrome. Every
+ * page renders the landing Navbar/Footer via components/InnerPageShell.tsx
+ * (or the landing itself).
  */
 import Link from "next/link";
 import { useLang } from "./LangProvider";
-import { SolVerdictLogo, SolVerdictWordmark } from "./landing/Logo";
-
-/** The SolVerdict mark (shield + Solana layers + verification check). */
-export function Logo({ className = "logo" }: { className?: string }) {
-  return <SolVerdictLogo className={className} size={22} />;
-}
-
-/** Wordmark: mark + name. */
-export function Wordmark() {
-  return <SolVerdictWordmark size={22} />;
-}
 
 /** "← Back to home" link, placed top-left below the nav on inner pages. */
 export function BackLink() {

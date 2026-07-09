@@ -79,7 +79,7 @@ export function Demo() {
             <TerminalChrome label={t(ex.attackKey)} />
             <pre className="min-h-[280px] whitespace-pre-wrap break-words p-6 font-code text-[13px] leading-relaxed text-snow/80">
               {fullText.slice(0, chars)}
-              {!done && <span className="animate-pulse text-accent-cyan">▊</span>}
+              {!done && <span className="animate-pulse text-brand-cyan">▊</span>}
             </pre>
           </div>
 

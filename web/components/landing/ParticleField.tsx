@@ -11,7 +11,7 @@
  *   - devicePixelRatio capped at 2
  *   - one rAF loop, fully cancelled on unmount (no leaks across routes)
  *
- * Cursor effect (subtle): hairline accent-cyan links from the pointer to
+ * Cursor effect (subtle): hairline brand-cyan links from the pointer to
  * nearby dots + a slight dot brighten. rAF-coalesced (mousemove only writes a
  * ref; the draw loop reads it). Disabled on touch devices (hover: none) and
  * under prefers-reduced-motion.
@@ -35,11 +35,11 @@
 
 import { Component, useEffect, useRef, type ReactNode } from "react";
 
-// mist + accent-cyan at system alpha steps only (10% / 40%).
+// mist + brand-cyan at system alpha steps only (10% / 40%).
 const DOT_COLOR = "rgba(148, 163, 184, 0.4)";
 const LINE_COLOR = "rgba(148, 163, 184, 0.1)";
-const CURSOR_LINE_COLOR = "rgba(6, 182, 212, 0.1)";
-const CURSOR_DOT_COLOR = "rgba(6, 182, 212, 0.4)";
+const CURSOR_LINE_COLOR = "rgba(0, 194, 255, 0.1)";
+const CURSOR_DOT_COLOR = "rgba(0, 194, 255, 0.4)";
 const LINK_DIST = 110;
 const CURSOR_DIST = 140;
 const AREA_PER_DOT = 38_000;

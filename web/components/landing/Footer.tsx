@@ -5,7 +5,7 @@
 
 import Link from "next/link";
 import { useLang } from "../LangProvider";
-import { SolVerdictWordmark } from "./Logo";
+import { LockupLogo } from "./LockupLogo";
 import { GitHubIcon } from "./Navbar";
 import { LINKS } from "./data";
 import type { TKey } from "../../lib/i18n";
@@ -53,7 +53,7 @@ export function Footer() {
       <div className="mx-auto max-w-6xl px-6 py-16">
         <div className="grid gap-12 md:grid-cols-[1.4fr_1fr_1fr_1fr]">
           <div>
-            <SolVerdictWordmark />
+            <LockupLogo height={34} />
             <p className="mt-3 max-w-xs text-sm leading-relaxed text-mist">{t("land.foot.tagline")}</p>
             <a
               href={LINKS.repo}

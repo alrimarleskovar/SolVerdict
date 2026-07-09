@@ -17,7 +17,7 @@ export function CTA() {
         {/* Dark panel (surface token) — the blue→violet gradient appears only
             as accents: the hairline ring, the slow sheen and the primary
             button. Hover lift, black-only shadow, reduced-motion safe. */}
-        <div className="rounded-3xl bg-gradient-to-br from-accent-blue/40 via-accent-cyan/20 to-accent-violet/40 p-px shadow-lg shadow-black/40 transition-transform duration-200 ease-brand hover:-translate-y-1">
+        <div className="rounded-3xl bg-gradient-to-br from-brand-blue/40 via-brand-cyan/20 to-brand-purple/40 p-px shadow-lg shadow-black/40 transition-transform duration-200 ease-brand hover:-translate-y-1">
           <div className="relative overflow-hidden rounded-3xl bg-ink-surface px-8 py-12 text-center sm:px-12 sm:py-16">
             <div className="cta-sheen absolute inset-0" aria-hidden="true" />
             <h2 className="relative mx-auto max-w-2xl font-display text-[28px] font-extrabold leading-[1.15] tracking-tight text-snow sm:text-[40px]">
@@ -26,7 +26,7 @@ export function CTA() {
             <div className="relative mt-8 flex flex-wrap items-center justify-center gap-3">
             <Link
               href={LINKS.submit}
-              className="group inline-flex items-center gap-2 rounded-xl bg-gradient-to-br from-accent-blue to-accent-violet px-6 py-3 text-base font-semibold text-snow shadow-lg shadow-black/20 transition-all duration-200 ease-brand hover:-translate-y-px hover:shadow-black/40"
+              className="group inline-flex items-center gap-2 rounded-xl bg-gradient-to-br from-brand-blue to-brand-purple px-6 py-3 text-base font-semibold text-snow shadow-lg shadow-black/20 transition-all duration-200 ease-brand hover:-translate-y-px hover:shadow-black/40"
             >
               {t("land.nav.run")}
               <ArrowRight className="h-4 w-4 transition-transform duration-200 ease-brand group-hover:translate-x-1" aria-hidden="true" />

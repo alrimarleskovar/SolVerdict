@@ -25,7 +25,7 @@ export function OpenSource() {
         <div className="overflow-hidden rounded-3xl border border-ink-line bg-ink-surface shadow-lg shadow-black/20">
           <div className="grid gap-12 p-8 sm:p-12 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
             <div>
-              <p className="font-code text-[13px] uppercase tracking-[0.2em] text-accent-cyan">{t("land.oss.eyebrow")}</p>
+              <p className="font-code text-[13px] uppercase tracking-[0.2em] text-brand-cyan">{t("land.oss.eyebrow")}</p>
               <h2 className="mt-3 font-display text-[28px] font-bold leading-[1.15] tracking-tight text-snow sm:text-[40px]">
                 {t("land.oss.h2")}
               </h2>
@@ -36,12 +36,12 @@ export function OpenSource() {
                   const Icon = a.icon;
                   return a.external ? (
                     <a key={a.label} href={a.href} target="_blank" rel="noreferrer" className={actionCls}>
-                      <Icon className="h-4 w-4 text-accent-cyan" aria-hidden="true" />
+                      <Icon className="h-4 w-4 text-brand-cyan" aria-hidden="true" />
                       {a.label}
                     </a>
                   ) : (
                     <Link key={a.label} href={a.href} className={actionCls}>
-                      <Icon className="h-4 w-4 text-accent-cyan" aria-hidden="true" />
+                      <Icon className="h-4 w-4 text-brand-cyan" aria-hidden="true" />
                       {a.label}
                     </Link>
                   );
@@ -58,7 +58,7 @@ export function OpenSource() {
               <pre className="overflow-x-auto p-6 font-code text-[13px] leading-6 text-snow/80">
                 {OSS_COMMANDS.map((c) => (
                   <div key={c}>
-                    <span className="select-none text-accent-cyan">$ </span>
+                    <span className="select-none text-brand-cyan">$ </span>
                     {c}
                   </div>
                 ))}

@@ -5,23 +5,28 @@
  * SolVerdict identity with brand accents (blue / cyan / violet) but staying a
  * rigorous, honest technical report.
  *
- * Structure: brand header (drawn SolVerdict mark) → containment headline →
- * metadata → the per-category placard (the visual centerpiece, colored cells
- * mirroring the site) → per-scenario breakdown → an "Audited by SolVerdict"
- * provenance strip (a shareable record — NOT a safety seal) → disclaimer.
+ * Structure: brand header (the real SolVerdict logo on a dark badge) →
+ * containment headline → metadata → the per-category placard (the visual
+ * centerpiece, colored cells mirroring the site) → per-scenario breakdown →
+ * an "Audited by SolVerdict" provenance strip (a shareable record — NOT a
+ * safety seal) → disclaimer.
  *
  * HONESTY: the provenance strip records that the endpoint was *measured*
  * against SolVerdict's adversarial scenarios. It never reads as "approved",
  * "certified safe" or "secure". The empty case (0 valid runs) still renders a
  * clean page that plainly states the endpoint was not protocol-conformant.
  *
- * Everything is drawn with jsPDF core vector primitives (rect / roundedRect /
- * lines / circle / text) — no external images or SVG (jsPDF core can't embed
- * them). Core helvetica only; hierarchy comes from weight, size and color. All
- * DATA comes from the placard-model helpers — no number is recomputed here.
+ * Chrome is drawn with jsPDF core vector primitives (rect / roundedRect /
+ * lines / circle / text) with core helvetica only — hierarchy comes from
+ * weight, size and color. The ONE exception is the brand logo: the SolVerdict
+ * symbol is embedded as a PNG via doc.addImage() (SYMBOL_PNG_DATA_URI in
+ * ./brand-assets), because its green→magenta gradient is essential to the
+ * identity and can't be faithfully reproduced with core vector fills. All DATA
+ * comes from the placard-model helpers — no number is recomputed here.
  */
 import { jsPDF } from "jspdf";
 import { categoryCells, scenarioRows, containmentSummary, pct, type CategoryCell } from "./placard-model";
+import { SYMBOL_PNG_DATA_URI } from "./brand-assets";
 import type { Tier } from "../../scoring/tiers";
 import type { AuditResult } from "./types";
 
@@ -48,6 +53,8 @@ const TIER: Record<Tier | "incomplete", { bg: RGB; fg: RGB; dot: RGB; word: stri
 };
 
 const VERIFY_HOST = "solverdict.vercel.app";
+const SURFACE_DARK: RGB = [11, 15, 20]; // brand surface.logoBackplate #0B0F14
+const FOOT_MUTED: RGB = [176, 188, 201]; // brand text.muted #B0BCC9
 
 /** Mix an RGB toward white by `1 - amount` (amount = ink strength). */
 function tint(c: RGB, amount: number): RGB {
@@ -67,30 +74,18 @@ function fmtDate(iso: string): string {
 }
 
 /**
- * Recreate the SolVerdict mark with vector primitives: a shield (blue rim),
- * two skewed Solana-style layer bars (blue / cyan), and a green verification
- * check as the middle layer. Coordinates are the real logo's 48-unit grid,
- * scaled to `size`. Renders cleanly down to ~22pt.
+ * The SolVerdict brand mark: the real gradient symbol (green→cyan→blue→purple→
+ * magenta) embedded as a PNG, seated on a rounded #0B0F14 badge so the mark's
+ * dark-surface identity holds on the light page. `size` is the badge's side in
+ * pt; the symbol is inset with padding and centered.
  */
-function drawMark(doc: jsPDF, x: number, y: number, size: number): void {
-  const s = size / 48;
-  // shield: faint blue wash + blue rim stroke
-  doc.setFillColor(...tint(BLUE, 0.06));
-  doc.setDrawColor(...BLUE);
-  doc.setLineWidth(Math.max(0.7, 2.1 * s));
-  doc.setLineJoin("round");
-  doc.lines([[16, 6], [0, 13], [-16, 21], [-16, -21], [0, -13]], x + 24 * s, y + 4 * s, [s, s], "FD", true);
-  // top layer bar (blue) and bottom layer bar (cyan)
-  doc.setFillColor(...BLUE);
-  doc.lines([[13.4, 0], [-3.4, 3.8], [-13.4, 0]], x + 18 * s, y + 14.2 * s, [s, s], "F", true);
-  doc.setFillColor(...CYAN);
-  doc.lines([[13.4, 0], [3.4, 3.8], [-13.4, 0]], x + 14.6 * s, y + 30.4 * s, [s, s], "F", true);
-  // middle layer: the green check
-  doc.setDrawColor(...GREEN);
-  doc.setLineWidth(Math.max(0.9, 3.1 * s));
-  doc.setLineCap("round");
-  doc.lines([[5.5, 5], [11.5, -10.2]], x + 15.6 * s, y + 24.1 * s, [s, s], "S", false);
-  doc.setLineCap("butt");
+function drawBadge(doc: jsPDF, x: number, y: number, size: number): void {
+  const radius = Math.max(4, size * 0.22);
+  doc.setFillColor(...SURFACE_DARK);
+  doc.roundedRect(x, y, size, size, radius, radius, "F");
+  const pad = size * 0.16;
+  const inner = size - pad * 2;
+  doc.addImage(SYMBOL_PNG_DATA_URI, "PNG", x + pad, y + pad, inner, inner);
 }
 
 export function buildAuditPdf(id: string, result: AuditResult, createdAt: string): ArrayBuffer {
@@ -143,7 +138,7 @@ export function buildAuditPdf(id: string, result: AuditResult, createdAt: string
   // ================= HEADER =================
   doc.setFillColor(...WASH);
   doc.rect(0, 0, W, 92, "F");
-  drawMark(doc, L, 26, 40);
+  drawBadge(doc, L, 26, 40);
   txt("SolVerdict", L + 54, 46, { size: 17, style: "bold" });
   txt("Containment Audit", L + 54, 62, { size: 11, color: BLUE });
   txt("User audit — not an official pre-registered board result.", L + 54, 76, { size: 8, style: "italic", color: MUTED });
@@ -281,7 +276,7 @@ export function buildAuditPdf(id: string, result: AuditResult, createdAt: string
   // ================= PROVENANCE STRIP (anchored to the page bottom) =========
   // A shareable RECORD of what was measured — explicitly NOT a safety seal.
   const stripH = 108;
-  const stripY = H - stripH - 22;
+  const stripY = H - stripH - 44; // reserve a footer zone below the strip
   doc.setFillColor(...WASH);
   doc.setDrawColor(...HAIR);
   doc.setLineWidth(1);
@@ -299,7 +294,7 @@ export function buildAuditPdf(id: string, result: AuditResult, createdAt: string
   doc.setDrawColor(...tint(BLUE, 0.4));
   doc.setLineWidth(0.9);
   doc.roundedRect(sealX, sealY, sealW, sealH, 8, 8, "FD");
-  drawMark(doc, sealX + sealW / 2 - 14, sealY + 8, 28);
+  drawBadge(doc, sealX + sealW / 2 - 14, sealY + 8, 28);
   txt("AUDITED BY SOLVERDICT", sealX + sealW / 2, sealY + 50, { size: 7, style: "bold", color: INK, align: "center" });
   txt("Containment audit · v0.2.2", sealX + sealW / 2, sealY + 60, { size: 6.5, color: MUTED, align: "center" });
   txt(id.slice(0, 18), sealX + sealW / 2, sealY + 70, { size: 6, style: "bold", color: BLUE, align: "center" });
@@ -325,12 +320,15 @@ export function buildAuditPdf(id: string, result: AuditResult, createdAt: string
     { size: 8, color: BODY, maxWidth: tw },
   );
 
-  // ================= DISCLAIMER (very bottom) =================
+  // ================= FOOTER (disclaimer + brand credit) =====================
   const disclaimer =
     "SolVerdict measures containment of dangerous wallet actions under a fixed, pre-registered rubric on a local Solana " +
     "mainnet fork. Containment is not safety: a high score means the tested scenarios were contained, not that the agent " +
     "is secure in production. Results are informational only — not legal, financial, or security advice.";
-  txt(disclaimer, L, H - 14, { size: 6.5, style: "italic", color: MUTED, maxWidth: CW });
+  txt(disclaimer, L, H - 36, { size: 6.5, style: "italic", color: MUTED, maxWidth: CW });
+  // brand credit — the running footer identity (brand text.muted #B0BCC9)
+  brandRule(L, H - 13, 40, 2);
+  txt("SolVerdict — AI Agent Security Benchmark", L + 48, H - 9, { size: 7.5, style: "bold", color: FOOT_MUTED });
 
   return doc.output("arraybuffer") as ArrayBuffer;
 }

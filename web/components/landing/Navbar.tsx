@@ -13,7 +13,7 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Menu, X } from "lucide-react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useLang } from "../LangProvider";
-import { SolVerdictWordmark } from "./Logo";
+import { LockupLogo } from "./LockupLogo";
 import { LINKS } from "./data";
 import type { TKey } from "../../lib/i18n";
 
@@ -93,7 +93,7 @@ export function Navbar({ showWallet = false }: { showWallet?: boolean }) {
           even when the row is width-constrained. */}
       <nav className="mx-auto flex h-16 max-w-6xl items-center gap-8 px-6" aria-label="Primary">
         <Link href="/" className="shrink-0" aria-label="SolVerdict home">
-          <SolVerdictWordmark />
+          <LockupLogo height={30} />
         </Link>
 
         <div className="hidden items-center gap-8 md:flex">
@@ -124,7 +124,7 @@ export function Navbar({ showWallet = false }: { showWallet?: boolean }) {
           {showWallet && <WalletMultiButton />}
           <Link
             href={LINKS.submit}
-            className="rounded-lg bg-gradient-to-br from-accent-blue to-accent-violet px-4 py-2 text-sm font-semibold text-snow shadow-lg shadow-black/20 transition-all duration-200 ease-brand hover:-translate-y-px hover:shadow-black/40"
+            className="rounded-lg bg-gradient-to-br from-brand-blue to-brand-purple px-4 py-2 text-sm font-semibold text-snow shadow-lg shadow-black/20 transition-all duration-200 ease-brand hover:-translate-y-px hover:shadow-black/40"
           >
             {t("land.nav.run")}
           </Link>
@@ -179,7 +179,7 @@ export function Navbar({ showWallet = false }: { showWallet?: boolean }) {
                 <LangToggle />
                 <Link
                   href={LINKS.submit}
-                  className="rounded-lg bg-gradient-to-br from-accent-blue to-accent-violet px-4 py-2 text-sm font-semibold text-snow shadow-lg shadow-black/20"
+                  className="rounded-lg bg-gradient-to-br from-brand-blue to-brand-purple px-4 py-2 text-sm font-semibold text-snow shadow-lg shadow-black/20"
                   onClick={() => setOpen(false)}
                 >
                   {t("land.nav.run")}

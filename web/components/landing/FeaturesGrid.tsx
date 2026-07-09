@@ -31,7 +31,7 @@ export function FeaturesGrid() {
           return (
             <Reveal key={item.t} delay={0.04 * i} className="h-full">
               <div className="flex h-full items-start gap-4 rounded-xl border border-ink-line bg-ink-card/60 p-4 transition-all duration-200 ease-brand hover:-translate-y-1 hover:border-mist/20 hover:bg-ink-card">
-                <span className="mt-1 rounded-lg border border-ink-line bg-ink-surface p-2 text-accent-cyan">
+                <span className="mt-1 rounded-lg border border-ink-line bg-ink-surface p-2 text-brand-cyan">
                   <Icon className="h-4 w-4" aria-hidden="true" />
                 </span>
                 <span>

@@ -11,7 +11,7 @@ export function Stats() {
   return (
     <section className="mx-auto max-w-6xl px-6 py-16 sm:py-24" aria-label={t("land.stats.eyebrow")}>
       <Reveal>
-        <p className="mb-8 text-center font-code text-[13px] uppercase tracking-[0.2em] text-accent-cyan">
+        <p className="mb-8 text-center font-code text-[13px] uppercase tracking-[0.2em] text-brand-cyan">
           {t("land.stats.eyebrow")}
         </p>
       </Reveal>

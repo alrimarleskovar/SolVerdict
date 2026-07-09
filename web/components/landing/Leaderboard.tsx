@@ -119,14 +119,14 @@ export function Leaderboard() {
             href={LINKS.runBJson}
             target="_blank"
             rel="noreferrer"
-            className="text-accent-cyan transition-colors duration-200 ease-brand hover:text-snow"
+            className="text-brand-cyan transition-colors duration-200 ease-brand hover:text-snow"
           >
             results-OFFICIAL-v022-runB-0149.json ↗
           </a>
         </p>
         <Link
           href={LINKS.leaderboard}
-          className="group mt-6 inline-flex items-center gap-2 text-sm font-medium text-accent-blue transition-colors duration-200 ease-brand hover:text-accent-cyan"
+          className="group mt-6 inline-flex items-center gap-2 text-sm font-medium text-brand-blue transition-colors duration-200 ease-brand hover:text-brand-cyan"
         >
           {t("land.lb.cta")}
           <ArrowRight className="h-4 w-4 transition-transform duration-200 ease-brand group-hover:translate-x-1" aria-hidden="true" />

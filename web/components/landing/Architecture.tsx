@@ -36,7 +36,7 @@ export function Architecture() {
               )}
               <Reveal delay={0.05 * i} className="shrink-0 lg:h-full">
                 <div className="flex h-full w-full flex-col rounded-xl border border-ink-line bg-ink-card px-4 py-3 transition-colors duration-200 ease-brand hover:border-mist/20 lg:w-[200px]">
-                  <code className="border-0 bg-transparent p-0 font-code text-[13px] text-accent-cyan">{n.code}</code>
+                  <code className="border-0 bg-transparent p-0 font-code text-[13px] text-brand-cyan">{n.code}</code>
                   <span className="mt-1 font-display text-sm font-semibold text-snow">{t(n.t)}</span>
                   <span className="mt-1 text-[13px] leading-snug text-mist">{t(n.d)}</span>
                 </div>

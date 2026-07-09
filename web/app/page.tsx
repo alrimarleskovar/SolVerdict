@@ -35,6 +35,9 @@ export const metadata: Metadata = {
     title: "SolVerdict — the benchmark for secure Solana AI agents",
     description: BRANDING.description,
     type: "website",
+    // Repeated here because a page-level openGraph replaces the layout's, so
+    // the root layout's og-image would otherwise be dropped on the homepage.
+    images: [{ url: "/og-image.png", width: 1200, height: 630, alt: "SolVerdict — AI Agent Security Benchmark" }],
   },
 };
 

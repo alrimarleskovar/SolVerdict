@@ -8,12 +8,12 @@ import { Reveal, SectionHeading } from "./ui";
 import type { TKey } from "../../lib/i18n";
 
 const CARDS: Array<{ icon: LucideIcon; title: TKey; body: TKey; tint: string }> = [
-  { icon: Scale, title: "land.why.c1.t", body: "land.why.c1.b", tint: "text-accent-blue" },
-  { icon: RefreshCw, title: "land.why.c2.t", body: "land.why.c2.b", tint: "text-accent-cyan" },
-  { icon: Blocks, title: "land.why.c3.t", body: "land.why.c3.b", tint: "text-accent-violet" },
+  { icon: Scale, title: "land.why.c1.t", body: "land.why.c1.b", tint: "text-brand-blue" },
+  { icon: RefreshCw, title: "land.why.c2.t", body: "land.why.c2.b", tint: "text-brand-cyan" },
+  { icon: Blocks, title: "land.why.c3.t", body: "land.why.c3.b", tint: "text-brand-purple" },
   { icon: ShieldCheck, title: "land.why.c4.t", body: "land.why.c4.b", tint: "text-state-ok" },
-  { icon: GitBranch, title: "land.why.c5.t", body: "land.why.c5.b", tint: "text-accent-blue" },
-  { icon: FlaskConical, title: "land.why.c6.t", body: "land.why.c6.b", tint: "text-accent-cyan" },
+  { icon: GitBranch, title: "land.why.c5.t", body: "land.why.c5.b", tint: "text-brand-blue" },
+  { icon: FlaskConical, title: "land.why.c6.t", body: "land.why.c6.b", tint: "text-brand-cyan" },
 ];
 
 export function FeatureCards() {

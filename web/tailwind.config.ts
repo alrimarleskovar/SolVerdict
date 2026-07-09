@@ -1,7 +1,11 @@
 import type { Config } from "tailwindcss";
+import tokens from "./lib/brand-tokens.json";
 
 // Solana visual identity — brand tokens mirror docs/style.css so the SaaS app
-// reads as the same product as the static landing page.
+// reads as the same product as the static landing page. The `brand` / `surface`
+// palettes come straight from the shared design tokens (solverdict-assets/
+// tokens.json, vendored to lib/brand-tokens.json) so the logo gradient, the UI,
+// and the favicons all resolve to the same hexes.
 const config: Config = {
   content: [
     "./app/**/*.{ts,tsx}",
@@ -41,6 +45,10 @@ const config: Config = {
         },
         snow: "#F8FAFC",
         mist: "#94A3B8",
+        // Shared brand tokens (green → cyan → blue → purple → magenta gradient
+        // stops) and the canonical brand surface — from tokens.json.
+        brand: tokens.colors.brand,
+        surface: tokens.colors.surface,
       },
       fontFamily: {
         mono: [

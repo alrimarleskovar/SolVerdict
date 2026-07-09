@@ -55,7 +55,7 @@ export function SectionHeading({
 }) {
   return (
     <Reveal className={className}>
-      <p className="font-code text-[13px] uppercase tracking-[0.2em] text-accent-cyan">{eyebrow}</p>
+      <p className="font-code text-[13px] uppercase tracking-[0.2em] text-brand-cyan">{eyebrow}</p>
       <Tag className={`mt-3 ${titleMax} font-display text-[28px] font-bold leading-[1.15] tracking-tight text-snow sm:text-[40px]`}>
         {title}
       </Tag>

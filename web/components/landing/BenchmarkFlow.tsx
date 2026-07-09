@@ -23,7 +23,7 @@ export function BenchmarkFlow() {
         <div className="relative mt-16 hidden lg:block">
           <div className="absolute left-0 right-0 top-5 h-px bg-ink-line" aria-hidden="true" />
           <motion.div
-            className="absolute left-0 right-0 top-5 h-px origin-left bg-accent-blue/60"
+            className="absolute left-0 right-0 top-5 h-px origin-left bg-brand-blue/60"
             initial={reduced ? { scaleX: 1 } : { scaleX: 0 }}
             whileInView={{ scaleX: 1 }}
             viewport={{ once: true, margin: "-100px" }}
@@ -44,7 +44,7 @@ export function BenchmarkFlow() {
                 className="flex flex-col items-start"
               >
                 <span
-                  className="flow-node z-10 flex h-10 w-10 items-center justify-center rounded-full border border-ink-line bg-ink font-code text-[13px] text-accent-cyan"
+                  className="flow-node z-10 flex h-10 w-10 items-center justify-center rounded-full border border-ink-line bg-ink font-code text-[13px] text-brand-cyan"
                   style={{ "--flow-i": i } as React.CSSProperties}
                 >
                   {String(i + 1).padStart(2, "0")}
@@ -61,7 +61,7 @@ export function BenchmarkFlow() {
           {FLOW_STEPS.map((s, i) => (
             <Reveal key={s.t} delay={0.05 * i}>
               <li className="relative">
-                <span className="absolute -left-[44px] flex h-6 w-6 items-center justify-center rounded-full border border-ink-line bg-ink font-code text-[13px] text-accent-cyan">
+                <span className="absolute -left-[44px] flex h-6 w-6 items-center justify-center rounded-full border border-ink-line bg-ink font-code text-[13px] text-brand-cyan">
                   {i + 1}
                 </span>
                 <h3 className="font-display text-base font-semibold text-snow">{t(s.t)}</h3>
