@@ -37,8 +37,16 @@ COPY patches ./patches
 RUN npm ci
 
 # --- Web deps (includes tsx, which runs the worker) ------------------------
-COPY web/package.json web/package-lock.json ./web/
-RUN cd web && npm ci --include=dev
+# --legacy-peer-deps: the Solana wallet-adapter pulls @keystonehq/sdk, whose
+# react-qr-reader/qrcode.react (peer react ~16/17) and react-native chain (peer
+# react@^19) conflict with the app's react@18. web/package-lock.json was
+# generated in legacy mode (commit a5e19d0), so a strict `npm ci` rejects it as
+# ~200 entries out of sync. The flag matches the CI web job (smoke.yml) and the
+# committed web/.npmrc (copied below, which sets legacy-peer-deps=true too).
+# NOTE: this applies to the web install only — the parent `npm ci` above stays
+# strict so the @pump-fun/pump-sdk override is respected.
+COPY web/package.json web/package-lock.json web/.npmrc ./web/
+RUN cd web && npm ci --include=dev --legacy-peer-deps
 
 # --- Source (node_modules excluded via .dockerignore) ----------------------
 COPY . .
