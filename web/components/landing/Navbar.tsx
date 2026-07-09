@@ -93,7 +93,7 @@ export function Navbar({ showWallet = false }: { showWallet?: boolean }) {
           even when the row is width-constrained. */}
       <nav className="mx-auto flex h-16 max-w-6xl items-center gap-8 px-6" aria-label="Primary">
         <Link href="/" className="shrink-0" aria-label="SolVerdict home">
-          <LockupLogo height={30} />
+          <LockupLogo height={34} revealCheck />
         </Link>
 
         <div className="hidden items-center gap-8 md:flex">

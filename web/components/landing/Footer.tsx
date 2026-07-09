@@ -53,7 +53,7 @@ export function Footer() {
       <div className="mx-auto max-w-6xl px-6 py-16">
         <div className="grid gap-12 md:grid-cols-[1.4fr_1fr_1fr_1fr]">
           <div>
-            <LockupLogo height={34} />
+            <LockupLogo height={56} showTagline />
             <p className="mt-3 max-w-xs text-sm leading-relaxed text-mist">{t("land.foot.tagline")}</p>
             <a
               href={LINKS.repo}
