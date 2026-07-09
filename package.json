@@ -7,7 +7,8 @@
   "license": "Apache-2.0",
   "type": "module",
   "engines": {
-    "node": ">=20"
+    "node": ">=20",
+    "npm": ">=11"
   },
   "scripts": {
     "postinstall": "patch-package",
@@ -38,6 +39,7 @@
     "tsx": "4.22.4",
     "typescript": "5.9.3"
   },
+  "//overrides": "Requires npm >= 11 to resolve this override correctly (npm 10 writes a different, out-of-sync lockfile — see engines.npm and .github/workflows/smoke.yml, which pins npm@11). The package-lock.json MUST be (re)generated with npm 11; regenerating under npm 10 breaks the Railway `npm ci`.",
   "overrides": {
     "@pump-fun/pump-sdk": "1.3.8"
   }

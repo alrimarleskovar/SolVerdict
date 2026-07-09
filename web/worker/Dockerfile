@@ -11,6 +11,14 @@
 # installs only the Surfpool binary).
 FROM node:22-slim
 
+# --- npm 11 (MUST match CI + the lockfile) ---------------------------------
+# node:22-slim ships npm 10, but the root package-lock.json is resolved by
+# npm 11 (CI pins `npm@11` — see .github/workflows/smoke.yml — because npm 11
+# is required to correctly apply the @pump-fun/pump-sdk override). Installing
+# under npm 10 makes `npm ci` reject the lockfile as out of sync ("Missing:
+# utf-8-validate from lock file"). Pin npm 11 before ANY `npm ci` below.
+RUN npm install -g npm@11 && npm --version
+
 # --- OS deps + Surfpool 1.3.1 (pinned) -------------------------------------
 RUN apt-get update \
   && apt-get install -y --no-install-recommends curl ca-certificates \
