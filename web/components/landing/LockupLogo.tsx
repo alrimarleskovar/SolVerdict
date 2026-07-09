@@ -93,6 +93,11 @@ function RevealStyle({ scope }: { scope: string }) {
           opacity: 1;
         }
       }
+      /* Touch devices have no hover state. Reveal is a desktop enhancement —
+         on touch the check is simply present. */
+      @media (hover: none), (pointer: coarse) {
+        .${scope} .sv-check { stroke-dashoffset: 0; }
+      }
     `}</style>
   );
 }
@@ -190,6 +195,10 @@ export function LockupLogo({
       aria-label="SolVerdict — AI Agent Security Benchmark"
       className={[revealCheck ? scope : "", className].filter(Boolean).join(" ")}
       {...props}
+      // Force an own compositing layer: WebKit drops SVG paint servers
+      // (fill="url(#id)") when a sticky ancestor composites during scroll,
+      // blanking the wordmark gradient. translateZ pins the layer.
+      style={{ transform: "translateZ(0)", ...props.style }}
     >
       <defs>
         <BrandGradient id={gradId} />
@@ -207,7 +216,10 @@ export function LockupLogo({
         fontWeight="500"
       >
         <tspan fill="#FFFFFF">Sol</tspan>
-        <tspan fill={`url(#${textGradId})`}>Verdict</tspan>
+        {/* Second value is an SVG 1.1 fallback: if the paint server fails to
+            resolve (WebKit scroll compositing), the text falls back to solid
+            cyan instead of rendering invisible. */}
+        <tspan fill={`url(#${textGradId}) #00C2FF`}>Verdict</tspan>
       </text>
       {showTagline && (
         <text
