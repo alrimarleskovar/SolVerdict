@@ -40,9 +40,16 @@
 
 /* Backstop against horizontal scroll: no page should ever slide sideways.
    This is a safety net — components are fixed to actually fit; it must never be
-   the primary containment. (body also carries overflow-x: hidden below.) */
+   the primary containment. (body also carries the same clip below.)
+
+   `clip`, not `hidden`: `overflow-x: hidden` turns the element into a scroll
+   container, which breaks `position: sticky` on descendants (the navbar). `clip`
+   contains the same overflow without establishing a scroll container, so sticky
+   keeps working. `hidden` stays as a fallback for pre-2022 engines that lack
+   `clip`; the `clip` line wins in every modern browser. */
 html {
   overflow-x: hidden;
+  overflow-x: clip;
 }
 
 body {
@@ -53,6 +60,7 @@ body {
   font-family: var(--sans);
   line-height: 1.6;
   overflow-x: hidden;
+  overflow-x: clip;
 }
 
 /* thin Solana-gradient top border */
