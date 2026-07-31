@@ -17,6 +17,16 @@ updates:
     open-pull-requests-limit: 5
     labels:
       - "dependencies"
+    groups:
+      # Keep react + react-dom + their types in ONE coordinated PR,
+      # never bumped in isolation (isolated bumps desync the runtime
+      # and break the build with ReactCurrentDispatcher errors).
+      react:
+        patterns:
+          - "react"
+          - "react-dom"
+          - "@types/react"
+          - "@types/react-dom"
 
   # GitHub Actions themselves
   - package-ecosystem: "github-actions"
