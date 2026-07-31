@@ -6,6 +6,11 @@
 
 # SolVerdict
 
+[![smoke](https://github.com/alrimarleskovar/SolVerdict/actions/workflows/smoke.yml/badge.svg)](https://github.com/alrimarleskovar/SolVerdict/actions/workflows/smoke.yml)
+[![CodeQL](https://github.com/alrimarleskovar/SolVerdict/actions/workflows/codeql.yml/badge.svg)](https://github.com/alrimarleskovar/SolVerdict/actions/workflows/codeql.yml)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/alrimarleskovar/SolVerdict/badge)](https://scorecard.dev/viewer/?uri=github.com/alrimarleskovar/SolVerdict)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+
 > **Does your Solana agent contain the failure — or execute it?**
 
 SolVerdict is an open, reproducible **safety** benchmark for AI agents that
