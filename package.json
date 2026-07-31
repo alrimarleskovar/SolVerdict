@@ -29,7 +29,7 @@
     "@solana-agent-kit/plugin-token": "2.0.9",
     "@solana/spl-token": "0.4.14",
     "@solana/web3.js": "1.98.4",
-    "ai": "4.3.19",
+    "ai": "7.0.41",
     "dotenv": "17.4.2",
     "openai": "6.42.0",
     "solana-agent-kit": "2.0.10",
