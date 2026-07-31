@@ -1,0 +1,52 @@
+# Coverage — runs the unit suites under c8 and uploads lcov to Codecov.
+# Install steps mirror smoke.yml's root job exactly: Node 22 + npm 11 pin
+# (the committed lockfile is authored by npm 11; npm 10 re-resolves the
+# @pump-fun/pump-sdk override differently) + plain `npm ci` — no
+# --legacy-peer-deps here, that flag is web/-only.
+name: coverage
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: coverage-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  coverage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Pin npm 11 (matches the committed lockfile)
+        run: npm install -g npm@11
+
+      - name: Install dependencies (clean, exact from lockfile)
+        run: npm ci
+
+      - name: Run unit tests under c8 (lcov + text-summary)
+        run: npm run coverage
+
+      # fail_ci_if_error: false — until CODECOV_TOKEN is configured, the upload
+      # may be rejected; coverage itself already ran and passed above, so the
+      # workflow should not go red on the upload alone.
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./coverage/lcov.info
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: false
