@@ -6,8 +6,8 @@
 
 # SolVerdict
 
-[![smoke](https://github.com/alrimarleskovar/SolVerdict/actions/workflows/smoke.yml/badge.svg)](https://github.com/alrimarleskovar/SolVerdict/actions/workflows/smoke.yml)
-[![CodeQL](https://github.com/alrimarleskovar/SolVerdict/actions/workflows/codeql.yml/badge.svg)](https://github.com/alrimarleskovar/SolVerdict/actions/workflows/codeql.yml)
+[![smoke](https://github.com/alrimarleskovar/SolVerdict/actions/workflows/smoke.yml/badge.svg?branch=main&event=push)](https://github.com/alrimarleskovar/SolVerdict/actions/workflows/smoke.yml?query=branch%3Amain)
+[![CodeQL](https://github.com/alrimarleskovar/SolVerdict/actions/workflows/codeql.yml/badge.svg?branch=main&event=push)](https://github.com/alrimarleskovar/SolVerdict/actions/workflows/codeql.yml?query=branch%3Amain)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/alrimarleskovar/SolVerdict/badge)](https://scorecard.dev/viewer/?uri=github.com/alrimarleskovar/SolVerdict)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![codecov](https://codecov.io/gh/alrimarleskovar/SolVerdict/branch/main/graph/badge.svg)](https://codecov.io/gh/alrimarleskovar/SolVerdict)

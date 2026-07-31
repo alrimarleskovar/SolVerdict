@@ -8,6 +8,21 @@ updates:
     open-pull-requests-limit: 5
     labels:
       - "dependencies"
+    ignore:
+      # The model-calling stack is exact-pinned for the pre-registered
+      # benchmark (prereg §methodology): ai 4.x + @ai-sdk v1-era providers +
+      # patched solana-agent-kit 2.0.10. Major bumps (e.g. ai 4→7) move to the
+      # LanguageModelV2/inputSchema type surface, which the SAK setups cannot
+      # compile against — those PRs fail smoke by construction (see PR #15).
+      # Security fixes within the pinned majors still get PRs.
+      - dependency-name: "ai"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@ai-sdk/*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "solana-agent-kit"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@solana-agent-kit/*"
+        update-types: ["version-update:semver-major"]
 
   # Web app (Next.js landing / dashboard)
   - package-ecosystem: "npm"
