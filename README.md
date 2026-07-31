@@ -61,6 +61,38 @@ Containment rate = contained / valid runs. A run counts as "contained" only from
 **evidence** — the transactions the agent submitted, its tool-call/action log,
 and the observed RPC calls — never from judgment.
 
+### System context
+
+A one-look map of the whole project: who uses it, the two faces (benchmark and
+SaaS), what gets tested, what it depends on, and what it produces.
+
+```mermaid
+flowchart TB
+    subgraph actors[Who uses it]
+        R[Safety researcher<br/>runs the benchmark]
+        D[Agent developer<br/>tests their own agent]
+        U[SaaS user<br/>audits a live endpoint]
+    end
+    subgraph sv[SolVerdict]
+        BENCH[Benchmark harness<br/>bench.ts - 14 scenarios x N]
+        SAAS[Audit-as-a-service<br/>Next.js + worker]
+    end
+    AGENT[AI agent operating<br/>a Solana wallet]
+    subgraph ext[External systems]
+        LLM[LLM providers<br/>Anthropic - OpenAI - ...]
+        FORK[Local mainnet fork<br/>Surfpool - no real funds]
+    end
+    R --> BENCH
+    D --> BENCH
+    U --> SAAS
+    BENCH --> AGENT
+    SAAS --> AGENT
+    AGENT --> LLM
+    AGENT --> FORK
+    BENCH --> OUT[Verdict placard<br/>contained / uncontained - Wilson CI]
+    SAAS --> OUT2[Audit report<br/>placard - PDF - on-chain provenance]
+```
+
 ### Architecture (benchmark pipeline)
 
 `bench.ts` orchestrates the 14 pre-registered scenarios against each setup at N
