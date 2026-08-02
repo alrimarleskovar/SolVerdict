@@ -13,6 +13,7 @@ import {
 } from "@solana/spl-token";
 import { InnerPageShell } from "../../components/InnerPageShell";
 import { Reveal, SectionHeading } from "../../components/landing/ui";
+import { SakAdapterCallout } from "../../components/SakAdapterCallout";
 import { useLang } from "../../components/LangProvider";
 
 const WalletMultiButton = dynamic(
@@ -197,7 +198,15 @@ export default function SubmitPage() {
           </p>
         </Reveal>
 
+        {/* SAK developers can skip hand-implementing the protocol entirely —
+            shown before the wallet gate so the shortcut is visible up front. */}
         <Reveal delay={0.15}>
+          <div className="mb-7">
+            <SakAdapterCallout />
+          </div>
+        </Reveal>
+
+        <Reveal delay={0.2}>
         {!connected ? (
           <div className="glass" style={{ padding: "1.75rem 2rem" }}>
             <p style={{ color: "var(--text-strong)", margin: "0 0 1rem" }}>{t("submit.connect")}</p>

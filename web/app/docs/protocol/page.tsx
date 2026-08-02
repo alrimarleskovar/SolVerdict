@@ -12,8 +12,14 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 import { InnerPageShell } from "../../../components/InnerPageShell";
 import { Reveal, SectionHeading } from "../../../components/landing/ui";
+import { InstallCommand } from "../../../components/SakAdapterCallout";
 import { BRANDING } from "../../../../config/branding";
-import { LANG_COOKIE, parseLang } from "../../../lib/i18n";
+import { LANG_COOKIE, parseLang, t } from "../../../lib/i18n";
+import {
+  SAK_ADAPTER_NPM_URL,
+  SAK_ADAPTER_QUICKSTART,
+  SAK_ADAPTER_README_URL,
+} from "../../../lib/sak-adapter";
 import {
   PROTOCOL_VERSION,
   DEFAULT_TIMEOUT_MS,
@@ -121,8 +127,9 @@ function DocCard({
 
 export default function ProtocolDocs() {
   // Cookie read keeps this page consistent with the dynamic (per-language) app;
-  // the protocol spec / code samples stay verbatim in both languages.
-  parseLang(cookies().get(LANG_COOKIE)?.value);
+  // the protocol spec / code samples stay verbatim in both languages (only the
+  // sak-adapter card's prose is translated).
+  const lang = parseLang(cookies().get(LANG_COOKIE)?.value);
 
   return (
     <InnerPageShell>
@@ -137,7 +144,35 @@ export default function ProtocolDocs() {
         </Reveal>
 
         <div className="mt-12 grid gap-6">
-          <DocCard title="The contract" index={0}>
+          {/* Recommended path for SAK agents: the official adapter implements
+              the whole contract below, so those developers can stop here. */}
+          <DocCard title={t(lang, "sakad.docs.title")} index={0}>
+            <p className="text-sm leading-relaxed text-mist">{t(lang, "sakad.docs.body")}</p>
+            <div className="mt-4 grid gap-3">
+              <InstallCommand />
+              <Code>{SAK_ADAPTER_QUICKSTART}</Code>
+            </div>
+            <p className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-[13px]">
+              <a
+                href={SAK_ADAPTER_NPM_URL}
+                target="_blank"
+                rel="noreferrer"
+                className="font-code text-accent-cyan transition-colors duration-200 ease-brand hover:text-snow"
+              >
+                {t(lang, "sakad.npm")} ↗
+              </a>
+              <a
+                href={SAK_ADAPTER_README_URL}
+                target="_blank"
+                rel="noreferrer"
+                className="font-code text-accent-cyan transition-colors duration-200 ease-brand hover:text-snow"
+              >
+                {t(lang, "sakad.readme")} ↗
+              </a>
+            </p>
+          </DocCard>
+
+          <DocCard title="The contract" index={1}>
             {/* contract body spans the card — no inner measure cap */}
             <ul className="w-full max-w-none space-y-3 text-sm leading-relaxed text-mist">
               <li>
@@ -164,19 +199,19 @@ export default function ProtocolDocs() {
 
           {/* Request full-width on its own row; the two Response cards sit
               side by side below it (stacking to one column on mobile). */}
-          <DocCard title="Request (SolVerdict → agent)" index={1}>
+          <DocCard title="Request (SolVerdict → agent)" index={2}>
             <Code>{REQUEST_EXAMPLE}</Code>
           </DocCard>
           <div className="grid gap-6 lg:grid-cols-2">
-            <DocCard title="Response — containment" index={2}>
+            <DocCard title="Response — containment" index={3}>
               <Code>{RESPONSE_EXAMPLE}</Code>
             </DocCard>
-            <DocCard title="Response — execution" index={3}>
+            <DocCard title="Response — execution" index={4}>
               <Code>{EXECUTE_EXAMPLE}</Code>
             </DocCard>
           </div>
 
-          <DocCard title="50 lines to make your agent compatible" index={4}>
+          <DocCard title="50 lines to make your agent compatible" index={5}>
             <Code>{NODE_EXAMPLE}</Code>
             <p className="mt-3 text-[13px] leading-relaxed text-mist">
               Full runnable version:{" "}
@@ -193,7 +228,7 @@ export default function ProtocolDocs() {
           </DocCard>
 
           <div className="grid gap-6 lg:grid-cols-2">
-            <DocCard title="Limits & safety" index={5}>
+            <DocCard title="Limits & safety" index={6}>
               <ul className="space-y-3 text-sm leading-relaxed text-mist">
                 <li>
                   Endpoint must be <strong className="text-snow">HTTPS</strong> and resolve to a public IP — localhost
@@ -209,7 +244,7 @@ export default function ProtocolDocs() {
               </ul>
             </DocCard>
 
-            <DocCard title="Abuse" index={6}>
+            <DocCard title="Abuse" index={7}>
               <p className="text-sm leading-relaxed text-mist">
                 If the SolVerdict worker is misbehaving against your endpoint, or you want a hostname blocked, report
                 it:{" "}

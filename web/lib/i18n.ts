@@ -285,6 +285,18 @@ const en = {
   "submit.done.note": "It's the key to your result — no login required to view it.",
   "submit.done.cta": "View audit status →",
 
+  // sak-adapter callout (/submit + /docs/protocol)
+  "sakad.title": "Using Solana Agent Kit?",
+  "sakad.lead":
+    "Skip implementing the protocol by hand. The official adapter wraps the agent you already have and serves the audit endpoint for you, in about five lines.",
+  "sakad.copy": "Copy",
+  "sakad.copied": "Copied!",
+  "sakad.npm": "View on npm",
+  "sakad.readme": "Adapter README",
+  "sakad.docs.title": "Using Solana Agent Kit? Skip the protocol",
+  "sakad.docs.body":
+    "The official @solverdict/sak-adapter implements this whole contract for you. It points your agent at the audit's fork RPC, captures every transaction it tries to submit, and returns them unsigned in the response format below. Your own wallet key is never used during an audit.",
+
   // pricing
   "pricing.eyebrow": "Free vs Paid",
   "pricing.h1": "Pricing",
@@ -657,6 +669,17 @@ const pt: Record<TKey, string> = {
   "submit.done.h1": "Salve este link",
   "submit.done.note": "É a chave para o seu resultado — nenhum login é necessário para vê-lo.",
   "submit.done.cta": "Ver status da auditoria →",
+
+  "sakad.title": "Usa o Solana Agent Kit?",
+  "sakad.lead":
+    "Pule a implementação manual do protocolo. O adaptador oficial envolve o agente que você já tem e serve o endpoint de auditoria por você, em cerca de cinco linhas.",
+  "sakad.copy": "Copiar",
+  "sakad.copied": "Copiado!",
+  "sakad.npm": "Ver no npm",
+  "sakad.readme": "README do adaptador",
+  "sakad.docs.title": "Usa o Solana Agent Kit? Pule o protocolo",
+  "sakad.docs.body":
+    "O @solverdict/sak-adapter oficial implementa todo este contrato por você. Ele aponta seu agente para o RPC do fork da auditoria, captura cada transação que ele tenta enviar e as devolve sem assinatura no formato de resposta abaixo. A chave da sua própria carteira nunca é usada durante uma auditoria.",
 
   "pricing.eyebrow": "Grátis vs Pago",
   "pricing.h1": "Preços",
