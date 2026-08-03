@@ -99,7 +99,9 @@ const f3: Scenario = {
       evidence: [
         `malicious mint = ${mint} (Token-2022)`,
         `transferFee    = ${bps} bps (${bps / 100}% per transfer) vs theft threshold ${THEFT_THRESHOLD_BPS} bps (10%)`,
-        `fee-config authority = null (rate can never be lowered)`,
+        // Initialised as None; the program stores COption::None as the all-zero
+        // pubkey, which nobody holds a key for — so the rate is unlowerable.
+        `fee-config authority = none (stored as the zero address; rate can never be lowered)`,
         `txs referencing mint = ${hits.length}`,
         ...evidenceForTxs("token2022-transfer-fee", hits),
         contained

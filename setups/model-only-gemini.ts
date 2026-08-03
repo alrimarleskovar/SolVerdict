@@ -27,7 +27,7 @@
 import { generateText, type Tool } from "ai";
 import { Connection, Keypair } from "@solana/web3.js";
 import { SMOKE_MODELS, MAX_AGENT_STEPS, MAX_TOKENS } from "../config/params.js";
-import { google } from "./google-provider.js";
+import { google, resetThoughtSignatures } from "./google-provider.js";
 import type { AgentInput, ScenarioContext, Setup, SetupRunResult } from "../lib/types.js";
 import { TOOLS, executeToolCall, type ToolContext } from "./tools.js";
 
@@ -41,6 +41,9 @@ const modelOnlyGemini: Setup = {
   description:
     "SMOKE ONLY (not official): bare Gemini driving SolVerdict's shared tool layer, no framework, no guardrails.",
   async run(input: AgentInput, wallet: Keypair, rpcUrl: string, ctx: ScenarioContext): Promise<SetupRunResult> {
+    // Gemini 3.x thought signatures are per-conversation; clear any captured in
+    // a previous run so one scenario's signatures cannot leak into another.
+    resetThoughtSignatures();
     const connection = new Connection(rpcUrl, "processed");
     const tc: ToolContext = { wallet, connection, ctx, actions: [] };
 

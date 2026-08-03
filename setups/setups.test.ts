@@ -125,13 +125,16 @@ function cannedAnthropicFetch(): typeof fetch {
  * is what proves the Gemini wiring end-to-end — tool dispatch through
  * executeToolCall into the action log — with no API key and no network.
  */
+/** The signature Gemini 3.x returns beside a functionCall; must be echoed back. */
+const CANNED_THOUGHT_SIGNATURE = "SIG-E2E-CANNED";
+
 function cannedGoogleFetch(toolName: string, args: Record<string, unknown>): typeof fetch {
   let call = 0;
   return (async () => {
     call++;
     const parts =
       call === 1
-        ? [{ functionCall: { name: toolName, args } }]
+        ? [{ functionCall: { name: toolName, args }, thoughtSignature: CANNED_THOUGHT_SIGNATURE }]
         : [{ text: "Done; reporting back without further action." }];
     const body = {
       candidates: [{ content: { parts, role: "model" }, finishReason: "STOP", index: 0, safetyRatings: [] }],
@@ -145,13 +148,31 @@ function cannedGoogleFetch(toolName: string, args: Record<string, unknown>): typ
   }) as typeof fetch;
 }
 
-/** Captures the outbound body so the sampling-param stripping can be asserted. */
-function capturingGoogleFetch(sink: { body?: Record<string, unknown> }): typeof fetch {
+/**
+ * Captures every outbound body AS SENT — i.e. after the provider shim in
+ * setups/google-provider.ts has stripped sampling params and injected
+ * thoughtSignature — so both rewrites can be asserted end-to-end through the
+ * real provider rather than in isolation.
+ */
+function capturingGoogleFetch(sink: { bodies: Record<string, unknown>[] }): typeof fetch {
   const inner = cannedGoogleFetch("get_balance", {});
   return (async (input: unknown, init?: RequestInit) => {
-    if (init && typeof init.body === "string") sink.body = JSON.parse(init.body);
+    if (init && typeof init.body === "string") sink.bodies.push(JSON.parse(init.body));
     return (inner as (i: unknown, x?: RequestInit) => Promise<Response>)(input, init);
   }) as typeof fetch;
+}
+
+/** All functionCall parts across a request body, with their signatures. */
+function functionCallParts(body: Record<string, unknown>): Array<{ thoughtSignature?: string }> {
+  const out: Array<{ thoughtSignature?: string }> = [];
+  for (const turn of (body.contents as Array<{ parts?: unknown }>) ?? []) {
+    for (const part of (turn?.parts as Array<Record<string, unknown>>) ?? []) {
+      if (part && typeof part === "object" && "functionCall" in part) {
+        out.push(part as { thoughtSignature?: string });
+      }
+    }
+  }
+  return out;
 }
 
 // --- shared fixtures --------------------------------------------------------
@@ -420,15 +441,33 @@ describe("model-only-gemini", () => {
   });
 
   test("sends NO sampling parameters (prereg §4: as-deployed defaults)", async () => {
-    const sink: { body?: Record<string, unknown> } = {};
+    const sink = { bodies: [] as Record<string, unknown>[] };
     globalThis.fetch = capturingGoogleFetch(sink);
     await modelOnlyGemini.run(INPUT, WALLET, RPC, ctx(SCENARIO_CTX.A2));
-    const gen = (sink.body?.generationConfig ?? {}) as Record<string, unknown>;
-    // The AI SDK v4 would otherwise default temperature to 0 — see
-    // setups/google-provider.ts for why that must not reach the API.
-    expect("temperature" in gen).toBe(false);
-    expect("topP" in gen).toBe(false);
-    expect("topK" in gen).toBe(false);
+    for (const body of sink.bodies) {
+      const gen = (body.generationConfig ?? {}) as Record<string, unknown>;
+      // The AI SDK v4 would otherwise default temperature to 0 — see
+      // setups/google-provider.ts for why that must not reach the API.
+      expect("temperature" in gen).toBe(false);
+      expect("topP" in gen).toBe(false);
+      expect("topK" in gen).toBe(false);
+    }
+  });
+
+  // Gemini 3.x rejects any history containing an unsigned functionCall part
+  // ("Function call is missing a thought_signature"), which fails 100% of
+  // scenarios because the benchmark is entirely tool-driven. The pinned
+  // @ai-sdk/google@1.2.22 predates the field, so the provider shim supplies it.
+  test("every functionCall sent back carries a thoughtSignature", async () => {
+    const sink = { bodies: [] as Record<string, unknown>[] };
+    globalThis.fetch = capturingGoogleFetch(sink);
+    await modelOnlyGemini.run(INPUT, WALLET, RPC, ctx(SCENARIO_CTX.A2));
+
+    const sent = sink.bodies.flatMap(functionCallParts);
+    expect(sent.length > 0).toBe(true); // the follow-up turn resends the call
+    expect(sent.every((p) => typeof p.thoughtSignature === "string")).toBe(true);
+    // The REAL signature the model returned is echoed back, not the sentinel.
+    expect(sent.every((p) => p.thoughtSignature === CANNED_THOUGHT_SIGNATURE)).toBe(true);
   });
 
   test("error path: rejecting fetch -> ok=false, error set, excluded from N", async () => {

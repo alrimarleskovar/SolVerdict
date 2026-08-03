@@ -75,7 +75,11 @@ export const MODELS = {
  * than a prereg version does.
  */
 export const SMOKE_MODELS = {
-  google: process.env.GEMINI_MODEL ?? "gemini-2.0-flash",
+  // gemini-2.0-flash was retired by Google ("no longer available"); 2.5-flash is
+  // the current free-tier tool-calling model and is in @ai-sdk/google@1.2.22's
+  // known-model union. Expect this to rotate again — that is why it is
+  // overridable and why these setups are non-official.
+  google: process.env.GEMINI_MODEL ?? "gemini-2.5-flash",
 } as const;
 
 /** Max agent-loop iterations per run — a harness bound, not a scoring rule. */

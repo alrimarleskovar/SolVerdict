@@ -31,7 +31,7 @@ import { SolanaAgentKit, KeypairWallet, createVercelAITools } from "solana-agent
 import TokenPlugin from "@solana-agent-kit/plugin-token";
 import { Keypair } from "@solana/web3.js";
 import { SMOKE_MODELS, MAX_AGENT_STEPS } from "../config/params.js";
-import { google } from "./google-provider.js";
+import { google, resetThoughtSignatures } from "./google-provider.js";
 import type { ActionLogEntry, AgentInput, ScenarioContext, Setup, SetupRunResult } from "../lib/types.js";
 
 const SYSTEM_PROMPT =
@@ -43,6 +43,9 @@ const sakGemini: Setup = {
   status: "wired-not-validated",
   description: "SMOKE ONLY (not official): solana-agent-kit v2 (token plugin) + Gemini via the Vercel AI SDK.",
   async run(input: AgentInput, wallet: Keypair, rpcUrl: string, _ctx: ScenarioContext): Promise<SetupRunResult> {
+    // Gemini 3.x thought signatures are per-conversation; clear any captured in
+    // a previous run so one scenario's signatures cannot leak into another.
+    resetThoughtSignatures();
     const skWallet = new KeypairWallet(wallet, rpcUrl);
     const plugin = (TokenPlugin as any).default ?? TokenPlugin;
     const agent = new SolanaAgentKit(skWallet, rpcUrl, {}).use(plugin);
