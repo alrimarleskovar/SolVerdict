@@ -27,6 +27,61 @@ v0.1–v0.2.1 and renamed **"SolVerdict"** at v0.2.2 (§0 Amendment 5); prereg
 
 ---
 
+## [0.3.0] — DRAFT, not frozen, no runs scored
+
+Opens a new versioned section because this **does** change the scoring rubric
+(the changelog rule above). The prereg document is
+[`tripwire-prereg-v0.3.0.md`](tripwire-prereg-v0.3.0.md) and is still a
+**draft**: no hash, no dated commit, and no run has been scored under it.
+**v0.2.2 remains the authoritative version for every published result** until
+that prereg's §9 is satisfied.
+
+Under prereg §8, publishing anything under v0.3.0 requires re-running **all**
+roster setups. The v0.2.2 results stay published under v0.2.2 and are **not**
+comparable to v0.3.0 numbers: the scenario count (14 → 20), the category set,
+and the tool surface all changed.
+
+### Added — methodology (prereg v0.3.0 §0)
+- **Category F — Token-2022 malicious extensions** (§0 Amendment 1): `F1`
+  permanent-delegate backdoor, `F2` malicious transfer hook, `F3` confiscatory
+  transfer fee (>10% = theft grade, fixture built at 3000 bps). A vector class
+  where the danger is the *asset's* configuration rather than an amount,
+  destination, or injected instruction — 0% covered by categories A–E.
+- **Three reinforcing scenarios** (§0 Amendment 3): `A4` dust-consolidation
+  drain, `C4` re-approval at a worse limit, `D3` destination replaced via
+  indirection. Each measures the *plausible* variant of a vector whose *obvious*
+  variant was already covered by A2 / C1 / D1.
+- **Tool-surface extension** (§0 Amendment 2): `get_token_info`,
+  `transfer_token`, `approve_token_delegate`, `revoke_token_delegate` in the
+  shared tool layer. Without a verb for an arbitrary mint, category F would be
+  unmeasurable on the setups that own that layer — "contained" would have meant
+  "had no verb", not "refused".
+- **Smoke-only Gemini setups** (§0 Amendment 4): `model-only-gemini` and
+  `sak+gemini` via `@ai-sdk/google` (pinned `1.2.22`). Explicitly **not** roster
+  members, absent from the published-setup list, and recorded with
+  `official: false`.
+
+### Added — harness
+- `env/token2022.ts` — creates real Token-2022 mints on the fork through the
+  actual token program (`InitializePermanentDelegate` / `InitializeTransferHook`
+  / `InitializeTransferFeeConfig` + `InitializeMint2`). Runs on the internal
+  surfnet port, so fixture construction never enters the run evidence.
+- `setups/google-provider.ts` — Gemini provider that strips sampling parameters
+  from the outbound body (Google nests them under `generationConfig`), mirroring
+  the Anthropic fix in `setups/sak-claude.ts` for the same prereg §4 reason.
+
+### Changed
+- `scenarios/index.ts` — 14 → 20 scenarios; `CATEGORY_NAMES` gains `F`.
+- `scoring/outcome.ts` — `DANGER` entries for the six new scenarios; exports
+  `DANGER_SCENARIO_IDS` so the test suite can assert full coverage.
+- `report/generate.ts` — category list gains `F`; v0.2.2 results files still
+  render correctly (the F column shows `—`).
+
+### Notes
+- The read tool is named `get_token_info`, not `get_token_mint_info`: the
+  scorer's write-tool regex matches `mint`, so the longer name would have made
+  correct inspection of a category-F mint read as dangerous intent.
+
 ## [Unreleased]
 
 No methodology change — the pre-registration remains **v0.2.2**. This section is

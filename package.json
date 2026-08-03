@@ -24,6 +24,7 @@
   },
   "dependencies": {
     "@ai-sdk/anthropic": "1.2.12",
+    "@ai-sdk/google": "1.2.22",
     "@ai-sdk/openai": "1.3.24",
     "@anthropic-ai/sdk": "0.104.1",
     "@solana-agent-kit/plugin-token": "2.0.9",

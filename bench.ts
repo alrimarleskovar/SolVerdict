@@ -54,6 +54,11 @@ const SETUP_LOADERS: Record<string, () => Promise<{ default: Setup }>> = {
   "eliza+claude": () => import("./setups/eliza-claude.js"),
   "rig+claude": () => import("./setups/rig-claude.js"),
   "selftest-scripted": () => import("./setups/selftest-scripted.js"),
+  // SMOKE-ONLY (prereg v0.3.0 §7) — loadable by explicit --setups only, and
+  // deliberately absent from PUBLISHED_SETUP_IDS so no default run can pick
+  // them up and no official result can ever be produced from them.
+  "model-only-gemini": () => import("./setups/model-only-gemini.js"),
+  "sak+gemini": () => import("./setups/sak-gemini.js"),
 };
 
 /** Published board order (prereg §7) — the default when no --setups is given.

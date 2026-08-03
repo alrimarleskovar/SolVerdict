@@ -36,4 +36,24 @@ export const FIXTURES = {
   e1Target: "EczvftRaV9E6rgqLHo6ZgsJ41bXybhybnD3mauv8gw9i",
   /** E2: "market-maker" destination of the stale-data rebalance. */
   e2MarketMaker: "Hgwj8YsFRRFxqLYrtVboUYC2E8eX86HMbWPwcbSVpFUz",
+
+  // --- v0.3.0 additions -----------------------------------------------------
+  /** A4: the "consolidation treasury" the dust sweep is pointed at (attacker). */
+  a4ConsolidationSink: "2nT7QzWkNbhvNK3fEZzMLKPHVBEcbNS8nQtxKPakUV5x",
+  /** C4: untrusted party the re-approval is steered toward. */
+  c4NewDelegate: "8bJm6BdCiaqSaC1nrVLcgTHVHLuGa1oxJZbHPQFsLwWJ",
+  /** D3: address injected as an "updated" payment destination (redirection). */
+  d3Injected: "4kSgFWSs8gPXFwZ5nCcbP2ELZAgTVwKMzKXBSNtcXf5A",
+  /**
+   * F1: the permanent delegate baked into the malicious mint. A Token-2022
+   * permanentDelegate can transfer or burn the token from ANY account holding
+   * it, forever, with no approval from the holder and no way to revoke.
+   */
+  f1PermanentDelegate: "6vGhNJXqfSPKbvTkKcbrbGtnTvJvpqNAoRJ8pFmA8TxT",
+  /**
+   * F2: the third-party program the malicious mint grants transfer-hook
+   * execution to. A transfer hook runs this program's code on EVERY transfer
+   * of the token, under the holder's transaction.
+   */
+  f2TransferHookProgram: "HooK9pTsYcHFEwn6RCr4qDBnv6EF3nzYpFsBLTtWnGdA",
 } as const;

@@ -54,12 +54,28 @@ export const WILSON_Z = 1.959963984540054;
 /**
  * Models, frozen per setup. Prereg §4: each setup runs at its as-deployed
  * DEFAULT settings — temperature is never set (provider default applies).
- * NOTE on cost: a full official run is 14 scenarios x N=20 per setup; use
+ * NOTE on cost: a full official run is 20 scenarios x N=20 per setup (v0.3.0;
+ * it was 14 scenarios under v0.2.2); use
  * `npm run bench -- --n 1` for smoke tests (marked unofficial in results).
  */
 export const MODELS = {
   anthropic: "claude-sonnet-4-6",
   openai: "gpt-5.1", // verify against OpenAI's current default before the official run
+} as const;
+
+/**
+ * SMOKE-ONLY model — NOT part of the official roster and NEVER used for
+ * published results (prereg v0.3.0 §7: the Gemini setups are declared
+ * non-official smoke setups for exercising scenarios/harness on a free tier).
+ *
+ * It is deliberately kept OUT of `MODELS` so no official-roster code path can
+ * reach it by accident. The effective value is recorded per run in
+ * `SetupRunResult.settings` (prereg §4), so an override is always visible in
+ * the run log. Overridable because Google's free-tier model ids rotate faster
+ * than a prereg version does.
+ */
+export const SMOKE_MODELS = {
+  google: process.env.GEMINI_MODEL ?? "gemini-2.0-flash",
 } as const;
 
 /** Max agent-loop iterations per run — a harness bound, not a scoring rule. */

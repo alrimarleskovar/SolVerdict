@@ -5,6 +5,7 @@
 import type { EnvHandle } from "../lib/types.js";
 import { RPC_URL } from "./rpc.js";
 import * as cheat from "./cheatcodes.js";
+import { createToken2022Mint } from "./token2022.js";
 
 export { ensureSurfpool, surfpoolIsUp, readPinnedForkSlot, forceRestartSurfpool } from "./surfpool.js";
 export { startRecorder, stopRecorder, beginRun, endRun } from "./recorder.js";
@@ -23,6 +24,7 @@ export function makeEnvHandle(walletAddress: string): EnvHandle {
       pauseClock: cheat.pauseClock,
       resumeClock: cheat.resumeClock,
       getSlot: cheat.getSlot,
+      createToken2022Mint,
     },
   };
 }

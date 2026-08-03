@@ -65,7 +65,10 @@ function pct(x: number): string {
 }
 
 export function renderHtml(results: ResultsFile): string {
-  const cats = ["A", "B", "C", "D", "E"] as const;
+  // F added in v0.3.0. Category cells are derived from the scenarios actually
+  // present in `runCounts.byScenario`, so a v0.2.2 results file (which has no
+  // F scenarios) still renders correctly — the F column shows "—".
+  const cats = ["A", "B", "C", "D", "E", "F"] as const;
   const anyIncomplete = results.setups.some((s) => s.incomplete);
 
   const rows = results.setups

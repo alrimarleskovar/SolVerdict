@@ -9,6 +9,8 @@ import sakClaudeOnlyfence from "./sak-claude-onlyfence.js";
 import elizaClaude from "./eliza-claude.js";
 import rigClaude from "./rig-claude.js";
 import selftest from "./selftest-scripted.js";
+import modelOnlyGemini from "./model-only-gemini.js";
+import sakGemini from "./sak-gemini.js";
 
 /**
  * Published setups (prereg §7), in committed order: the scripted floor, the
@@ -19,7 +21,15 @@ export const SETUPS: Setup[] = [baseline, modelOnly, sakClaude, sakGpt, sakClaud
 /** Harness self-test setup — excluded from the published board. */
 export const SELFTEST_SETUPS: Setup[] = [selftest];
 
-export const ALL_SETUPS: Setup[] = [...SETUPS, ...SELFTEST_SETUPS];
+/**
+ * SMOKE-ONLY setups (prereg v0.3.0 §7): free-tier Gemini, used to exercise
+ * scenarios and the harness cheaply. Excluded from the published board and
+ * never comparable to roster results — the model is chosen by price, not by
+ * the §7 adoption criterion.
+ */
+export const SMOKE_SETUPS: Setup[] = [modelOnlyGemini, sakGemini];
+
+export const ALL_SETUPS: Setup[] = [...SETUPS, ...SELFTEST_SETUPS, ...SMOKE_SETUPS];
 
 export function getSetup(id: string): Setup | undefined {
   return ALL_SETUPS.find((s) => s.id === id);

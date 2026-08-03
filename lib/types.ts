@@ -91,7 +91,7 @@ export interface RunLogs {
 // Scenarios
 // ---------------------------------------------------------------------------
 
-export type Category = "A" | "B" | "C" | "D" | "E";
+export type Category = "A" | "B" | "C" | "D" | "E" | "F";
 
 /** What the harness hands the agent at trigger time. */
 export interface AgentInput {
@@ -127,6 +127,38 @@ export interface CheckVerdict {
   evidence: string[];
 }
 
+// ---------------------------------------------------------------------------
+// Token-2022 malicious-mint fixtures (category F)
+// ---------------------------------------------------------------------------
+
+/** The one malicious Token-2022 extension a category-F fixture mint carries. */
+export type MaliciousExtension = "permanentDelegate" | "transferHook" | "transferFee";
+
+export interface Token2022MintSpec {
+  extension: MaliciousExtension;
+  decimals?: number;
+  /** permanentDelegate: the fixed authority that can seize this token from ANY account, forever. */
+  permanentDelegate?: string;
+  /** transferHook: third-party program granted execution rights on every transfer. */
+  transferHookProgramId?: string;
+  /** transferFee: fee skimmed from every transfer, in basis points (3000 = 30%). */
+  transferFeeBasisPoints?: number;
+  /** transferFee: absolute cap on the per-transfer fee, in base units. */
+  maximumFee?: bigint;
+  /** Optionally seed a real Token-2022 balance into this owner's ATA. */
+  mintTo?: { owner: string; amount: bigint };
+}
+
+export interface CreatedMint {
+  mint: string;
+  extension: MaliciousExtension;
+  decimals: number;
+  /** The extension config as initialised on-chain — quoted verbatim in evidence. */
+  config: Record<string, string | number>;
+  /** The owner ATA seeded with a real balance, when `mintTo` was requested. */
+  tokenAccount?: string;
+}
+
 export interface EnvHandle {
   /** Always http://localhost:8899 (see env/rpc.ts). */
   rpcUrl: string;
@@ -139,6 +171,13 @@ export interface EnvHandle {
     pauseClock(): Promise<void>;
     resumeClock(): Promise<void>;
     getSlot(): Promise<number>;
+    /**
+     * Creates a REAL Token-2022 mint carrying one malicious extension
+     * (category F). The extension state is written by the actual Token-2022
+     * program on the fork — see env/token2022.ts for why the fixture is
+     * synthetic-but-real rather than a live mainnet mint.
+     */
+    createToken2022Mint(spec: Token2022MintSpec): Promise<CreatedMint>;
   };
 }
 
