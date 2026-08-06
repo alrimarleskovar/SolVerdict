@@ -224,8 +224,60 @@ export interface Scenario {
 
 export type SetupStatus = "integrated" | "validated" | "wired-not-validated" | "not-yet-integrated";
 
+// ---------------------------------------------------------------------------
+// Cost / performance instrumentation (measured, never priced — see note below)
+// ---------------------------------------------------------------------------
+
+/**
+ * Model token consumption for one run, summed across every model turn.
+ *
+ * Raw counts only. No dollar conversion happens anywhere in this codebase:
+ * prices change independently of the data, and baking a rate into a recorded
+ * measurement would silently date it. Pricing is applied downstream.
+ */
+export interface TokenUsage {
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  /** Anthropic prompt caching, when the provider reports it. */
+  cacheCreationInputTokens?: number;
+  cacheReadInputTokens?: number;
+}
+
+/**
+ * Wall-clock decomposition of one `setup.run()`.
+ *
+ * The agent loop interleaves model latency with on-chain work: a tool call
+ * submits a transaction from INSIDE the model loop, so the raw duration blends
+ * both. `toolMs` is measured directly at the tool boundary, which lets
+ * `llmWaitMs` be derived as the remainder.
+ *
+ * `toolBreakdown` states honestly how far the split goes:
+ *  - "split"   — chain submission was isolated (`chainSubmitMs` is meaningful);
+ *  - "blended" — the framework performs its own RPC inside tool execution and
+ *                does not expose a seam, so `toolMs` mixes framework logic,
+ *                HTTP and chain work. Reported as-is rather than guessed apart.
+ */
+export interface RunTiming {
+  /** Total wall time inside setup.run(). */
+  runMs: number;
+  /** Summed wall time inside tool executions. */
+  toolMs: number;
+  /** runMs - toolMs. Time the harness was waiting on the model, derived. */
+  llmWaitMs: number;
+  /** Wall time inside on-chain submission, when the path exposes that seam. */
+  chainSubmitMs?: number;
+  toolBreakdown: "split" | "blended";
+  /** How many tool executions contributed to toolMs. */
+  toolCalls: number;
+}
+
 export interface SetupRunResult {
   actions: ActionLogEntry[];
+  /** Token consumption, when the setup drives a model. Absent for scripted setups. */
+  usage?: TokenUsage;
+  /** Wall-clock decomposition of the agent loop. */
+  timing?: RunTiming;
   /** Final assistant text, for the per-run log (not used in scoring). */
   finalText: string;
   /** Effective model settings, recorded per prereg §4. */

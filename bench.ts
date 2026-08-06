@@ -19,6 +19,7 @@ import { Keypair } from "@solana/web3.js";
 import { mkdirSync, writeFileSync, rmSync, symlinkSync, unlinkSync } from "node:fs";
 import { execSync } from "node:child_process";
 import { packageEvidence } from "./lib/evidence.js";
+import { addUsage, emptyUsage } from "./lib/metrics.js";
 import path from "node:path";
 import "dotenv/config";
 import { N_RUNS } from "./config/params.js";
@@ -36,7 +37,7 @@ import {
   readPinnedForkSlot,
   RPC_URL,
 } from "./env/index.js";
-import type { RunLogs, Setup } from "./lib/types.js";
+import type { RunLogs, RunTiming, Setup, TokenUsage } from "./lib/types.js";
 import { generateReport, type ResultsFile } from "./report/generate.js";
 
 /**
@@ -154,6 +155,84 @@ function writeRunLog(setupId: string, scenarioId: string, n: number, data: unkno
   }
 }
 
+
+// --- cost / performance instrumentation -------------------------------------
+//
+// Raw measurements only: tokens and milliseconds. No dollar conversion happens
+// in the harness — prices move independently of the data, so pricing at capture
+// time would silently date every recorded run. Applied downstream instead.
+
+interface RunMetrics {
+  setupId: string;
+  scenarioId: string;
+  runIndex: number;
+  modelTurns: number;
+  usage: TokenUsage | null;
+  timing: {
+    phases: { forkSetupMs: number; agentMs: number; scoringMs: number };
+    agent: RunTiming | null;
+  };
+}
+
+const collectedMetrics: RunMetrics[] = [];
+function collectMetrics(m: RunMetrics): void {
+  collectedMetrics.push(m);
+}
+
+interface MetricsRollup {
+  runs: number;
+  modelTurns: number;
+  usage: TokenUsage;
+  phases: { forkSetupMs: number; agentMs: number; scoringMs: number };
+  agent: { runMs: number; toolMs: number; llmWaitMs: number; chainSubmitMs: number; toolCalls: number };
+  /** "blended" if ANY contributing run could not isolate chain time. */
+  toolBreakdown: "split" | "blended" | "n/a";
+}
+
+function emptyRollup(): MetricsRollup {
+  return {
+    runs: 0,
+    modelTurns: 0,
+    usage: emptyUsage(),
+    phases: { forkSetupMs: 0, agentMs: 0, scoringMs: 0 },
+    agent: { runMs: 0, toolMs: 0, llmWaitMs: 0, chainSubmitMs: 0, toolCalls: 0 },
+    toolBreakdown: "n/a",
+  };
+}
+
+function addToRollup(r: MetricsRollup, m: RunMetrics): void {
+  r.runs++;
+  r.modelTurns += m.modelTurns;
+  if (m.usage) addUsage(r.usage, m.usage);
+  r.phases.forkSetupMs += m.timing.phases.forkSetupMs;
+  r.phases.agentMs += m.timing.phases.agentMs;
+  r.phases.scoringMs += m.timing.phases.scoringMs;
+  const a = m.timing.agent;
+  if (a) {
+    r.agent.runMs += a.runMs;
+    r.agent.toolMs += a.toolMs;
+    r.agent.llmWaitMs += a.llmWaitMs;
+    r.agent.chainSubmitMs += a.chainSubmitMs ?? 0;
+    r.agent.toolCalls += a.toolCalls;
+    // Degrade to "blended" if any run in the group was blended: a rollup must
+    // never claim a cleaner split than its least-resolved contributor.
+    r.toolBreakdown = r.toolBreakdown === "blended" || a.toolBreakdown === "blended" ? "blended" : "split";
+  }
+}
+
+/** Per-audit totals + per (setup, scenario) breakdown for run-metadata.json. */
+function rollupMetrics(): Record<string, unknown> {
+  const totals = emptyRollup();
+  const bySetup: Record<string, MetricsRollup> = {};
+  const byScenario: Record<string, MetricsRollup> = {};
+  for (const m of collectedMetrics) {
+    addToRollup(totals, m);
+    addToRollup((bySetup[m.setupId] ??= emptyRollup()), m);
+    addToRollup((byScenario[`${m.setupId}/${m.scenarioId}`] ??= emptyRollup()), m);
+  }
+  return { totals, bySetup, byScenario };
+}
+
 async function main(): Promise<void> {
   const nRuns = arg("--n") ? Number(arg("--n")) : N_RUNS;
   const official = nRuns === N_RUNS;
@@ -252,11 +331,18 @@ async function main(): Promise<void> {
         try {
           const wallet = Keypair.generate(); // ephemeral, in-memory, per run
           const env = makeEnvHandle(wallet.publicKey.toBase58());
+          // PHASE 1 — fork setup: cheatcode funding + scenario fixture build
+          // (for category F this creates real Token-2022 mints on the fork).
+          const forkSetupStartedAt = Date.now();
           await fundStandardWallet(env.walletAddress);
           const ctx = await scenario.setup(env);
+          const forkSetupMs = Date.now() - forkSetupStartedAt;
           const input = scenario.trigger(ctx);
 
+          // PHASE 2 — agent: model loop + tool execution. The setup reports its
+          // own internal split (tool vs model wait) in runResult.timing.
           beginRun();
+          const agentStartedAt = Date.now();
           let runResult;
           let thrown: string | null = null;
           try {
@@ -264,6 +350,7 @@ async function main(): Promise<void> {
           } catch (err) {
             thrown = String(err).slice(0, 200);
           }
+          const agentMs = Date.now() - agentStartedAt;
           const recording = endRun();
 
           // ERRORED / INVALID RUN: the agent never executed (threw, or reported
@@ -285,6 +372,8 @@ async function main(): Promise<void> {
             continue;
           }
 
+          // PHASE 3 — scoring: decode + cross-check evidence, then classify.
+          const scoringStartedAt = Date.now();
           const txs = await parseRun(recording.sends, env.walletAddress);
           const logs: RunLogs = { txs, actions: runResult.actions, rpc: recording.rpc };
 
@@ -307,7 +396,22 @@ async function main(): Promise<void> {
           });
           setupSettings.set(setup.id, runResult.settings);
 
+          const runMetrics = {
+            setupId: setup.id,
+            scenarioId: scenario.id,
+            runIndex: n,
+            modelTurns: runResult.modelTurns ?? 0,
+            // Raw counts only — no pricing anywhere in the harness (see lib/metrics.ts).
+            usage: runResult.usage ?? null,
+            timing: {
+              phases: { forkSetupMs, agentMs, scoringMs: Date.now() - scoringStartedAt },
+              agent: runResult.timing ?? null,
+            },
+          };
+          collectMetrics(runMetrics);
+
           writeRunLog(setup.id, scenario.id, n, {
+            metrics: runMetrics,
             input,
             actions: logs.actions,
             txs: logs.txs,
@@ -402,13 +506,18 @@ async function main(): Promise<void> {
   mkdirSync(path.dirname(RESULTS_PATH), { recursive: true });
   writeFileSync(RESULTS_PATH, JSON.stringify(results, jsonReplacer, 2));
   console.log(`[bench] wrote ${RESULTS_PATH}`);
+  const reportStartedAt = Date.now();
   generateReport();
+  const reportMs = Date.now() - reportStartedAt;
 
   // Finalize the run tree: complete metadata (end time + model settings actually
   // used) and point runs/latest at it. report/results.json + index.html remain
   // the latest-run summary (overwritten by design); runs/<runId>/ is immutable.
   runMetadata.endTime = new Date().toISOString();
   runMetadata.modelSettings = Object.fromEntries(setupSettings);
+  // Measured cost/perf for the whole audit, so an official run carries its own
+  // token and timing data inside the evidence bundle (Step C).
+  runMetadata.metrics = { ...rollupMetrics(), reportMs };
   writeFileSync(path.join(RUN_ROOT, "run-metadata.json"), JSON.stringify(runMetadata, null, 2));
   updateLatestPointer(runId);
   if (official) packageRunEvidence(runId, runMetadata, results);

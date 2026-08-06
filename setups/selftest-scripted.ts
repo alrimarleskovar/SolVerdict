@@ -14,7 +14,8 @@
  */
 import { Connection, Keypair } from "@solana/web3.js";
 import type { AgentInput, ScenarioContext, Setup, SetupRunResult } from "../lib/types.js";
-import { executeToolCall, type ToolContext } from "./tools.js";
+import { deriveTiming, emptyUsage } from "../lib/metrics.js";
+import { executeToolCall, newToolMetrics, type ToolContext } from "./tools.js";
 import { detectScenario } from "./detect-scenario.js";
 
 const selftest: Setup = {
@@ -23,7 +24,9 @@ const selftest: Setup = {
   description: "Deterministic harness self-test (no API key). Plays an ideally-safe operator; not a published setup.",
   async run(_input: AgentInput, wallet: Keypair, rpcUrl: string, ctx: ScenarioContext): Promise<SetupRunResult> {
     const connection = new Connection(rpcUrl, "processed");
-    const tc: ToolContext = { wallet, connection, ctx, actions: [] };
+    const metrics = newToolMetrics();
+    const tc: ToolContext = { wallet, connection, ctx, actions: [], metrics };
+    const runStartedAt = Date.now();
     const p = ctx.params;
     const id = detectScenario(p);
     const call = (tool: string, args: unknown) => executeToolCall(tc, tool, args);
@@ -114,7 +117,22 @@ const selftest: Setup = {
     }
 
     // Deterministic, model-free: always a valid (scoreable) run.
-    return { actions: tc.actions, finalText: note, ok: true, modelTurns: 1, settings: { framework: "scripted-selftest", deterministic: true } };
+    return {
+      actions: tc.actions,
+      // no model: token cost is structurally zero, not merely unmeasured.
+      usage: emptyUsage(),
+      timing: deriveTiming({
+        runMs: Date.now() - runStartedAt,
+        toolMs: metrics.toolMs,
+        toolCalls: metrics.toolCalls,
+        chainSubmitMs: metrics.chainSubmitMs,
+        toolBreakdown: "split",
+      }),
+      finalText: note,
+      ok: true,
+      modelTurns: 1,
+      settings: { framework: "scripted-selftest", deterministic: true },
+    };
   },
 };
 

@@ -22,6 +22,7 @@ import { SolanaAgentKit, KeypairWallet, createVercelAITools } from "solana-agent
 import TokenPlugin from "@solana-agent-kit/plugin-token";
 import { Keypair } from "@solana/web3.js";
 import { MODELS, MAX_AGENT_STEPS } from "../config/params.js";
+import { deriveTiming, emptyUsage, usageFromGenerateText } from "../lib/metrics.js";
 import type { ActionLogEntry, AgentInput, ScenarioContext, Setup, SetupRunResult } from "../lib/types.js";
 
 const SYSTEM_PROMPT =
@@ -67,6 +68,12 @@ const sakClaude: Setup = {
     const agent = new SolanaAgentKit(skWallet, rpcUrl, {}).use(plugin);
 
     const actions: ActionLogEntry[] = [];
+    const runStartedAt = Date.now();
+    // SAK performs its own RPC inside each action and exposes no seam between
+    // framework logic and chain work, so tool time here is BLENDED — measured
+    // exactly, but not decomposable into LLM-vs-Solana beyond this boundary.
+    let toolMs = 0;
+    let toolCalls = 0;
     const rawTools = createVercelAITools(agent, agent.actions) as Record<string, any>;
 
     // Re-key by action id and wrap execute() to capture the action log.
@@ -81,10 +88,14 @@ const sakClaude: Setup = {
           const index = actions.length;
           const observedAt = Date.now();
           let result: unknown;
+          const execStartedAt = Date.now();
           try {
             result = await originalExecute(args, opts);
           } catch (err) {
             result = { error: String(err).slice(0, 200) };
+          } finally {
+            toolMs += Date.now() - execStartedAt;
+            toolCalls++;
           }
           actions.push({
             index,
@@ -107,6 +118,7 @@ const sakClaude: Setup = {
 
     let finalText = "";
     let modelTurns = 0;
+    const usage = emptyUsage();
     let runError: string | undefined;
     try {
       const res = await generateText({
@@ -117,6 +129,9 @@ const sakClaude: Setup = {
         maxSteps: MAX_AGENT_STEPS,
       });
       finalText = res.text;
+      // Per-step usage is the ground truth in a multi-step tool loop: the SDK
+      // re-sends the growing transcript each turn, so input tokens compound.
+      Object.assign(usage, usageFromGenerateText(res));
       // A returned generateText means at least one model response was produced;
       // res.steps counts the model turns in the loop.
       modelTurns = Array.isArray(res.steps) && res.steps.length > 0 ? res.steps.length : 1;
@@ -127,6 +142,14 @@ const sakClaude: Setup = {
 
     return {
       actions,
+      usage,
+      timing: deriveTiming({
+        runMs: Date.now() - runStartedAt,
+        toolMs,
+        toolCalls,
+        // No chainSubmitMs: SAK submits internally with no exposed seam.
+        toolBreakdown: "blended",
+      }),
       finalText,
       // ok=false when generateText threw before any model turn (e.g. 401):
       // the run is errored/invalid and excluded from N, never scored contained.

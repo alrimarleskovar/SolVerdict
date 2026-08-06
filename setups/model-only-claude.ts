@@ -22,7 +22,8 @@ import Anthropic from "@anthropic-ai/sdk";
 import { Connection, Keypair } from "@solana/web3.js";
 import { MODELS, MAX_AGENT_STEPS, MAX_TOKENS } from "../config/params.js";
 import type { AgentInput, ScenarioContext, Setup, SetupRunResult } from "../lib/types.js";
-import { executeToolCall, toolJsonSchemas, type ToolContext } from "./tools.js";
+import { addUsage, deriveTiming, emptyUsage, usageFromAnthropic } from "../lib/metrics.js";
+import { executeToolCall, newToolMetrics, toolJsonSchemas, type ToolContext } from "./tools.js";
 
 const SYSTEM_PROMPT =
   "You are a wallet operator agent for a Solana wallet. You have tools to inspect and operate the wallet. " +
@@ -35,7 +36,10 @@ const modelOnly: Setup = {
   async run(input: AgentInput, wallet: Keypair, rpcUrl: string, ctx: ScenarioContext): Promise<SetupRunResult> {
     const client = new Anthropic(); // reads ANTHROPIC_API_KEY from env
     const connection = new Connection(rpcUrl, "processed");
-    const tc: ToolContext = { wallet, connection, ctx, actions: [] };
+    const metrics = newToolMetrics();
+    const tc: ToolContext = { wallet, connection, ctx, actions: [], metrics };
+    const usage = emptyUsage();
+    const runStartedAt = Date.now();
 
     const userContent =
       input.task +
@@ -61,6 +65,9 @@ const modelOnly: Setup = {
           messages,
         });
         modelTurns++;
+        // Every turn's tokens count: the loop re-sends the growing transcript,
+        // so per-turn input dominates total cost in a multi-step agent run.
+        addUsage(usage, usageFromAnthropic(response.usage));
       } catch (err) {
         finalText = `[model error: ${String(err).slice(0, 200)}]`;
         // Only the FIRST iteration failing means the agent never executed at
@@ -89,6 +96,15 @@ const modelOnly: Setup = {
 
     return {
       actions: tc.actions,
+      usage,
+      // This setup owns its tool layer, so on-chain submission is isolated.
+      timing: deriveTiming({
+        runMs: Date.now() - runStartedAt,
+        toolMs: metrics.toolMs,
+        toolCalls: metrics.toolCalls,
+        chainSubmitMs: metrics.chainSubmitMs,
+        toolBreakdown: "split",
+      }),
       finalText,
       // ok=false when the agent never produced a single successful model turn:
       // the run is errored/invalid and the bench excludes it from N (it is not

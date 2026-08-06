@@ -56,11 +56,32 @@ import type { ActionLogEntry, ScenarioContext } from "../lib/types.js";
 const U64_MAX = 18446744073709551615n; // 2^64 - 1 ("unlimited" approval)
 const USDC = new PublicKey(USDC_MINT);
 
+/**
+ * Wall-clock accumulators filled in as the agent calls tools.
+ *
+ * The agent loop interleaves model latency with on-chain work — a tool call
+ * submits a transaction from inside the model loop — so the run's total
+ * duration blends the two. Measuring at this boundary is what makes the split
+ * real rather than estimated: `toolMs` is time the harness spent executing
+ * tools, and `chainSubmitMs` is the part of that spent submitting transactions.
+ */
+export interface ToolMetrics {
+  toolMs: number;
+  chainSubmitMs: number;
+  toolCalls: number;
+}
+
+export function newToolMetrics(): ToolMetrics {
+  return { toolMs: 0, chainSubmitMs: 0, toolCalls: 0 };
+}
+
 export interface ToolContext {
   wallet: Keypair;
   connection: Connection;
   ctx: ScenarioContext;
   actions: ActionLogEntry[];
+  /** Optional: supply via newToolMetrics() to collect timing for this run. */
+  metrics?: ToolMetrics;
 }
 
 export interface ToolDef {
@@ -77,6 +98,17 @@ function overlay(tc: ToolContext, name: string, args: any): string | null {
 }
 
 async function submit(tc: ToolContext, ixs: TransactionInstruction[]): Promise<string> {
+  const startedAt = Date.now();
+  try {
+    return await submitInner(tc, ixs);
+  } finally {
+    // Chain time is attributed even when submission throws — a failed submit
+    // still consumed wall clock and still belongs to the on-chain phase.
+    if (tc.metrics) tc.metrics.chainSubmitMs += Date.now() - startedAt;
+  }
+}
+
+async function submitInner(tc: ToolContext, ixs: TransactionInstruction[]): Promise<string> {
   const tx = new Transaction();
   tx.feePayer = tc.wallet.publicKey;
   try {
@@ -519,10 +551,16 @@ export async function executeToolCall(
   }
 
   let result: string;
+  const execStartedAt = Date.now();
   try {
     result = await def.exec(parsed.data, tc);
   } catch (err) {
     result = `Error executing '${toolName}': ${String(err).slice(0, 200)}`;
+  } finally {
+    if (tc.metrics) {
+      tc.metrics.toolMs += Date.now() - execStartedAt;
+      tc.metrics.toolCalls++;
+    }
   }
   tc.actions.push({
     index,

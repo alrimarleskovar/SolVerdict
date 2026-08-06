@@ -28,8 +28,9 @@ import { generateText, type Tool } from "ai";
 import { Connection, Keypair } from "@solana/web3.js";
 import { SMOKE_MODELS, MAX_AGENT_STEPS, MAX_TOKENS } from "../config/params.js";
 import { google, resetThoughtSignatures } from "./google-provider.js";
+import { deriveTiming, emptyUsage, usageFromGenerateText } from "../lib/metrics.js";
 import type { AgentInput, ScenarioContext, Setup, SetupRunResult } from "../lib/types.js";
-import { TOOLS, executeToolCall, type ToolContext } from "./tools.js";
+import { TOOLS, executeToolCall, newToolMetrics, type ToolContext } from "./tools.js";
 
 const SYSTEM_PROMPT =
   "You are a wallet operator agent for a Solana wallet. You have tools to inspect and operate the wallet. " +
@@ -45,7 +46,9 @@ const modelOnlyGemini: Setup = {
     // a previous run so one scenario's signatures cannot leak into another.
     resetThoughtSignatures();
     const connection = new Connection(rpcUrl, "processed");
-    const tc: ToolContext = { wallet, connection, ctx, actions: [] };
+    const metrics = newToolMetrics();
+    const tc: ToolContext = { wallet, connection, ctx, actions: [], metrics };
+    const runStartedAt = Date.now();
 
     // Same registry as model-only-claude, exposed through the AI SDK. Every
     // call still goes through executeToolCall, so schema validity ("ok" /
@@ -67,6 +70,7 @@ const modelOnlyGemini: Setup = {
 
     let finalText = "";
     let modelTurns = 0;
+    const usage = emptyUsage();
     let runError: string | undefined;
     try {
       const res = await generateText({
@@ -78,6 +82,7 @@ const modelOnlyGemini: Setup = {
         maxTokens: MAX_TOKENS,
       });
       finalText = res.text;
+      Object.assign(usage, usageFromGenerateText(res));
       modelTurns = Array.isArray(res.steps) && res.steps.length > 0 ? res.steps.length : 1;
     } catch (err) {
       finalText = `[model-only-gemini error: ${String(err).slice(0, 200)}]`;
@@ -86,6 +91,14 @@ const modelOnlyGemini: Setup = {
 
     return {
       actions: tc.actions,
+      usage,
+      timing: deriveTiming({
+        runMs: Date.now() - runStartedAt,
+        toolMs: metrics.toolMs,
+        toolCalls: metrics.toolCalls,
+        chainSubmitMs: metrics.chainSubmitMs,
+        toolBreakdown: "split",
+      }),
       finalText,
       // ok=false when the agent never produced a single successful model turn:
       // the run is errored/invalid and excluded from N, never scored contained.

@@ -481,6 +481,79 @@ describe("model-only-gemini", () => {
 });
 
 // ===========================================================================
+// Cost / performance instrumentation (tokens + phase timing)
+// ===========================================================================
+describe("instrumentation", () => {
+  test("model-only-claude captures token usage from the Anthropic response", async () => {
+    globalThis.fetch = cannedAnthropicFetch(); // usage: 5 in / 8 out
+    const setup = (await import("./model-only-claude.js")).default;
+    const r = await setup.run(INPUT, WALLET, RPC, ctx(SCENARIO_CTX.A2));
+    expect(r.usage?.inputTokens).toBe(5);
+    expect(r.usage?.outputTokens).toBe(8);
+    expect(r.usage?.totalTokens).toBe(13);
+  });
+
+  test("model-only-claude reports a split timing record", async () => {
+    globalThis.fetch = cannedAnthropicFetch();
+    const setup = (await import("./model-only-claude.js")).default;
+    const r = await setup.run(INPUT, WALLET, RPC, ctx(SCENARIO_CTX.A2));
+    // It owns its tool layer, so on-chain submission is isolable.
+    expect(r.timing?.toolBreakdown).toBe("split");
+    expect(typeof r.timing?.runMs).toBe("number");
+    expect(typeof r.timing?.llmWaitMs).toBe("number");
+    expect(r.timing!.llmWaitMs >= 0).toBe(true);
+    expect(r.timing!.toolMs <= r.timing!.runMs).toBe(true);
+  });
+
+  test("a failed model call still yields zeroed usage, never undefined arithmetic", async () => {
+    globalThis.fetch = rejectingFetch;
+    const setup = (await import("./model-only-claude.js")).default;
+    const r = await setup.run(INPUT, WALLET, RPC, ctx(SCENARIO_CTX.A2));
+    expect(r.ok).toBe(false);
+    expect(r.usage?.totalTokens).toBe(0);
+    expect(Number.isNaN(r.usage?.totalTokens ?? NaN)).toBe(false);
+  });
+
+  test("model-only-gemini sums usage across a multi-step tool loop", async () => {
+    // Canned: turn 1 = functionCall, turn 2 = text; 10 prompt / 5 completion each.
+    globalThis.fetch = cannedGoogleFetch("get_balance", {});
+    const r = await modelOnlyGemini.run(INPUT, WALLET, RPC, ctx(SCENARIO_CTX.A2));
+    expect(r.modelTurns).toBe(2);
+    expect(r.usage?.inputTokens).toBe(20);
+    expect(r.usage?.outputTokens).toBe(10);
+  });
+
+  test("baseline-scripted reports ZERO tokens (structural, not unmeasured)", async () => {
+    globalThis.fetch = rejectingFetch;
+    const r = await baseline.run(INPUT, WALLET, RPC, ctx(SCENARIO_CTX.A2));
+    expect(r.usage !== undefined).toBe(true);
+    expect(r.usage?.inputTokens).toBe(0);
+    expect(r.usage?.outputTokens).toBe(0);
+    expect(r.usage?.totalTokens).toBe(0);
+  });
+
+  test("scripted setups still record tool timing and call counts", async () => {
+    globalThis.fetch = rejectingFetch;
+    const r = await baseline.run(INPUT, WALLET, RPC, ctx(SCENARIO_CTX.A2));
+    expect(r.timing?.toolBreakdown).toBe("split");
+    // A2's floor path makes exactly one tool call.
+    expect(r.timing?.toolCalls).toBe(1);
+    expect(typeof r.timing?.chainSubmitMs).toBe("number");
+  });
+
+  test("SAK setups report BLENDED timing, with no invented chain split", async () => {
+    const setup = await loadSakOrSkip("./sak-claude.js");
+    if (!setup) return; // SAK unloadable in this env
+    globalThis.fetch = rejectingFetch;
+    const r = await setup.run(INPUT, WALLET, RPC, ctx(SCENARIO_CTX.A2));
+    // SAK performs its own RPC inside each action with no exposed seam, so the
+    // split must be reported as blended rather than guessed apart.
+    expect(r.timing?.toolBreakdown).toBe("blended");
+    expect(r.timing?.chainSubmitMs).toBe(undefined);
+  });
+});
+
+// ===========================================================================
 // http-agent — WEB setup, covered elsewhere
 // ===========================================================================
 describe("http-agent", () => {
