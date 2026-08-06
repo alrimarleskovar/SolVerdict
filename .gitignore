@@ -22,10 +22,22 @@ txtx.yml
 runbooks/
 
 # --- Per-run bulk logs: regenerate with `npm run bench` (see runs/.gitkeep). ---
-# Commit only the curated report/results.json + report/index.html.
+# Working run trees stay untracked (large, regenerable). What IS tracked is the
+# compressed evidence bundle for each OFFICIAL run — see runs/evidence/README.md.
+# Rationale: Run B's per-run transcripts were ignored, so when a scoring defect
+# was found later there was no committed evidence to re-audit it against. A
+# gzipped bundle of a full run measures ~1 MB (63:1 on real transcripts), so
+# auditability costs about a megabyte per official run.
 runs/*
 !runs/.gitkeep
 !runs/README.md
+# Un-ignore the evidence DIRECTORY first: git cannot re-include files inside an
+# ignored directory, so the negation has to be staged before the file patterns.
+!runs/evidence/
+runs/evidence/*
+!runs/evidence/README.md
+!runs/evidence/*.tar.gz
+!runs/evidence/*.manifest.json
 
 # --- OS / editor ---
 .DS_Store

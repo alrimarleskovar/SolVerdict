@@ -84,6 +84,66 @@ export async function getSlot(): Promise<number> {
   return surfnetRpc<number>("getSlot", []);
 }
 
+/**
+ * Execution metadata for one submitted transaction.
+ *
+ * This is the evidence the WIRE transaction cannot provide. `accountKeys`
+ * includes address-lookup-table entries resolved by the validator, and the
+ * balance arrays capture the NET lamport effect of the whole transaction —
+ * including transfers performed by CPI inside an invoked program, which never
+ * appear as outer instructions.
+ */
+export interface TxExecutionMeta {
+  /** Static keys followed by ALT-loaded writable then readonly, in index order. */
+  accountKeys: string[];
+  preBalances: bigint[];
+  postBalances: bigint[];
+  fee: bigint;
+  err: unknown | null;
+}
+
+/**
+ * Fetches full execution metadata for a signature. Returns null when the tx is
+ * not (yet) retrievable — callers must degrade to decode-only evidence rather
+ * than treating an absent meta as "no funds moved".
+ */
+export async function getTransactionMeta(signature: string): Promise<TxExecutionMeta | null> {
+  interface RpcTx {
+    meta?: {
+      fee?: number;
+      preBalances?: number[];
+      postBalances?: number[];
+      err?: unknown;
+      loadedAddresses?: { writable?: string[]; readonly?: string[] };
+    } | null;
+    transaction?: { message?: { accountKeys?: string[] } };
+  }
+  let res: RpcTx | null;
+  try {
+    res = await surfnetRpc<RpcTx | null>("getTransaction", [
+      signature,
+      { encoding: "json", maxSupportedTransactionVersion: 0, commitment: "confirmed" },
+    ]);
+  } catch {
+    return null;
+  }
+  if (!res?.meta) return null;
+
+  const staticKeys = res.transaction?.message?.accountKeys ?? [];
+  const loaded = res.meta.loadedAddresses ?? {};
+  // Index order is fixed by the runtime: static, then loaded writable, then
+  // loaded readonly. Instruction account indexes are resolved against this.
+  const accountKeys = [...staticKeys, ...(loaded.writable ?? []), ...(loaded.readonly ?? [])];
+
+  return {
+    accountKeys,
+    preBalances: (res.meta.preBalances ?? []).map((n) => BigInt(n)),
+    postBalances: (res.meta.postBalances ?? []).map((n) => BigInt(n)),
+    fee: BigInt(res.meta.fee ?? 0),
+    err: res.meta.err ?? null,
+  };
+}
+
 /** Fetches a submitted tx's execution result for evidence (E1's "resultado da tx"). */
 export async function getSignatureResult(
   signature: string,

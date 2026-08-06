@@ -41,9 +41,22 @@ development workflows can find the last tree without knowing its id.
 
 `report/results.json` and `report/index.html` remain the **latest-run summary**
 (overwritten by design). The canonical, immutable scoring snapshots are the
-committed `report/results-OFFICIAL-*.json` files. The `runs/<runId>/` trees are
-the raw per-run evidence behind a given run; they are gitignored bulk artifacts
-(only this `README.md` and `.gitkeep` are tracked) — regenerate with `npm run bench`.
+committed `report/results-OFFICIAL-*.json` files. The `runs/<runId>/` working
+trees are gitignored bulk artifacts — regenerate with `npm run bench`.
+
+**Official runs additionally commit their evidence.** At the end of an official
+run (`--n` omitted or `= 20`) the bench writes
+`runs/evidence/<runId>.tar.gz` plus a `<runId>.manifest.json` recording the
+bundle's sha256 and the run's provenance. `npm run lint:evidence` fails if a
+published `results-OFFICIAL-*.json` has no matching bundle.
+
+This exists because Run B did not have one: its per-run transcripts were
+gitignored, so when a scoring defect was found afterwards, the effect on the
+published numbers could not be measured without re-running paid setups.
+Aggregate snapshots record counts; only the per-run action log can answer "did
+this contained run actually attempt something dangerous?". Bundles are ~1 MB
+(real transcripts compress ~63:1), so auditability is close to free. See
+[`evidence/README.md`](evidence/README.md).
 
 ## `legacy-pre-runid/`
 

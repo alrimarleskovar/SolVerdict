@@ -9,7 +9,7 @@ import { VersionedTransaction, PublicKey } from "@solana/web3.js";
 import bs58 from "bs58";
 import type { ParsedInstruction, SubmittedTx } from "../lib/types.js";
 import type { RawSend } from "./recorder.js";
-import { getSignatureResult } from "./cheatcodes.js";
+import { getSignatureResult, getTransactionMeta, type TxExecutionMeta } from "./cheatcodes.js";
 
 const SYSTEM_PROGRAM = "11111111111111111111111111111111";
 const TOKEN_PROGRAM = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA";
@@ -107,11 +107,23 @@ function decodeWire(raw: string): { tx: VersionedTransaction; bytes: Uint8Array 
   return { tx: VersionedTransaction.deserialize(bytes), bytes };
 }
 
-/** Decodes one captured send. Throws only on totally undecodable bytes. */
-export function parseRawSend(send: RawSend, walletAddress: string): SubmittedTx {
+/**
+ * Decodes one captured send.
+ *
+ * `resolvedKeys`, when supplied, is the FULL account-key list from execution
+ * metadata (static keys followed by ALT-loaded writable then readonly). Without
+ * it, any account an address lookup table supplied resolves to the literal
+ * string "unknown" — which silently defeats every destination-based check,
+ * because a transfer to a looked-up address has no recognisable target. Throws
+ * only on totally undecodable bytes.
+ */
+export function parseRawSend(send: RawSend, walletAddress: string, resolvedKeys?: string[]): SubmittedTx {
   const { tx } = decodeWire(send.txBase64);
   const msg = tx.message;
-  const keys = msg.staticAccountKeys.map((k) => k.toBase58());
+  const staticKeys = msg.staticAccountKeys.map((k) => k.toBase58());
+  // Prefer the resolved list, but never let a short/……truncated meta list lose
+  // statically-known keys.
+  const keys = resolvedKeys && resolvedKeys.length >= staticKeys.length ? resolvedKeys : staticKeys;
   const instructions: ParsedInstruction[] = msg.compiledInstructions.map((ci) => {
     const programId = keys[ci.programIdIndex] ?? "unknown";
     const accounts = ci.accountKeyIndexes.map((i) => keys[i] ?? "unknown");
@@ -135,6 +147,8 @@ export function parseRawSend(send: RawSend, walletAddress: string): SubmittedTx 
     signature: sig,
     instructions,
     solOutflowLamports,
+    decodedSolOutflowLamports: solOutflowLamports,
+    outflowSource: "decoded",
     targets,
     programIds,
     observedAt: send.observedAt,
@@ -142,33 +156,119 @@ export function parseRawSend(send: RawSend, walletAddress: string): SubmittedTx 
   };
 }
 
-/** Parses all sends of a run and enriches with execution results. */
-export async function parseRun(sends: RawSend[], walletAddress: string): Promise<SubmittedTx[]> {
+/**
+ * Wallet SOL outflow implied by execution metadata, fee excluded.
+ *
+ * This is the CPI cross-check. Outer-instruction decoding can only see what the
+ * transaction declares at the top level; a router (Jupiter, a DEX aggregator)
+ * declares one opaque instruction and performs the actual transfers by CPI. The
+ * net lamport delta on the wallet account captures those regardless of nesting
+ * depth or program.
+ *
+ * Returns null when metadata is unavailable, so callers can distinguish "no
+ * funds moved" from "we could not tell" — the two must never be conflated.
+ * Inflows clamp to 0: this measures outflow only.
+ */
+export function balanceOutflowFrom(meta: TxExecutionMeta, walletAddress: string): bigint | null {
+  const idx = meta.accountKeys.indexOf(walletAddress);
+  if (idx < 0) return null;
+  const pre = meta.preBalances[idx];
+  const post = meta.postBalances[idx];
+  if (pre === undefined || post === undefined) return null;
+  // The wallet is the fee payer in every SolVerdict run; the fee is a protocol
+  // cost, not an agent-directed transfer, so it is excluded from outflow.
+  const feeShare = idx === 0 ? meta.fee : 0n;
+  const delta = pre - post - feeShare;
+  return delta > 0n ? delta : 0n;
+}
+
+export interface ParseRunOptions {
+  /** Test seam / override for execution-metadata retrieval. */
+  fetchMeta?: (signature: string) => Promise<TxExecutionMeta | null>;
+  fetchExecution?: (signature: string) => Promise<{ confirmed: boolean; err: unknown | null }>;
+}
+
+/**
+ * Parses all sends of a run, resolving ALT addresses and cross-checking outflow
+ * against execution metadata.
+ *
+ * Two passes per send. First the wire transaction is decoded for instruction
+ * structure. Then, if metadata is retrievable, the send is RE-decoded with the
+ * validator's full account-key list (so lookup-table addresses resolve to real
+ * pubkeys instead of "unknown"), and the wallet's net lamport delta is compared
+ * against the decoded outflow. The larger of the two becomes the effective
+ * outflow every scenario check scores on.
+ *
+ * Honest limit: a transaction that REVERTED moved no lamports, so the balance
+ * cross-check reports zero for it. That is correct — no harm occurred — and the
+ * dangerous-intent case is covered separately by the three-outcome rule reading
+ * the action log (prereg §6.1 rule 2).
+ */
+export async function parseRun(
+  sends: RawSend[],
+  walletAddress: string,
+  opts: ParseRunOptions = {},
+): Promise<SubmittedTx[]> {
+  const fetchMeta = opts.fetchMeta ?? getTransactionMeta;
+  const fetchExecution = opts.fetchExecution ?? getSignatureResult;
   const out: SubmittedTx[] = [];
+
   for (const send of sends) {
     let parsed: SubmittedTx;
     try {
       parsed = parseRawSend(send, walletAddress);
-    } catch (err) {
+    } catch {
       // Undecodable submission still counts as an observed send — keep it.
       parsed = {
         index: send.index,
         signature: null,
         instructions: [],
         solOutflowLamports: 0n,
+        decodedSolOutflowLamports: 0n,
+        outflowSource: "decoded",
         targets: [],
         programIds: [],
         observedAt: send.observedAt,
         rawBase64: send.txBase64,
       };
     }
+
     if (parsed.signature) {
       try {
-        parsed.execution = await getSignatureResult(parsed.signature);
+        parsed.execution = await fetchExecution(parsed.signature);
       } catch {
         /* leave execution undefined */
       }
+
+      let meta: TxExecutionMeta | null = null;
+      try {
+        meta = await fetchMeta(parsed.signature);
+      } catch {
+        meta = null;
+      }
+
+      if (meta) {
+        // Re-decode with lookup-table addresses resolved, so destination-based
+        // checks see real pubkeys rather than "unknown".
+        if (meta.accountKeys.length > 0) {
+          try {
+            const redecoded = parseRawSend(send, walletAddress, meta.accountKeys);
+            parsed = { ...redecoded, execution: parsed.execution };
+          } catch {
+            /* keep the first-pass decode */
+          }
+        }
+
+        const decoded = parsed.decodedSolOutflowLamports ?? parsed.solOutflowLamports;
+        const viaBalances = balanceOutflowFrom(meta, walletAddress);
+        if (viaBalances !== null) {
+          parsed.balanceSolOutflowLamports = viaBalances;
+          parsed.solOutflowLamports = viaBalances > decoded ? viaBalances : decoded;
+          parsed.outflowSource = viaBalances > decoded ? "balance-delta" : "agree";
+        }
+      }
     }
+
     out.push(parsed);
   }
   return out;

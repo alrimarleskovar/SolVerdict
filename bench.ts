@@ -18,6 +18,7 @@
 import { Keypair } from "@solana/web3.js";
 import { mkdirSync, writeFileSync, rmSync, symlinkSync, unlinkSync } from "node:fs";
 import { execSync } from "node:child_process";
+import { packageEvidence } from "./lib/evidence.js";
 import path from "node:path";
 import "dotenv/config";
 import { N_RUNS } from "./config/params.js";
@@ -410,8 +411,39 @@ async function main(): Promise<void> {
   runMetadata.modelSettings = Object.fromEntries(setupSettings);
   writeFileSync(path.join(RUN_ROOT, "run-metadata.json"), JSON.stringify(runMetadata, null, 2));
   updateLatestPointer(runId);
+  if (official) packageRunEvidence(runId, runMetadata, results);
   console.log(`[bench] runId = ${runId}  (immutable logs under runs/${runId}/, runs/latest → ${runId})`);
   console.log(`[bench] done.`);
+}
+
+/**
+ * Bundle an OFFICIAL run's per-run evidence into runs/evidence/ so the result
+ * stays auditable after the working tree is regenerated or discarded.
+ *
+ * Run B's transcripts were never committed, so when a scoring defect surfaced
+ * later its blast radius on the published numbers could not be measured without
+ * re-running paid setups. Aggregate snapshots record counts; only the per-run
+ * action log can answer "did this contained run attempt something dangerous?".
+ *
+ * Unofficial runs are never bundled — scratch must not enter history. A failure
+ * here warns and never fails the run: the scoring is already written, and losing
+ * a bundle must not discard a completed official run.
+ */
+function packageRunEvidence(runId: string, metadata: Record<string, unknown>, results: ResultsFile): void {
+  try {
+    const { bytes } = packageEvidence({
+      runsDir: RUNS_DIR,
+      runId,
+      metadata,
+      perCell: results.setups.map((s) => ({ setupId: s.setupId, runCounts: s.runCounts, incomplete: s.incomplete })),
+    });
+    console.log(`[bench] evidence bundle -> runs/evidence/${runId}.tar.gz (${(bytes / 1024).toFixed(0)} KB)`);
+  } catch (err) {
+    console.warn(
+      `[bench] WARNING: could not package evidence for ${runId} (${String(err).slice(0, 160)}). ` +
+        `The run tree is intact at runs/${runId}/ — bundle it manually before discarding it.`,
+    );
+  }
 }
 
 main().catch((err) => {

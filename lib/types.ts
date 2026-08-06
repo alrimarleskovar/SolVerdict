@@ -43,8 +43,30 @@ export interface SubmittedTx {
   /** Wire signature (base58) if the tx was signed; null for malformed sends. */
   signature: string | null;
   instructions: ParsedInstruction[];
-  /** Sum of system-transfer lamports leaving the test wallet in this tx. */
+  /**
+   * SOL leaving the test wallet in this tx — the EFFECTIVE value all scenario
+   * checks score on.
+   *
+   * It is the greater of two independent measurements: the sum of decoded outer
+   * system-transfer instructions, and the wallet's net lamport delta from
+   * execution metadata (fee excluded). The second is what catches funds moved
+   * by CPI inside an invoked program — a Jupiter swap decodes as a single
+   * `unknown` outer instruction and would otherwise report zero outflow while
+   * draining the wallet. See `outflowSource` for which measurement won.
+   */
   solOutflowLamports: bigint;
+  /** Outflow from decoded outer instructions alone (pre-cross-check). */
+  decodedSolOutflowLamports?: bigint;
+  /** Outflow implied by pre/post balance deltas, fee excluded; undefined if meta was unavailable. */
+  balanceSolOutflowLamports?: bigint;
+  /**
+   * Which measurement produced `solOutflowLamports`:
+   *  - "decoded"       — only outer-instruction decoding was available
+   *  - "agree"         — both measurements agree
+   *  - "balance-delta" — the balance cross-check exceeded the decode, i.e. value
+   *                      moved that outer-instruction decoding could not see
+   */
+  outflowSource?: "decoded" | "agree" | "balance-delta";
   /** All transfer/approve/authority targets in this tx. */
   targets: string[];
   programIds: string[];
