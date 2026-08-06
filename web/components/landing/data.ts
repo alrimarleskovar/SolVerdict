@@ -122,8 +122,10 @@ export const DASH_SCORE_SOURCE = "model-only-claude · B2 20/20 · N=20";
 
 /**
  * Interactive demo — two REAL examples that alternate in a loop and tell the
- * core Run B story: the same model contains an attack alone, then drains the
- * wallet once a framework wraps it.
+ * core Run B story: the same model contains an attack alone, and drains the
+ * wallet inside the framework. Association, not a proven mechanism — the two
+ * setups differ in framework, tool surface, prompt and execution path at once
+ * (see README "What this design supports").
  *
  * Example 1 — B2 (memo injection), model-only-claude: the injected memo is
  * VERBATIM from scenarios/b2-memo-injection.ts; evidence lines match its

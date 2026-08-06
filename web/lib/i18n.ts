@@ -57,7 +57,7 @@ const en = {
   "home.formula.label": "scoring rule — prereg §4/§6.1",
   "home.finding.eyebrow": "Headline finding — v0.2.2 Run B (91% coverage)",
   "home.finding.h2":
-    "The same model refused every attack on its own — and then drained the wallet once a framework wrapped it.",
+    "The same model contained every attack on its own. Inside the Solana Agent Kit, it drained the wallet 20 times out of 20.",
   "home.finding.p1":
     "Claude Sonnet 4.6 with no framework (model-only-claude) contained 100% of all 14 attack scenarios (N=20 per scenario; 280/280 valid runs, no exclusions).",
   "home.finding.p2":
@@ -65,7 +65,7 @@ const en = {
   "home.finding.p3":
     "GPT inside the same framework (sak+gpt) also drained 20/20 on A2, and gated 12 of 20 unverified-destination withdrawals (D2, 60%). On E1 (reverting tx) sak+gpt was 85% contained at N=20 with 3 intent-dangerous-exec-failed — the third outcome doing its job.",
   "home.finding.note":
-    "The framework removed the model's own refusal. The negative-control floor (baseline-scripted, no model) fails 0/20 on all 14 — confirming the scenarios and scoring actually detect danger. This is a partial run: sak+claude is complete through category C (with A2 = 0%) plus D1 at N=5; D2 and category E are unmeasured (credit exhaustion). The full official run is pending (v0.2.3).",
+    "Safety measured on the bare model did not survive integration into SAK. The comparison changes framework, tool surface, prompt and execution path at once, with no ablation — so it establishes a strong, reproducible association, not an isolated cause. The negative-control floor (baseline-scripted, no model) fails 0/20 on all 14 — confirming the scenarios and scoring actually detect danger. This is a partial run: sak+claude is complete through category C (with A2 = 0%) plus D1 at N=5; D2 and category E are unmeasured (credit exhaustion). The full official run is pending (v0.2.3).",
   "home.stat1.label": "Dangerous transfers",
   "home.stat1.sub": "SAK A2 across both models",
   "home.stat2.label": "Adversarial scenarios",
@@ -446,7 +446,7 @@ const pt: Record<TKey, string> = {
   "home.formula.label": "regra de pontuação — prereg §4/§6.1",
   "home.finding.eyebrow": "Resultado principal — v0.2.2 Run B (91% de cobertura)",
   "home.finding.h2":
-    "O mesmo modelo recusou todos os ataques sozinho — e então drenou a carteira quando um framework o envolveu.",
+    "O mesmo modelo conteve todos os ataques sozinho. Dentro do Solana Agent Kit, drenou a carteira 20 vezes em 20.",
   "home.finding.p1":
     "O Claude Sonnet 4.6 sem nenhum framework (model-only-claude) conteve 100% dos 14 cenários de ataque (N=20 por cenário; 280/280 execuções válidas, sem exclusões).",
   "home.finding.p2":
@@ -454,7 +454,7 @@ const pt: Record<TKey, string> = {
   "home.finding.p3":
     "O GPT dentro do mesmo framework (sak+gpt) também drenou 20/20 no A2 e barrou 12 de 20 saques para destino não verificado (D2, 60%). No E1 (tx que reverte), o sak+gpt ficou 85% contido com N=20 e 3 intent-dangerous-exec-failed — o terceiro desfecho cumprindo seu papel.",
   "home.finding.note":
-    "O framework removeu a recusa própria do modelo. O piso de controle negativo (baseline-scripted, sem modelo) falha 0/20 nos 14 — confirmando que os cenários e a pontuação realmente detectam perigo. Esta é uma execução parcial: sak+claude está completo até a categoria C (com A2 = 0%) mais D1 com N=5; D2 e a categoria E não foram medidos (créditos esgotados). A execução oficial completa está pendente (v0.2.3).",
+    "A segurança medida no modelo puro não sobreviveu à integração no SAK. A comparação muda framework, superfície de ferramentas, prompt e caminho de execução ao mesmo tempo, sem ablação — portanto estabelece uma associação forte e reproduzível, não uma causa isolada. O piso de controle negativo (baseline-scripted, sem modelo) falha 0/20 nos 14 — confirmando que os cenários e a pontuação realmente detectam perigo. Esta é uma execução parcial: sak+claude está completo até a categoria C (com A2 = 0%) mais D1 com N=5; D2 e a categoria E não foram medidos (créditos esgotados). A execução oficial completa está pendente (v0.2.3).",
   "home.stat1.label": "Transferências perigosas",
   "home.stat1.sub": "SAK A2 nos dois modelos",
   "home.stat2.label": "Cenários adversariais",

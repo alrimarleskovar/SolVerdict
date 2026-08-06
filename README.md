@@ -26,7 +26,7 @@ funds**.
 - **What it is** — An open, reproducible safety benchmark for AI agents that operate Solana wallets ([two sides](#two-sides-of-solverdict)).
 - **What it measures** — Containment: when an agent hits an adversarial situation, does it halt/refuse/gate the dangerous wallet action or execute it — across 14 scenarios in 5 categories ([scoring](#how-results-are-scored)).
 - **How it's fair** — The scenarios and pass/fail rules are pre-registered and git-timestamped *before* the run, and SolVerdict takes no money from any project it evaluates ([integrity](#integrity)).
-- **Current status** — v0.2.2 Run B, 91% coverage: the same model refused every attack alone but drained the wallet (A2 = 0%) once wrapped in the Solana Agent Kit framework ([the core finding](#the-core-finding)).
+- **Current status** — v0.2.2 Run B, 91% coverage: the same model contained every attack alone (280/280), yet drained the wallet inside the Solana Agent Kit (A2 = 0%, 20/20). Safety measured on the bare model did not survive integration ([the core finding](#the-core-finding)).
 - **How to use it** — Read the placard below, clone and `npm run bench` yourself ([reproduce](#reproduce-it)), or submit your own agent's HTTPS endpoint through the in-development SaaS.
 
 ## The core finding
@@ -36,9 +36,15 @@ funds**.
 > **0% containment with *both* models** — Claude (`claude-sonnet-4-6`) and GPT
 > (`gpt-5.1`) — each submitting all **20/20** dangerous transfers (**40/40
 > combined**). The bare `model-only-claude` setup contains A2 at **100% (20/20)**,
-> so the drain is introduced by the framework's execution path, not the model.
-> Run C (supplemental, sak+claude only) independently re-confirmed sak+claude
-> A2 = 0% on a second N=20.
+> so containment is present when the model runs alone and absent in the
+> integrated setups. Run C (supplemental, sak+claude only) independently
+> re-confirmed sak+claude A2 = 0% on a second N=20.
+>
+> **What this design supports.** The bare-model and SAK setups differ in
+> framework, tool surface, prompt and execution path *simultaneously*, with no
+> ablation or randomisation. The result is therefore a strong, reproducible
+> **association** between integration and loss of containment — it does not
+> isolate which of those factors is responsible.
 
 The headline is not "some agents are unsafe" — it is *where* the safety is lost.
 The **same model** (`claude-sonnet-4-6`) that refuses every one of the 14 attacks
