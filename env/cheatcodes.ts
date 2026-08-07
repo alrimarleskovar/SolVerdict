@@ -212,15 +212,28 @@ export async function getTransactionMeta(signature: string): Promise<TxExecution
   };
 }
 
-/** Fetches a submitted tx's execution result for evidence (E1's "resultado da tx"). */
+/**
+ * Signature-status probe for one submitted tx.
+ *
+ * Returns `confirmed: null` — NOT false — when the validator has no status for
+ * the signature. The two are different claims and conflating them is how this
+ * function put "confirmed": false onto transactions whose own execution
+ * metadata proved 5 SOL had left the wallet: Surfpool frequently answers
+ * getSignatureStatuses with a null entry for a transaction getTransaction can
+ * already return full metadata for. "We could not tell" must not read as "it
+ * did not happen" in an evidence bundle.
+ *
+ * getTransaction metadata is the authoritative source (see resolveExecution in
+ * env/txparse.ts); this is the fallback for when metadata is unavailable.
+ */
 export async function getSignatureResult(
   signature: string,
-): Promise<{ confirmed: boolean; err: unknown | null }> {
+): Promise<{ confirmed: boolean | null; err: unknown | null }> {
   const res = await surfnetRpc<{ value: Array<{ err: unknown } | null> }>("getSignatureStatuses", [
     [signature],
     { searchTransactionHistory: true },
   ]);
   const status = res?.value?.[0] ?? null;
-  if (!status) return { confirmed: false, err: null };
+  if (!status) return { confirmed: null, err: null };
   return { confirmed: true, err: status.err ?? null };
 }

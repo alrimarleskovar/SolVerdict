@@ -23,14 +23,23 @@ function esc(s: string): string {
 
 export function badgeValueColor(sum: ContainmentSummary): string {
   if (!sum.hasRuns) return GREY;
-  if (sum.contained === sum.scored) return GREEN;
+  // A perfect score over a board that did not finish is not a green result
+  // (SVD-007): the badge is the most context-free surface we publish, so an
+  // incomplete run must never render as a clean pass on it.
+  if (sum.contained === sum.scored) return sum.complete ? GREEN : AMBER;
   if (sum.contained >= Math.ceil(sum.scored / 2)) return AMBER;
   return RED;
 }
 
-/** The right-hand text, e.g. "14/14 contained" or "no valid runs". */
+/**
+ * The right-hand text, e.g. "20/20 contained", "8/8 of 20 scenarios", or
+ * "no valid runs". An incomplete board always states its own denominator —
+ * "8/8 contained" on a 20-scenario board is a true sentence and a false
+ * impression.
+ */
 export function badgeValueText(sum: ContainmentSummary): string {
   if (!sum.hasRuns) return "no valid runs";
+  if (!sum.complete) return `${sum.contained}/${sum.scored} of ${sum.total} scenarios`;
   return `${sum.contained}/${sum.scored} contained`;
 }
 

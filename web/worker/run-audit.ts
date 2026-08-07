@@ -33,7 +33,8 @@ import { PAYMENT_MAX_AGE_MS } from "../lib/payment";
 import { sendAuditNotification, type NotifyStatus } from "../lib/notify";
 import { makeHttpAgentSetup } from "../setups/http-agent";
 import { SCENARIOS } from "../../scenarios";
-import { scoreSetup, classifyOutcome, type RunRecord } from "../../scoring";
+import { scoreSetup, classifyOutcome, type RunRecord, type ScenarioPlan } from "../../scoring";
+import { classifyFailure, type FailurePhase } from "../../lib/missingness";
 import {
   ensureSurfpool,
   startRecorder,
@@ -123,20 +124,34 @@ function representative(t: ScenarioResult): ScenarioProgress["outcome"] {
   return "contained";
 }
 
+/** One scenario's run accounting — the denominator honesty depends on it (SVD-007). */
+export interface ScenarioRunAccounting {
+  /** Runs actually started (below N when the budget deadline cut the loop short). */
+  attempted: number;
+  /** Runs excluded from N, by declared failure class (lib/missingness.ts). */
+  excludedByClass: Record<string, number>;
+}
+
 async function benchScenario(
   scenario: (typeof SCENARIOS)[number],
   endpoint: string,
   N: number,
   deadline: number,
   onLog: (line: string) => void,
-): Promise<{ tally: ScenarioResult; records: RunRecord[] }> {
+): Promise<{ tally: ScenarioResult; records: RunRecord[]; accounting: ScenarioRunAccounting }> {
   let contained = 0;
   let uncontained = 0;
   let intent = 0;
   const records: RunRecord[] = [];
+  const accounting: ScenarioRunAccounting = { attempted: 0, excludedByClass: {} };
+  const exclude = (reason: string, phase: FailurePhase): void => {
+    const cls = classifyFailure(reason, phase);
+    accounting.excludedByClass[cls] = (accounting.excludedByClass[cls] ?? 0) + 1;
+  };
 
   for (let i = 0; i < N; i++) {
     if (Date.now() > deadline) break;
+    accounting.attempted++;
     try {
       const wallet = Keypair.generate();
       const env = makeEnvHandle(wallet.publicKey.toBase58());
@@ -156,7 +171,9 @@ async function benchScenario(
       const recording = endRun();
 
       if (!runResult || runResult.ok === false) {
-        onLog(`${scenario.id} run ${i}: EXCLUDED — ${runResult?.error ?? "agent did not execute"}`);
+        const reason = runResult?.error ?? "agent did not execute (zero successful model turns)";
+        exclude(reason, "agent");
+        onLog(`${scenario.id} run ${i}: EXCLUDED (${classifyFailure(reason, "agent")}) — ${reason}`);
         continue;
       }
 
@@ -181,6 +198,8 @@ async function benchScenario(
       } catch {
         /* recorder already inactive */
       }
+      const reason = `run crashed: ${String(err).slice(0, 200)}`;
+      exclude(reason, "lifecycle");
       onLog(`${scenario.id} run ${i}: crashed — ${String(err).slice(0, 140)}`);
     }
   }
@@ -193,7 +212,7 @@ async function benchScenario(
     uncontained,
     intentDangerousExecFailed: intent,
   };
-  return { tally, records };
+  return { tally, records, accounting };
 }
 
 // ---------------------------------------------------------------------------
@@ -222,6 +241,10 @@ async function runAudit(id: string): Promise<void> {
 
     const records: RunRecord[] = [];
     const covered: string[] = [];
+    // Per-scenario plan accounting. A scenario the budget never reached has
+    // attempted:0 — it is still in the plan, so it still shows up as missing.
+    const attempted = new Map<string, number>();
+    const excludedByScenario = new Map<string, Record<string, number>>();
     let budgetExhausted = false;
 
     for (const scenario of SCENARIOS) {
@@ -233,8 +256,10 @@ async function runAudit(id: string): Promise<void> {
       progress.current = scenario.id;
       await updateAudit(id, { progress });
 
-      const { tally, records: recs } = await benchScenario(scenario, row.endpoint, N, deadline, onLog);
+      const { tally, records: recs, accounting } = await benchScenario(scenario, row.endpoint, N, deadline, onLog);
       records.push(...recs);
+      attempted.set(scenario.id, accounting.attempted);
+      excludedByScenario.set(scenario.id, accounting.excludedByClass);
       if (tally.n > 0) covered.push(scenario.id);
       progress.perScenario.push({ scenarioId: scenario.id, category: scenario.category, outcome: representative(tally) });
       progress.completed += 1;
@@ -243,7 +268,18 @@ async function runAudit(id: string): Promise<void> {
       onLog(`${scenario.id} → ${tally.contained}/${tally.n} contained`);
     }
 
-    const score = scoreSetup(SETUP_ID, records);
+    // Score against the PLAN, not against whatever survived (SVD-007). A
+    // budget-truncated audit stops mid-roster; without this the unreached
+    // scenarios would vanish from their category means and the placard would
+    // read as a clean result over a silently reduced board.
+    const plan: ScenarioPlan[] = SCENARIOS.map((s) => ({
+      scenarioId: s.id,
+      category: s.category,
+      plannedRuns: N,
+      attemptedRuns: attempted.get(s.id) ?? 0,
+      excludedByClass: excludedByScenario.get(s.id) ?? {},
+    }));
+    const score = scoreSetup(SETUP_ID, records, plan);
     const result: AuditResult = {
       setupId: SETUP_ID,
       endpoint: row.endpoint,

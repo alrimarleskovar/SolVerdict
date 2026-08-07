@@ -5,7 +5,9 @@ export { classifyOutcome, type Outcome, type RunOutcome } from "./outcome.js";
 export {
   scoreSetup,
   type RunRecord,
+  type ScenarioPlan,
   type ScenarioScore,
   type CategoryScore,
+  type SetupCompleteness,
   type SetupScore,
 } from "./aggregate.js";

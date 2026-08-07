@@ -25,7 +25,7 @@ import {
   TransactionMessage,
   VersionedTransaction,
 } from "@solana/web3.js";
-import { parseRun, parseRawSend, balanceOutflowFrom } from "./txparse.js";
+import { parseRun, parseRawSend, balanceOutflowFrom, resolveExecution } from "./txparse.js";
 import type { TxExecutionMeta } from "./cheatcodes.js";
 import type { RawSend } from "./recorder.js";
 
@@ -206,6 +206,71 @@ test("legacy tx with static keys parses identically with or without meta", async
   const noMeta = parseRawSend(send(tx), WALLET_ADDR);
   expect(noMeta.solOutflowLamports).toBe(LAMPORTS);
   expect(noMeta.targets.includes(ATTACKER.toBase58())).toBe(true);
+});
+
+// ---------------------------------------------------------------------------
+// 5. execution.confirmed reflects reality (evidence defect found with SVD-007)
+// ---------------------------------------------------------------------------
+test("metadata is authoritative: a tx with meta is confirmed, whatever the status probe says", async () => {
+  let statusProbes = 0;
+  const [tx] = await parseRun([send(jupiterStyleSwapTx())], WALLET_ADDR, {
+    fetchMeta: async () => meta(),
+    // The Surfpool behaviour that caused the defect: getSignatureStatuses has
+    // no entry for a signature getTransaction can already fully describe.
+    fetchExecution: async () => {
+      statusProbes++;
+      return { confirmed: null, err: null };
+    },
+  });
+  expect(tx.execution?.confirmed).toBe(true);
+  expect(tx.execution?.source).toBe("transaction-meta");
+  // The same metadata proves value moved — the two can no longer contradict.
+  expect(tx.balanceSolOutflowLamports).toBe(50_000_000_000n);
+  expect(statusProbes).toBe(0);
+});
+
+test("a runtime failure recorded in metadata surfaces as err, still confirmed", async () => {
+  const [tx] = await parseRun([send(jupiterStyleSwapTx())], WALLET_ADDR, {
+    fetchMeta: async () => meta({ err: { InstructionError: [0, "Custom"] } }),
+    fetchExecution: async () => ({ confirmed: null, err: null }),
+  });
+  expect(tx.execution?.confirmed).toBe(true);
+  expect(tx.execution?.err !== null).toBe(true);
+});
+
+test("without metadata the status probe answers", async () => {
+  const [tx] = await parseRun([send(jupiterStyleSwapTx())], WALLET_ADDR, {
+    fetchMeta: async () => null,
+    fetchExecution: async () => ({ confirmed: true, err: null }),
+  });
+  expect(tx.execution?.confirmed).toBe(true);
+  expect(tx.execution?.source).toBe("signature-status");
+});
+
+test("when nothing answers, confirmation is UNKNOWN — never false", async () => {
+  const [tx] = await parseRun([send(jupiterStyleSwapTx())], WALLET_ADDR, {
+    fetchMeta: async () => null,
+    fetchExecution: async () => ({ confirmed: null, err: null }),
+  });
+  expect(tx.execution?.confirmed).toBe(null);
+  expect(tx.execution?.source).toBe("unavailable");
+});
+
+test("a thrown status probe degrades to unknown rather than to 'did not execute'", async () => {
+  const [tx] = await parseRun([send(jupiterStyleSwapTx())], WALLET_ADDR, {
+    fetchMeta: async () => null,
+    fetchExecution: async () => {
+      throw new Error("rpc down");
+    },
+  });
+  expect(tx.execution?.confirmed).toBe(null);
+  expect(tx.execution?.source).toBe("unavailable");
+});
+
+test("resolveExecution: metadata beats a status probe that says not-confirmed", () => {
+  expect(resolveExecution(meta(), { confirmed: false, err: null }).confirmed).toBe(true);
+  expect(resolveExecution(null, { confirmed: false, err: null }).confirmed).toBe(false);
+  expect(resolveExecution(null, null).confirmed).toBe(null);
 });
 
 (async () => {

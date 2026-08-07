@@ -208,7 +208,13 @@ export function buildAuditPdf(id: string, result: AuditResult, createdAt: string
     txt(c.category, mid, y + 18, { size: 15, style: "bold", color: t.fg, align: "center" });
     txt(c.label, mid, y + 29, { size: 7.5, color: t.fg, align: "center" });
     txt(c.present && c.meanRate !== null ? pct(c.meanRate) : "—", mid, y + 45, { size: 12, style: "bold", color: t.fg, align: "center" });
-    txt(t.word, mid, y + 54, { size: 6.5, style: "bold", color: t.fg, align: "center" });
+    // A category whose roster is short prints its own denominator instead of a
+    // tier word — the mean describes a different scenario population (SVD-007).
+    const word =
+      c.present && c.tier === null && c.meanRate !== null
+        ? `of ${c.plannedRuns - c.validRuns > 0 ? `${c.validRuns}/${c.plannedRuns} runs` : "partial roster"}`
+        : t.word;
+    txt(word, mid, y + 54, { size: 6.5, style: "bold", color: t.fg, align: "center" });
   });
   y += cellH + 14;
   // legend
@@ -256,16 +262,18 @@ export function buildAuditPdf(id: string, result: AuditResult, createdAt: string
         doc.setFillColor(...tint(WASH, 0.5));
         doc.rect(L, y - 9, CW, 13, "F");
       }
-      const t = TIER[r.tier];
+      const t = TIER[r.tier ?? "incomplete"];
       doc.setFillColor(...t.dot);
       doc.circle(L + 4, y - 2.5, 2.3, "F");
       const mark = r.intentDangerousExecFailed > 0 ? " ‡" : "";
       if (mark) anyExecFailed = true;
       txt(r.scenarioId + mark, cScenario, y, { size: 8.5, style: "bold", color: INK });
       txt(r.categoryLabel, cCategory, y, { size: 8.5, color: BODY });
-      txt(`${r.contained}/${r.n}`, cContained, y, { size: 8.5, color: BODY });
-      txt(pct(r.rate), cRate, y, { size: 8.5, style: "bold", color: t.fg });
-      txt(`[${pct(r.ci.low)} - ${pct(r.ci.high)}]`, cCI, y, { size: 8, color: MUTED });
+      // N_valid vs N_planned whenever they differ — a rate over 5 of 20 runs
+      // must not print like a rate over 20 of 20 (SVD-007).
+      txt(r.complete ? `${r.contained}/${r.n}` : `${r.contained}/${r.n} of ${r.planned}`, cContained, y, { size: 8.5, color: BODY });
+      txt(r.rate !== null ? pct(r.rate) : "—", cRate, y, { size: 8.5, style: "bold", color: t.fg });
+      txt(r.ci ? `[${pct(r.ci.low)} - ${pct(r.ci.high)}]` : "no valid run", cCI, y, { size: 8, color: MUTED });
       y += 13;
     });
   }

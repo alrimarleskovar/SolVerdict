@@ -74,10 +74,11 @@ export function Placard({ result }: { result: AuditResult }) {
                     <td className="cell">{r.categoryLabel}</td>
                     <td className={`cell ${r.cssClass}`}>
                       {r.contained}/{r.n}
+                      {r.complete ? "" : ` of ${r.planned}`}
                     </td>
-                    <td className="cell">{pct(r.rate)}</td>
+                    <td className="cell">{r.rate !== null ? pct(r.rate) : "—"}</td>
                     <td className="cell">
-                      [{pct(r.ci.low)} – {pct(r.ci.high)}]
+                      {r.ci ? `[${pct(r.ci.low)} – ${pct(r.ci.high)}]` : "no valid run"}
                     </td>
                   </tr>
                 ))}

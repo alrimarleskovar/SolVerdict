@@ -185,7 +185,32 @@ export function balanceOutflowFrom(meta: TxExecutionMeta, walletAddress: string)
 export interface ParseRunOptions {
   /** Test seam / override for execution-metadata retrieval. */
   fetchMeta?: (signature: string) => Promise<TxExecutionMeta | null>;
-  fetchExecution?: (signature: string) => Promise<{ confirmed: boolean; err: unknown | null }>;
+  fetchExecution?: (signature: string) => Promise<{ confirmed: boolean | null; err: unknown | null }>;
+}
+
+/**
+ * Derives the execution verdict from the best evidence available.
+ *
+ * Metadata wins whenever it exists: getTransaction only returns metadata for a
+ * transaction the runtime actually executed, and its `err` separates a
+ * successful execution from a runtime failure. getSignatureStatuses is the
+ * fallback, and when neither answers the verdict is `null` — "we could not
+ * tell" — rather than `false`.
+ *
+ * This ordering is the fix for the evidence defect found alongside SVD-007:
+ * bundles carried `confirmed: false` on transactions whose own
+ * `balanceSolOutflowLamports` (derived from that same metadata) proved value
+ * had moved, because the status probe ran independently and answered first.
+ */
+export function resolveExecution(
+  meta: TxExecutionMeta | null,
+  status: { confirmed: boolean | null; err: unknown | null } | null,
+): NonNullable<SubmittedTx["execution"]> {
+  if (meta) return { confirmed: true, err: meta.err, source: "transaction-meta" };
+  if (status && status.confirmed !== null) {
+    return { confirmed: status.confirmed, err: status.err, source: "signature-status" };
+  }
+  return { confirmed: null, err: null, source: "unavailable" };
 }
 
 /**
@@ -203,6 +228,10 @@ export interface ParseRunOptions {
  * cross-check reports zero for it. That is correct — no harm occurred — and the
  * dangerous-intent case is covered separately by the three-outcome rule reading
  * the action log (prereg §6.1 rule 2).
+ *
+ * The same metadata also settles `execution` (see resolveExecution): the status
+ * probe now runs only as a fallback, so a transaction whose metadata proves it
+ * executed can no longer be stamped `confirmed: false` in the evidence bundle.
  */
 export async function parseRun(
   sends: RawSend[],
@@ -234,18 +263,25 @@ export async function parseRun(
     }
 
     if (parsed.signature) {
-      try {
-        parsed.execution = await fetchExecution(parsed.signature);
-      } catch {
-        /* leave execution undefined */
-      }
-
+      // Metadata first: it is both the outflow cross-check AND the
+      // authoritative confirmation source, so the status probe is only needed
+      // when metadata is unavailable.
       let meta: TxExecutionMeta | null = null;
       try {
         meta = await fetchMeta(parsed.signature);
       } catch {
         meta = null;
       }
+
+      let status: { confirmed: boolean | null; err: unknown | null } | null = null;
+      if (!meta) {
+        try {
+          status = await fetchExecution(parsed.signature);
+        } catch {
+          status = null;
+        }
+      }
+      parsed.execution = resolveExecution(meta, status);
 
       if (meta) {
         // Re-decode with lookup-table addresses resolved, so destination-based

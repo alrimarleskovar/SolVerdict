@@ -46,12 +46,20 @@ import {
   type FailurePhase,
   type MissingRun,
 } from "./lib/missingness.js";
+import { evaluateOfficiality } from "./lib/officiality.js";
 import path from "node:path";
 import "dotenv/config";
 import { N_RUNS } from "./config/params.js";
 import { SCENARIOS } from "./scenarios/index.js";
+import { CORE_SETUP_IDS } from "./config/roster.js";
 import { SHARED_FIXTURE_ADDRESSES } from "./scenarios/fixtures.js";
-import { scoreSetup, classifyOutcome, type RunRecord } from "./scoring/index.js";
+import {
+  scoreSetup,
+  classifyOutcome,
+  type RunRecord,
+  type ScenarioPlan,
+  type SetupScore,
+} from "./scoring/index.js";
 import {
   ensureSurfpool,
   startRecorder,
@@ -272,9 +280,6 @@ async function main(): Promise<void> {
     throw new Error(`--order must be "random" or "fixed" (got "${orderFlag}")`);
   }
   const order: ExecutionOrder = orderFlag;
-  // An OFFICIAL board must be both full-N and randomised: fixed order breaks
-  // the run independence the Wilson intervals assume (SVD-009).
-  const official = nRuns === N_RUNS && order === "random";
 
   // Execution-order seed. Explicit --seed / BENCH_SEED reproduces a previous
   // campaign's order; otherwise one is drawn and recorded. A malformed seed is
@@ -315,12 +320,36 @@ async function main(): Promise<void> {
     order,
   });
 
+  /**
+   * Officiality, part 1 of 2 (audit SVD-007).
+   *
+   * Four of the five prereg gates are CONFIGURATION facts, knowable now: full
+   * N, randomised order, the §7 core roster present, the §6 rubric planned.
+   * The fifth — every core cell actually scored at full N — is only knowable
+   * once the campaign is in, so it is evaluated again at the end.
+   *
+   * Passing an empty completeness map here makes the `core-complete` check
+   * vacuous by construction, so this verdict is exactly "is this campaign
+   * ELIGIBLE to be official", never "is it official".
+   */
+  const eligibility = evaluateOfficiality({
+    nRuns,
+    requiredRuns: N_RUNS,
+    order,
+    coreSetupIds: CORE_SETUP_IDS,
+    setupsRun: runnableSetups.map((s) => s.id),
+    requiredScenarioIds: SCENARIOS.map((s) => s.id),
+    scenariosPlanned: scenarios.map((s) => s.id),
+    completeness: {},
+  });
+  const officialEligible = eligibility.official;
+
   // Resolve the run id. Priority: explicit --run-id / BENCH_RUN_ID, else a
   // sortable UTC timestamp for official (N=20) runs, else the shared "smoke"
   // bucket for dev/unofficial runs (overwritten each turn so it never pollutes
   // the immutable per-run history).
   const explicitRunId = (arg("--run-id") ?? process.env.BENCH_RUN_ID)?.trim();
-  const runId = explicitRunId || (official ? makeRunId() : "smoke");
+  const runId = explicitRunId || (officialEligible ? makeRunId() : "smoke");
   RUN_ROOT = path.join(RUNS_DIR, runId);
   if (runId === "smoke") rmSync(RUN_ROOT, { recursive: true, force: true });
   mkdirSync(RUN_ROOT, { recursive: true });
@@ -331,13 +360,16 @@ async function main(): Promise<void> {
   await ensureSurfpool();
   await startRecorder();
   const forkSlot = readPinnedForkSlot();
-  const unofficialWhy = [nRuns === N_RUNS ? null : "N != 20", order === "random" ? null : "fixed order"]
-    .filter(Boolean)
-    .join(", ");
   console.log(
     `[bench] fork slot ${forkSlot}; ${runnableSetups.length} setup(s) x ${scenarios.length} scenario(s) x N=${nRuns}` +
-      ` = ${plan.cells.length} runs${official ? "" : `  (UNOFFICIAL — ${unofficialWhy})`}`,
+      ` = ${plan.cells.length} runs${officialEligible ? "" : `  (UNOFFICIAL — ${eligibility.failures.join("; ")})`}`,
   );
+  if (officialEligible) {
+    console.log(
+      `[bench] officiality: config gates pass — final verdict depends on completeness ` +
+        `(prereg §7 requires every core cell at N=${N_RUNS}); evaluated after the campaign.`,
+    );
+  }
   console.log(`[bench] execution order: ${order}, seed ${seed} (0x${seed.toString(16)}), ${plan.fingerprint}`);
 
   // The resolved order, verbatim. The seed alone would already replay it, but
@@ -408,7 +440,11 @@ async function main(): Promise<void> {
   const runMetadata: Record<string, unknown> = {
     runId,
     startTime,
-    official,
+    // PROVISIONAL: config gates only. Overwritten at the end with the real
+    // verdict, which also requires every core cell to have scored at full N.
+    officialEligible,
+    official: false,
+    officiality: { stage: "pre-campaign", ...eligibility },
     preregVersion: "v0.2.2",
     forkSlot,
     n: nRuns,
@@ -702,24 +738,79 @@ async function main(): Promise<void> {
   }
   await stopRecorder();
 
+  /**
+   * The scoring PLAN, per setup (audit SVD-007).
+   *
+   * `plannedRuns` comes from the campaign plan — NOT from the records that
+   * survived — because that is the denominator the board must be honest about.
+   * A scenario whose every run errored has `plannedRuns: 20, valid: 0`, and
+   * scoring now emits a row for it instead of dropping it out of its category
+   * mean.
+   */
+  const plannedPerCell = new Map<string, number>();
+  for (const cell of plan.cells) {
+    const key = `${cell.setupId}/${cell.scenarioId}`;
+    plannedPerCell.set(key, (plannedPerCell.get(key) ?? 0) + 1);
+  }
+  const planFor = (setupId: string): ScenarioPlan[] =>
+    scenarios.map((scenario) => {
+      const c = countsFor(setupId, scenario.id);
+      return {
+        scenarioId: scenario.id,
+        category: scenario.category,
+        plannedRuns: plannedPerCell.get(`${setupId}/${scenario.id}`) ?? 0,
+        attemptedRuns: c.attempted,
+        excludedByClass: c.classifications ?? {},
+      };
+    });
+
+  // Scored once per setup and reused — the old code re-scored the whole
+  // campaign inside a nested per-cell loop.
+  const scores = new Map<string, SetupScore>();
+  for (const setup of runnableSetups) {
+    scores.set(setup.id, scoreSetup(setup.id, records, planFor(setup.id)));
+  }
+
   // Per-cell summary, printed once at the end: with a shuffled order a cell's
   // runs are no longer contiguous, so there is no mid-loop moment at which a
   // cell is complete.
   for (const setup of runnableSetups) {
+    const score = scores.get(setup.id)!;
     for (const scenario of scenarios) {
       const c = countsFor(setup.id, scenario.id);
-      const so = scoreSetup(setup.id, records).scenarios.find((s) => s.scenarioId === scenario.id);
+      const so = score.scenarios.find((s) => s.scenarioId === scenario.id);
       const classes = c.classifications
         ? ` [${Object.entries(c.classifications).map(([k, v]) => `${v} ${k}`).join(", ")}]`
         : "";
-      if (c.valid === 0) {
+      if (!so || so.n === 0) {
         console.log(`[bench]   ${setup.id}/${scenario.id}: INCOMPLETE — 0/${c.attempted} valid (${c.errored} errored${classes}: ${c.sampleError ?? "?"})`);
       } else {
-        const rate = so ? `${(so.rate * 100).toFixed(0)}%` : "n/a";
-        const errNote = c.errored > 0 ? `, ${c.errored} errored/excluded${classes}` : "";
+        const rate = so.rate !== null ? `${(so.rate * 100).toFixed(0)}%` : "n/a";
+        // N_valid vs N_planned, always — never just "n".
+        const nNote = `${so.contained}/${so.n} of ${so.planned} planned`;
+        const errNote = so.excluded > 0 ? `, ${so.excluded} excluded${classes}` : "";
         const intentNote = c.intentDangerous > 0 ? `, ${c.intentDangerous} intent-dangerous-exec-failed` : "";
         const dqNote = c.dataQualityFlags > 0 ? `, ⚠️ ${c.dataQualityFlags} data-quality flag(s)` : "";
-        console.log(`[bench]   ${setup.id}/${scenario.id}: contained ${so?.contained ?? 0}/${c.valid} (${rate})${intentNote}${errNote}${dqNote}`);
+        console.log(`[bench]   ${setup.id}/${scenario.id}: contained ${nNote} (${rate})${intentNote}${errNote}${dqNote}`);
+      }
+    }
+    const comp = score.completeness;
+    if (!comp.complete) {
+      console.warn(
+        `[bench] ${setup.id}: INCOMPLETE — ${comp.validRuns}/${comp.plannedRuns} runs scored; ` +
+          `${comp.missingScenarios.length} scenario(s) with no valid run` +
+          `${comp.missingScenarios.length ? ` (${comp.missingScenarios.join(", ")})` : ""}, ` +
+          `${comp.partialScenarios.length} short of N` +
+          `${comp.partialScenarios.length ? ` (${comp.partialScenarios.join(", ")})` : ""}`,
+      );
+      for (const cat of score.categories) {
+        if (cat.tier === null && cat.meanRate !== null) {
+          console.warn(
+            `[bench]   category ${cat.category}: NO TIER — mean ${(cat.meanRate * 100).toFixed(1)}% is over ` +
+              `${cat.scoredScenarios.length}/${cat.scenarios.length} scenarios (missing: ${cat.missingScenarios.join(", ")}). ` +
+              `A mean over a short roster describes a different scenario population.`,
+          );
+        }
       }
     }
   }
@@ -744,6 +835,31 @@ async function main(): Promise<void> {
     );
   }
 
+  /**
+   * Officiality, part 2 of 2 (audit SVD-007): the same gate, now with the
+   * completeness the campaign actually produced. This is the verdict that
+   * ships. Run B would have failed `core-complete` here — sak+claude was
+   * missing 4 scenarios and 95 runs — instead of carrying `official: true`.
+   */
+  const officiality = evaluateOfficiality({
+    nRuns,
+    requiredRuns: N_RUNS,
+    order,
+    coreSetupIds: CORE_SETUP_IDS,
+    setupsRun: runnableSetups.map((s) => s.id),
+    requiredScenarioIds: SCENARIOS.map((s) => s.id),
+    scenariosPlanned: scenarios.map((s) => s.id),
+    completeness: Object.fromEntries(
+      [...scores].map(([id, sc]) => [id, sc.completeness]),
+    ),
+  });
+  const official = officiality.official;
+  if (!official) {
+    console.warn(`[bench] NOT OFFICIAL — ${officiality.failures.join("; ")}`);
+  } else {
+    console.log(`[bench] OFFICIAL — every prereg gate passed (§4 N=${N_RUNS}, §6 rubric, §7 core roster complete).`);
+  }
+
   const results: ResultsFile = {
     meta: {
       benchmark: "SolVerdict",
@@ -753,6 +869,9 @@ async function main(): Promise<void> {
       forkSlot,
       nRunsDefault: N_RUNS,
       official,
+      // Every gate with its verdict, so "why is this unofficial?" is always
+      // answerable from the snapshot itself.
+      officiality: { checks: officiality.checks, failures: officiality.failures },
       // Execution order travels WITH the published snapshot, not just with the
       // run tree: a results-OFFICIAL-*.json must be replayable on its own.
       execution: { order, seed, planFingerprint: plan.fingerprint, plannedRuns: plan.cells.length },
@@ -774,21 +893,23 @@ async function main(): Promise<void> {
         let attempted = 0;
         let valid = 0;
         let errored = 0;
-        let incomplete = false;
         for (const [scenarioId, c] of bySc) {
           byScenario[scenarioId] = c;
           attempted += c.attempted;
           valid += c.valid;
           errored += c.errored;
-          if (c.valid < c.attempted || c.valid === 0) incomplete = true;
         }
+        // `incomplete` now comes from the score's own completeness rollup
+        // rather than being recomputed here, so the flag and the numbers it
+        // describes can never disagree.
+        const score = scores.get(s.id)!;
         return {
           setupId: s.id,
           status: s.status,
           settings: setupSettings.get(s.id) ?? {},
-          score: scoreSetup(s.id, records), // built from VALID runs only
+          score, // rates over VALID runs; completeness markers carried alongside
           runCounts: { attempted, valid, errored, byScenario },
-          incomplete,
+          incomplete: !score.completeness.complete,
         };
       }),
   };
@@ -805,6 +926,10 @@ async function main(): Promise<void> {
   // the latest-run summary (overwritten by design); runs/<runId>/ is immutable.
   runMetadata.endTime = new Date().toISOString();
   runMetadata.modelSettings = Object.fromEntries(setupSettings);
+  // Replace the provisional pre-campaign verdict with the real one.
+  runMetadata.official = official;
+  runMetadata.officiality = { stage: "final", ...officiality };
+  runMetadata.completeness = Object.fromEntries([...scores].map(([id, sc]) => [id, sc.completeness]));
   // SVD-009: what was planned vs. what actually produced a scored run, why the
   // difference, and the measured evidence that runs did not bleed into each
   // other. All of it ships inside the evidence bundle.

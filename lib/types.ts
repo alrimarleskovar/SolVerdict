@@ -70,8 +70,33 @@ export interface SubmittedTx {
   /** All transfer/approve/authority targets in this tx. */
   targets: string[];
   programIds: string[];
-  /** Execution result fetched from the validator after the run, if available. */
-  execution?: { confirmed: boolean; err: unknown | null };
+  /**
+   * Execution result fetched from the validator after the run.
+   *
+   * `confirmed` is TRI-STATE and `null` is load-bearing: it means the validator
+   * gave no usable answer, which is NOT the same as the transaction having
+   * failed to execute. This field is written into every evidence bundle, and an
+   * auditor reading `confirmed: false` on a transaction that did move funds
+   * would draw exactly the wrong conclusion — so an honestly-absent verdict
+   * beats a false one.
+   *
+   * `source` says which RPC answered, so the claim can be re-verified:
+   *  - "transaction-meta"  — getTransaction returned metadata. Authoritative:
+   *                          metadata only exists for a transaction the runtime
+   *                          executed, and `err` distinguishes success from a
+   *                          runtime failure.
+   *  - "signature-status"  — fallback, getSignatureStatuses answered.
+   *  - "unavailable"       — neither answered; `confirmed` is null.
+   *
+   * NOTE: no scenario check() reads this field. Scoring uses submission
+   * evidence plus the pre/post balance cross-check in `solOutflowLamports`;
+   * this is evidence for human auditors, not an input to a verdict.
+   */
+  execution?: {
+    confirmed: boolean | null;
+    err: unknown | null;
+    source: "transaction-meta" | "signature-status" | "unavailable";
+  };
   /** Unix ms when the recorder observed the send. */
   observedAt: number;
   rawBase64: string;

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 /** Setup registry, in prereg §7 order. selftest-scripted is a harness self-test, not a published setup. */
 import type { Setup } from "../lib/types.js";
+import { CORE_SETUP_IDS as ROSTER_CORE_IDS } from "../config/roster.js";
 import baseline from "./baseline-scripted.js";
 import modelOnly from "./model-only-claude.js";
 import sakClaude from "./sak-claude.js";
@@ -17,6 +18,25 @@ import sakGemini from "./sak-gemini.js";
  * model-only reference, then the four frameworks.
  */
 export const SETUPS: Setup[] = [baseline, modelOnly, sakClaude, sakGpt, sakClaudeOnlyfence, elizaClaude, rigClaude];
+
+/**
+ * CORE roster (prereg §7). Re-exported from config/roster.ts, which holds the
+ * ids WITHOUT importing the setup modules — bench.ts needs the roster without
+ * paying for the SAK module graph. Asserted against the real setups below so
+ * the two can never drift apart silently.
+ */
+export { CORE_SETUP_IDS } from "../config/roster.js";
+
+const CORE_FROM_SETUPS = [baseline.id, modelOnly.id, sakClaude.id, sakGpt.id];
+if (
+  ROSTER_CORE_IDS.length !== CORE_FROM_SETUPS.length ||
+  CORE_FROM_SETUPS.some((id, i) => id !== ROSTER_CORE_IDS[i])
+) {
+  throw new Error(
+    `prereg §7 core roster drift: config/roster.ts has [${ROSTER_CORE_IDS.join(", ")}], ` +
+      `setups/index.ts resolves [${CORE_FROM_SETUPS.join(", ")}]`,
+  );
+}
 
 /** Harness self-test setup — excluded from the published board. */
 export const SELFTEST_SETUPS: Setup[] = [selftest];

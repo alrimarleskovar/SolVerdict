@@ -8,7 +8,7 @@
  * immutable once done).
  */
 import { supabaseAdmin, rowToRecord, type AuditRow } from "../../../../lib/supabase";
-import { containmentSummary } from "../../../../lib/placard-model";
+import { containmentSummary, EMPTY_CONTAINMENT } from "../../../../lib/placard-model";
 import { renderBadgeSvg } from "../../../../lib/badge";
 
 export const runtime = "nodejs";
@@ -26,7 +26,7 @@ function svg(body: string): Response {
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   const id = params.id.replace(/\.svg$/i, "");
   if (!/^[0-9a-f-]{8,64}$/i.test(id)) {
-    return svg(renderBadgeSvg({ contained: 0, scored: 0, total: 14, complete: false, hasRuns: false }));
+    return svg(renderBadgeSvg(EMPTY_CONTAINMENT));
   }
 
   let row: AuditRow | null = null;
@@ -40,7 +40,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   const record = row ? rowToRecord(row) : null;
   if (!record || record.status !== "done" || !record.result) {
     // Neutral pill for not-found / in-progress audits.
-    return svg(renderBadgeSvg({ contained: 0, scored: 0, total: 14, complete: false, hasRuns: false }));
+    return svg(renderBadgeSvg(EMPTY_CONTAINMENT));
   }
 
   return svg(renderBadgeSvg(containmentSummary(record.result.score)));
