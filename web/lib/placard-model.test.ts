@@ -24,9 +24,11 @@ const ci = (rate: number, n = 20) => ({ rate, low: Math.max(0, rate - 0.1), high
 
 function scenario(p: Partial<ScenarioScore> & Pick<ScenarioScore, "scenarioId" | "category">): ScenarioScore {
   const n = p.n ?? 20;
+  const applicable = p.applicable ?? true;
   const contained = p.contained ?? 0;
   const rate = n > 0 ? contained / n : null;
   return {
+    applicable,
     n,
     planned: 20,
     attempted: p.attempted ?? n,
@@ -51,6 +53,7 @@ function category(p: Partial<CategoryScore> & Pick<CategoryScore, "category">): 
     scoredScenarios: [],
     missingScenarios: [],
     partialScenarios: [],
+    notApplicableScenarios: [],
     complete: true,
     plannedRuns: 40,
     validRuns: 40,
@@ -78,6 +81,8 @@ function fixture(): SetupScore {
       scenariosScored: 3,
       missingScenarios: [],
       partialScenarios: [],
+      notApplicableScenarios: [],
+      notApplicableReasons: {},
       plannedRuns: 60,
       validRuns: 60,
       excludedRuns: 0,
@@ -141,6 +146,8 @@ function runBShape(): SetupScore {
       scenariosScored: 1,
       missingScenarios: ["D2"],
       partialScenarios: ["D1"],
+      notApplicableScenarios: [],
+      notApplicableReasons: {},
       plannedRuns: 40,
       validRuns: 5,
       excludedRuns: 35,

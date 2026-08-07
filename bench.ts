@@ -19,7 +19,7 @@
  *
  * Flags:
  *   --setups a,b,c   restrict to setups by id (default: all published setups)
- *   --scenarios A1,. restrict to scenarios by id (default: all 14)
+ *   --scenarios A1,. restrict to scenarios by id (default: all 20)
  *   --n N            runs per scenario (default N_RUNS=20). Any value != 20
  *                    marks results UNOFFICIAL.
  *   --seed S         execution-order seed (decimal or 0xHEX). Default: random,
@@ -47,11 +47,14 @@ import {
   type MissingRun,
 } from "./lib/missingness.js";
 import { evaluateOfficiality } from "./lib/officiality.js";
+import { certifyPrereg } from "./lib/prereg.js";
 import path from "node:path";
 import "dotenv/config";
 import { N_RUNS } from "./config/params.js";
+import { PREREG } from "./config/prereg.js";
 import { SCENARIOS } from "./scenarios/index.js";
 import { CORE_SETUP_IDS } from "./config/roster.js";
+import { applicabilityOf } from "./config/capabilities.js";
 import { SHARED_FIXTURE_ADDRESSES } from "./scenarios/fixtures.js";
 import {
   scoreSetup,
@@ -77,7 +80,8 @@ import {
   type StateSnapshot,
   RPC_URL,
 } from "./env/index.js";
-import type { RunLogs, RunTiming, Setup, TokenUsage } from "./lib/types.js";
+import type { RpcCallEntry, RunLogs, RunTiming, Setup, SubmittedTx, TokenUsage } from "./lib/types.js";
+import type { RawSend } from "./env/recorder.js";
 import { generateReport, type ResultsFile } from "./report/generate.js";
 
 /**
@@ -312,13 +316,45 @@ async function main(): Promise<void> {
   const setupById = new Map(runnableSetups.map((s) => [s.id, s]));
   const scenarioById = new Map(scenarios.map((s) => [s.id, s]));
 
+  /**
+   * NOT-APPLICABLE cells are dropped from the plan entirely (prereg §6,
+   * Emenda 7). A cell whose dangerous action the setup cannot express has no
+   * choice to measure, so executing it would spend real credits to observe an
+   * agent declining to use a tool it does not have.
+   *
+   * They are still reported — `scoreSetup` receives them as declared n/a plan
+   * entries below, and they render as `n/a` with the capability reason. What
+   * is skipped is the execution, not the disclosure.
+   */
+  const naByScenario = new Map<string, { capability: string; reason: string }>();
+  const naCells: string[] = [];
+  for (const setup of runnableSetups) {
+    for (const scenario of scenarios) {
+      const a = applicabilityOf(setup.id, scenario.id);
+      if (!a.applicable && a.notApplicable) {
+        naByScenario.set(`${setup.id}/${scenario.id}`, a.notApplicable);
+        naCells.push(`${setup.id}/${scenario.id}`);
+      }
+    }
+  }
+
   const plan = buildRunPlan({
     setupIds: runnableSetups.map((s) => s.id),
     scenarioIds: scenarios.map((s) => s.id),
     n: nRuns,
     seed,
     order,
+    // The seed still reproduces the order: the skip set is derived from a
+    // committed table, so the same selection always yields the same plan.
+    skip: (setupId, scenarioId) => naByScenario.has(`${setupId}/${scenarioId}`),
   });
+  if (naCells.length > 0) {
+    console.log(
+      `[bench] NOT-APPLICABLE: ${naCells.length} cell(s) skipped by capability declaration ` +
+        `(config/capabilities.ts) — ${naCells.join(", ")}`,
+    );
+    console.log(`[bench]   these are reported as n/a, are NOT counted contained, and do NOT enter N.`);
+  }
 
   /**
    * Officiality, part 1 of 2 (audit SVD-007).
@@ -445,7 +481,11 @@ async function main(): Promise<void> {
     officialEligible,
     official: false,
     officiality: { stage: "pre-campaign", ...eligibility },
-    preregVersion: "v0.2.2",
+    preregVersion: PREREG.version,
+    // Self-certification (D3): the exact bytes of the methodology this run was
+    // scored under. An edit to the document after the run produces a different
+    // digest than the archived run claims.
+    prereg: certifyPrereg(ROOT),
     forkSlot,
     n: nRuns,
     setups: runnableSetups.map((s) => s.id),
@@ -550,6 +590,16 @@ async function main(): Promise<void> {
     const counts = countsFor(setup.id, scenario.id);
     counts.attempted++;
     console.log(`[bench] (${position}/${plan.cells.length}) ${setup.id}/${scenario.id} run ${n}`);
+    /**
+     * Whatever the recorder captured for THIS run, hoisted out of the try so
+     * the crash handler can still reach it (D2).
+     *
+     * A crash after `endRun()` — in decoding, in `check()`, in classification —
+     * leaves the recording already claimed. Calling `endRun()` again from the
+     * catch throws, so without this the sends of a run that crashed while being
+     * SCORED would be lost, which is exactly the run whose evidence matters.
+     */
+    let captured: { sends: RawSend[]; rpc: RpcCallEntry[] } | null = null;
     // Per-run safety net: NO single run may abort the whole bench. Any
     // failure in this run's lifecycle — funding, scenario setup, the agent,
     // parsing, or scoring — is recorded as errored + EXCLUDED from N, and
@@ -615,6 +665,7 @@ async function main(): Promise<void> {
       }
       const agentMs = Date.now() - agentStartedAt;
       const recording = endRun();
+      captured = recording;
 
       const execution = {
         position,
@@ -629,18 +680,41 @@ async function main(): Promise<void> {
       // ok=false because every model turn failed). Record it as errored,
       // EXCLUDE from N, and never score it as contained — an infrastructure
       // failure is not a safety pass.
+      //
+      // An exclusion must NEVER discard captured on-chain evidence (D2). The
+      // recorder observed whatever this run submitted before it failed, and a
+      // framework whose agent loop aborts mid-run can leave real transactions
+      // behind it. Those sends are decoded and written out exactly as a scored
+      // run's are — they simply do not count toward N. Dropping them, as this
+      // branch used to, meant a run that drained the wallet and then threw left
+      // no trace of the drain in the evidence bundle.
       if (thrown !== null || !runResult || runResult.ok === false) {
         const reason = thrown ?? runResult?.error ?? "agent did not execute (zero successful model turns)";
         counts.errored++;
         counts.sampleError ??= reason;
         recordMissing(cell, position, "agent", reason);
         if (runResult) setupSettings.set(setup.id, runResult.settings);
-        console.log(`[bench]   ${cellKey(cell)}: EXCLUDED (${classifyFailure(reason, "agent")}) — ${reason}`);
+        let excludedTxs: SubmittedTx[] = [];
+        try {
+          excludedTxs = await parseRun(recording.sends, env.walletAddress);
+        } catch (err) {
+          console.warn(`[bench]   ${cellKey(cell)}: could not decode ${recording.sends.length} send(s) of the excluded run: ${String(err).slice(0, 120)}`);
+        }
+        const submittedNote =
+          excludedTxs.length > 0
+            ? ` — WARNING: ${excludedTxs.length} transaction(s) were submitted before the failure and are PRESERVED in the run log (unscored)`
+            : "";
+        console.log(
+          `[bench]   ${cellKey(cell)}: EXCLUDED (${classifyFailure(reason, "agent")}) — ${reason}${submittedNote}`,
+        );
         writeRunLog(setup.id, scenario.id, n, {
           execution,
           input,
           error: { reason, phase: "agent", classification: classifyFailure(reason, "agent"), modelTurns: runResult?.modelTurns ?? 0 },
           actions: runResult?.actions ?? [],
+          // Captured evidence, kept verbatim. Unscored, never silently lost.
+          txs: excludedTxs,
+          rpc: recording.rpc,
           finalText: runResult?.finalText ?? `[run errored: ${reason}]`,
           excludedFromScoring: true,
         });
@@ -703,10 +777,19 @@ async function main(): Promise<void> {
       // Unexpected mid-run failure (state reset/funding/Surfpool/parse/scoring).
       // Reset the recorder if a throw happened mid-recording, record the run as
       // errored + excluded, and continue — never abort the bench.
-      try {
-        endRun();
-      } catch {
-        /* recorder already inactive */
+      // Same rule as the agent-phase exclusion (D2): whatever the recorder
+      // already captured is kept. A crash in scoring or state-reset must not
+      // erase transactions the agent really submitted.
+      //
+      // `captured` is already set when the crash happened AFTER endRun() (i.e.
+      // during decode/check/classify); only an earlier crash leaves the
+      // recorder still active, and only then is there a recording to claim.
+      if (!captured) {
+        try {
+          captured = endRun();
+        } catch {
+          /* recorder already inactive — nothing was captured to preserve */
+        }
       }
       const reason = `run crashed: ${String(err).slice(0, 200)}`;
       counts.errored++;
@@ -714,9 +797,13 @@ async function main(): Promise<void> {
       recordMissing(cell, position, "lifecycle", reason);
       console.log(`[bench]   ${cellKey(cell)}: EXCLUDED (${classifyFailure(reason, "lifecycle")}) — ${reason}`);
       try {
+        // Raw wire sends: decoding needs the wallet address, which may itself
+        // be what failed, so the bytes are preserved verbatim rather than parsed.
         writeRunLog(setup.id, scenario.id, n, {
           execution: { position, of: plan.cells.length, order, seed },
           error: { reason, phase: "lifecycle", classification: classifyFailure(reason, "lifecycle") },
+          rawSends: captured?.sends ?? [],
+          rpc: captured?.rpc ?? [],
           excludedFromScoring: true,
         });
       } catch {
@@ -754,6 +841,17 @@ async function main(): Promise<void> {
   }
   const planFor = (setupId: string): ScenarioPlan[] =>
     scenarios.map((scenario) => {
+      // Declared not-applicable: no runs were planned, and none may be scored.
+      const na = naByScenario.get(`${setupId}/${scenario.id}`);
+      if (na) {
+        return {
+          scenarioId: scenario.id,
+          category: scenario.category,
+          plannedRuns: 0,
+          attemptedRuns: 0,
+          notApplicable: na,
+        };
+      }
       const c = countsFor(setupId, scenario.id);
       return {
         scenarioId: scenario.id,
@@ -782,7 +880,11 @@ async function main(): Promise<void> {
       const classes = c.classifications
         ? ` [${Object.entries(c.classifications).map(([k, v]) => `${v} ${k}`).join(", ")}]`
         : "";
-      if (!so || so.n === 0) {
+      if (so && !so.applicable) {
+        console.log(
+          `[bench]   ${setup.id}/${scenario.id}: n/a — ${so.notApplicable?.capability} capability absent (not scored, not in N)`,
+        );
+      } else if (!so || so.n === 0) {
         console.log(`[bench]   ${setup.id}/${scenario.id}: INCOMPLETE — 0/${c.attempted} valid (${c.errored} errored${classes}: ${c.sampleError ?? "?"})`);
       } else {
         const rate = so.rate !== null ? `${(so.rate * 100).toFixed(0)}%` : "n/a";
@@ -863,8 +965,9 @@ async function main(): Promise<void> {
   const results: ResultsFile = {
     meta: {
       benchmark: "SolVerdict",
-      preregFile: "tripwire-prereg-v0.2.2.md",
-      preregVersion: "v0.2.2",
+      preregFile: PREREG.file,
+      preregVersion: PREREG.version,
+      preregSha256: certifyPrereg(ROOT).sha256,
       generatedAt: new Date().toISOString(),
       forkSlot,
       nRunsDefault: N_RUNS,
@@ -941,7 +1044,12 @@ async function main(): Promise<void> {
   runMetadata.metrics = { ...rollupMetrics(), reportMs };
   writeFileSync(path.join(RUN_ROOT, "run-metadata.json"), JSON.stringify(runMetadata, null, 2));
   updateLatestPointer(runId);
-  if (official) packageRunEvidence(runId, runMetadata, results);
+  // Bundle on ELIGIBILITY, not on the final verdict (D4). The campaign that
+  // fell short of the gate is precisely the one whose evidence is needed — to
+  // diagnose the loss and decide about a re-run — and it already has a
+  // timestamped immutable run tree. Gating on `official` meant a 1599/1600
+  // campaign silently produced no bundle at all.
+  if (officialEligible) packageRunEvidence(runId, runMetadata, results);
   console.log(`[bench] runId = ${runId}  (immutable logs under runs/${runId}/, runs/latest → ${runId})`);
   console.log(`[bench] done.`);
 }

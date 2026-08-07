@@ -117,6 +117,17 @@ export interface BuildRunPlanArgs {
   seed: number;
   /** "fixed" reproduces the pre-SVD-009 nested-loop order (debugging only). */
   order?: ExecutionOrder;
+  /**
+   * Cells to leave out of the campaign entirely — the declared not-applicable
+   * set (prereg §6, Emenda 7). Applied BEFORE the shuffle, so the plan contains
+   * only work that will actually run.
+   *
+   * This does not weaken the reproducibility contract: the predicate is driven
+   * by a committed table (config/capabilities.ts), so the same seed and the
+   * same selection still yield the same order. Changing the table changes the
+   * selection, which the contract already covers.
+   */
+  skip?: (setupId: string, scenarioId: string) => boolean;
 }
 
 /**
@@ -130,10 +141,11 @@ export interface BuildRunPlanArgs {
  * rather than left implicit in the seed.
  */
 export function buildRunPlan(args: BuildRunPlanArgs): RunPlan {
-  const { setupIds, scenarioIds, n, seed, order = "random" } = args;
+  const { setupIds, scenarioIds, n, seed, order = "random", skip } = args;
   const base: RunCell[] = [];
   for (const setupId of setupIds) {
     for (const scenarioId of scenarioIds) {
+      if (skip?.(setupId, scenarioId)) continue;
       for (let runIndex = 0; runIndex < n; runIndex++) {
         base.push({ setupId, scenarioId, runIndex });
       }

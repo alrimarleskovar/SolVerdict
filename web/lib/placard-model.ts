@@ -61,10 +61,12 @@ export interface ContainmentSummary {
   complete: boolean;
   /** False when no scenario produced a valid run. */
   hasRuns: boolean;
-  /** Planned scenarios that produced no valid run at all. */
+  /** Applicable scenarios that produced no valid run at all. */
   missing: string[];
   /** Scored scenarios short of their planned N. */
   partial: string[];
+  /** Scenarios the setup cannot attempt — excluded from `total` (§6, Emenda 7). */
+  notApplicable: string[];
   validRuns: number;
   plannedRuns: number;
 }
@@ -82,6 +84,7 @@ export const EMPTY_CONTAINMENT: ContainmentSummary = {
   hasRuns: false,
   missing: [],
   partial: [],
+  notApplicable: [],
   validRuns: 0,
   plannedRuns: 0,
 };
@@ -96,8 +99,11 @@ export const EMPTY_CONTAINMENT: ContainmentSummary = {
  */
 export function containmentSummary(score: SetupScore): ContainmentSummary {
   const c = score.completeness;
-  const scored = score.scenarios.filter((s) => s.n > 0).length;
-  const contained = score.scenarios.filter((s) => s.tier === "contained").length;
+  // `total` counts APPLICABLE scenarios only — the board this setup was
+  // actually measured against. A capability gap shrinks the denominator and is
+  // reported separately, never as a scenario it failed to complete.
+  const scored = score.scenarios.filter((s) => s.applicable && s.n > 0).length;
+  const contained = score.scenarios.filter((s) => s.applicable && s.tier === "contained").length;
   return {
     contained,
     scored,
@@ -106,6 +112,7 @@ export function containmentSummary(score: SetupScore): ContainmentSummary {
     hasRuns: scored > 0,
     missing: [...c.missingScenarios],
     partial: [...c.partialScenarios],
+    notApplicable: [...(c.notApplicableScenarios ?? [])],
     validRuns: c.validRuns,
     plannedRuns: c.plannedRuns,
   };
@@ -119,10 +126,12 @@ export interface CategoryCell {
   meanRate: number | null;
   /** Null when the category's scenario roster is short — no tier over a reduced roster. */
   tier: Tier | null;
-  /** True when every planned scenario in the category scored at full N. */
+  /** True when every applicable scenario in the category scored at full N. */
   complete: boolean;
-  /** Planned scenarios in this category with no valid run. */
+  /** Applicable scenarios in this category with no valid run. */
   missingScenarios: string[];
+  /** Scenarios the setup cannot attempt at all (prereg §6, Emenda 7). */
+  notApplicableScenarios: string[];
   validRuns: number;
   plannedRuns: number;
   badge: string;
@@ -134,6 +143,9 @@ export interface ScenarioRow {
   scenarioId: string;
   category: string;
   categoryLabel: string;
+  /** False when the setup cannot attempt this scenario (prereg §6, Emenda 7). */
+  applicable: boolean;
+  notApplicable?: { capability: string; reason: string };
   contained: number;
   n: number;
   /** N the run was planned against — always shown next to `n`. */
@@ -163,6 +175,7 @@ export function categoryCells(score: SetupScore): CategoryCell[] {
         tier: null,
         complete: false,
         missingScenarios: [],
+        notApplicableScenarios: [],
         validRuns: 0,
         plannedRuns: 0,
         badge: "",
@@ -182,18 +195,26 @@ export function categoryCells(score: SetupScore): CategoryCell[] {
       tier: cat.tier,
       complete: cat.complete,
       missingScenarios: [...cat.missingScenarios],
+      notApplicableScenarios: [...(cat.notApplicableScenarios ?? [])],
       validRuns: cat.validRuns,
       plannedRuns: cat.plannedRuns,
     };
     if (cat.tier === null) {
+      const na = cat.notApplicableScenarios ?? [];
+      // A roster shortened by CAPABILITY reads differently from one shortened by
+      // lost runs, so the cell says which — "n/a" is a finding about the agent,
+      // "no valid runs" is a gap in the data.
+      const naNote = na.length > 0 ? ` · n/a: ${na.join(", ")}` : "";
       return {
         ...base,
         badge: "⚠️",
         cssClass: "t-incomplete",
         display:
           cat.meanRate !== null
-            ? `⚠️ ${pct(cat.meanRate)} over ${cat.scoredScenarios.length}/${cat.scenarios.length} scenarios`
-            : "⚠️ no valid runs",
+            ? `⚠️ ${pct(cat.meanRate)} over ${cat.scoredScenarios.length}/${cat.scenarios.length} scenarios${naNote}`
+            : na.length > 0
+              ? `n/a — capability${naNote}`
+              : "⚠️ no valid runs",
       };
     }
     return {
@@ -214,6 +235,8 @@ export function scenarioRows(score: SetupScore): ScenarioRow[] {
         scenarioId: s.scenarioId,
         category: s.category,
         categoryLabel: CATEGORY_LABELS[catLetter] ?? s.category,
+        applicable: s.applicable,
+        notApplicable: s.notApplicable,
         contained: s.contained,
         n: s.n,
         planned: s.planned,

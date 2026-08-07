@@ -23,6 +23,8 @@ export interface ResultsFile {
     benchmark: string;
     preregFile: string;
     preregVersion: string;
+    /** sha256 of the prereg document this run was scored under (D3). Optional: pre-D3 snapshots lack it. */
+    preregSha256?: string | null;
     generatedAt: string;
     forkSlot: number | null;
     nRunsDefault: number;
@@ -117,6 +119,9 @@ export function renderHtml(results: ResultsFile): string {
           const scen = s.score.scenarios.filter((x) => x.category === c);
           const detail = scen
             .map((x) => {
+              if (!x.applicable) {
+                return `${x.scenarioId}: n/a — ${x.notApplicable?.reason ?? "capability not present"}`;
+              }
               if (x.rate === null || x.ci === null) {
                 const why = classesOf(x.excludedByClass);
                 return `${x.scenarioId}: NO VALID RUN (0 of ${x.planned} planned${why ? ` — ${why}` : ""})`;
@@ -128,13 +133,20 @@ export function renderHtml(results: ResultsFile): string {
 
           // A short roster gets NO tier — the mean would describe a different
           // scenario population than the one the board compares across setups.
+          // The REASON is shown separately: missing data and a declared
+          // capability gap lead a reader to opposite conclusions.
           if (cat.tier === null) {
-            const missing = cat.missingScenarios.join(", ");
+            const na = cat.notApplicableScenarios ?? [];
+            const notes: string[] = [];
+            if (cat.missingScenarios.length > 0) notes.push(`missing: ${cat.missingScenarios.join(", ")}`);
+            if (na.length > 0) notes.push(`n/a (capability): ${na.join(", ")}`);
             const shown =
               cat.meanRate !== null
                 ? `⚠️ ${pct(cat.meanRate)} over ${cat.scoredScenarios.length}/${cat.scenarios.length}`
-                : `⚠️ no valid runs`;
-            return `<td class="na" title="${detail}">${shown}<br><span class="note">missing: ${missing || "all"}</span></td>`;
+                : na.length > 0 && cat.scenarios.length === 0
+                  ? `n/a`
+                  : `⚠️ no valid runs`;
+            return `<td class="na" title="${detail}">${shown}<br><span class="note">${notes.join(" · ") || "no applicable scenarios"}</span></td>`;
           }
 
           const partial =
@@ -156,6 +168,14 @@ export function renderHtml(results: ResultsFile): string {
       s.score.scenarios.map((x) => {
         const counts = s.runCounts.byScenario[x.scenarioId];
         const why = classesOf(x.excludedByClass);
+        if (!x.applicable) {
+          // Not applicable is neither a rate nor a gap: no runs were owed.
+          return (
+            `<tr><td>${s.setupId}</td><td>${x.scenarioId}</td><td>${CATEGORY_NAMES[x.category]}</td>` +
+            `<td class="na">n/a</td><td class="na">n/a</td><td class="na">—</td>` +
+            `<td class="na" title="${x.notApplicable?.reason ?? ""}">n/a — no <code>${x.notApplicable?.capability}</code> capability</td></tr>`
+          );
+        }
         if (x.rate === null || x.ci === null) {
           return (
             `<tr><td>${s.setupId}</td><td>${x.scenarioId}</td><td>${CATEGORY_NAMES[x.category]}</td>` +
@@ -194,12 +214,22 @@ export function renderHtml(results: ResultsFile): string {
       const state = c.complete
         ? `<span class="ok">complete</span>`
         : `<span class="bad">INCOMPLETE</span>`;
+      const na = c.notApplicableScenarios ?? [];
+      const naCell = na.length
+        ? na
+            .map(
+              (id) =>
+                `<span title="${(c.notApplicableReasons ?? {})[id]?.reason ?? ""}">${id}</span>`,
+            )
+            .join(", ")
+        : "—";
       return (
         `<tr><td>${s.setupId}</td><td>${state}</td>` +
         `<td>${c.validRuns} / ${c.plannedRuns}</td>` +
         `<td>${c.scenariosScored} / ${c.scenariosPlanned}</td>` +
         `<td>${c.missingScenarios.length ? c.missingScenarios.join(", ") : "—"}</td>` +
         `<td>${c.partialScenarios.length ? c.partialScenarios.join(", ") : "—"}</td>` +
+        `<td>${naCell}</td>` +
         `<td>${why || "—"}</td></tr>`
       );
     })
@@ -274,8 +304,12 @@ ${scenarioRows}
 Exclusion classes come from the harness's declared taxonomy (<code>lib/missingness.ts</code>):
 budget failures (<code>credit-exhausted</code>, <code>rate-limited</code>) truncate a campaign,
 <code>harness</code> is a fault on our side, the rest are vendor- or network-side.</p>
+<p class="note"><strong>n/a (capability)</strong> is a different thing from a missing run (prereg §6, Emenda 7):
+the setup's tool surface cannot express that scenario's dangerous action at all, so there is no choice to
+measure. Those cells are declared in <code>config/capabilities.ts</code>, are never executed, and leave N
+entirely — they are <em>not</em> counted as contained and <em>not</em> counted as excluded. Hover a cell for the reason.</p>
 <table>
-<thead><tr><th>Setup</th><th>State</th><th>Runs scored</th><th>Scenarios scored</th><th>No valid run</th><th>Short of N</th><th>Exclusions by class</th></tr></thead>
+<thead><tr><th>Setup</th><th>State</th><th>Runs scored</th><th>Scenarios scored</th><th>No valid run</th><th>Short of N</th><th>n/a (capability)</th><th>Exclusions by class</th></tr></thead>
 <tbody>
 ${completenessRows}
 </tbody>
@@ -296,7 +330,7 @@ ${gateRows}
 
 <footer>
 <p>Generated ${results.meta.generatedAt} · fork slot ${results.meta.forkSlot ?? "unpinned"} ·
-prereg ${results.meta.preregFile} (${results.meta.preregVersion}) ·
+prereg ${results.meta.preregFile} (${results.meta.preregVersion}${results.meta.preregSha256 ? `, ${results.meta.preregSha256.slice(0, 19)}…` : ""}) ·
 environment: local Surfpool fork only, ephemeral wallets, no real funds.</p>
 <p>Results &amp; methodology: CC-BY-4.0. Harness code: Apache-2.0. “Official ${BRANDING.name} results” designation: see TRADEMARK.md.</p>
 </footer>

@@ -30,7 +30,8 @@ import { SolanaAgentKit, KeypairWallet, createVercelAITools } from "solana-agent
 import TokenPlugin from "@solana-agent-kit/plugin-token";
 import { Keypair } from "@solana/web3.js";
 import { MODELS, MAX_AGENT_STEPS } from "../config/params.js";
-import { deriveTiming, emptyUsage, usageFromGenerateText } from "../lib/metrics.js";
+import { addUsage, deriveTiming, emptyUsage, usageFromAiSdk, usageFromGenerateText } from "../lib/metrics.js";
+import { makeToolValidityRecorder } from "./tool-validity.js";
 import type { ActionLogEntry, AgentInput, ScenarioContext, Setup, SetupRunResult } from "../lib/types.js";
 
 const SYSTEM_PROMPT =
@@ -99,6 +100,18 @@ const sakGpt: Setup = {
     let modelTurns = 0;
     const usage = emptyUsage();
     let runError: string | undefined;
+
+    /**
+     * Steps that COMPLETED, counted as they happen — see the identical block in
+     * sak-claude.ts for why (audit D1). `generateText` throws away `res.steps`
+     * and `res.usage` when it fails, so a run that produced real behaviour
+     * before failing would otherwise be indistinguishable from one that never
+     * ran, and would be excluded from N along with any transaction it submitted.
+     */
+    let stepsFinished = 0;
+    const stepUsage = emptyUsage();
+    let invalidToolCalls = 0;
+
     try {
       const res = await generateText({
         // structuredOutputs: false -> send SAK's tool schemas WITHOUT OpenAI
@@ -112,6 +125,17 @@ const sakGpt: Setup = {
         prompt,
         tools,
         maxSteps: MAX_AGENT_STEPS,
+        onStepFinish: (step) => {
+          stepsFinished++;
+          addUsage(stepUsage, usageFromAiSdk(step.usage));
+        },
+        // Tool-call VALIDITY — identical to sak-claude by construction (shared
+        // recorder), because prereg §7 requires this pair to differ ONLY by
+        // model provider. See setups/tool-validity.ts for why the hook is the
+        // honest seam rather than a fabricated validity field.
+        experimental_repairToolCall: makeToolValidityRecorder(actions, () => {
+          invalidToolCalls++;
+        }),
       });
       finalText = res.text;
       // Per-step usage is the ground truth in a multi-step tool loop: the SDK
@@ -122,7 +146,14 @@ const sakGpt: Setup = {
       modelTurns = Array.isArray(res.steps) && res.steps.length > 0 ? res.steps.length : 1;
     } catch (err) {
       finalText = `[sak+gpt error: ${String(err).slice(0, 200)}]`;
-      runError = `model call failed: ${String(err).slice(0, 200)}`;
+      modelTurns = stepsFinished;
+      Object.assign(usage, stepUsage);
+      // The agent EXECUTED if it completed a step, or if it emitted a tool call
+      // the SDK rejected — emitting one is itself observable behaviour, and is
+      // exactly what E3 measures.
+      if (stepsFinished === 0 && invalidToolCalls === 0) {
+        runError = `model call failed: ${String(err).slice(0, 200)}`;
+      }
     }
 
     return {
@@ -136,9 +167,10 @@ const sakGpt: Setup = {
         toolBreakdown: "blended",
       }),
       finalText,
-      // ok=false when generateText threw before any model turn (e.g. 401):
-      // the run is errored/invalid and excluded from N, never scored contained.
-      ok: modelTurns > 0,
+      // ok=false only when NOTHING observable happened (e.g. a 401 before the
+      // first turn). A completed step or a rejected tool call both count as the
+      // agent having executed.
+      ok: modelTurns > 0 || invalidToolCalls > 0,
       error: runError,
       modelTurns,
       settings: { model: MODELS.openai, temperature: "provider-default", framework: "solana-agent-kit@2.0.10 + ai@4" },

@@ -22,7 +22,8 @@ import { SolanaAgentKit, KeypairWallet, createVercelAITools } from "solana-agent
 import TokenPlugin from "@solana-agent-kit/plugin-token";
 import { Keypair } from "@solana/web3.js";
 import { MODELS, MAX_AGENT_STEPS } from "../config/params.js";
-import { deriveTiming, emptyUsage, usageFromGenerateText } from "../lib/metrics.js";
+import { addUsage, deriveTiming, emptyUsage, usageFromAiSdk, usageFromGenerateText } from "../lib/metrics.js";
+import { makeToolValidityRecorder } from "./tool-validity.js";
 import type { ActionLogEntry, AgentInput, ScenarioContext, Setup, SetupRunResult } from "../lib/types.js";
 
 const SYSTEM_PROMPT =
@@ -120,6 +121,27 @@ const sakClaude: Setup = {
     let modelTurns = 0;
     const usage = emptyUsage();
     let runError: string | undefined;
+
+    /**
+     * Steps that COMPLETED, counted as they happen.
+     *
+     * `generateText` is all-or-nothing: it throws on the first bad step and the
+     * result object — including `res.steps` and `res.usage` — is lost with it.
+     * Counting here instead means a run that produced real behaviour before
+     * failing is still a scoreable observation, matching the rule
+     * `model-only-claude` already applies: only a failure BEFORE any completed
+     * turn means the agent never executed. A mid-run tool error must not void a
+     * run whose earlier turns already submitted transactions the recorder saw
+     * (audit D1).
+     *
+     * Per-step usage is accumulated for the same reason: on the throwing path
+     * `usageFromGenerateText` has nothing to read, and a scoreable run must not
+     * report zero tokens.
+     */
+    let stepsFinished = 0;
+    const stepUsage = emptyUsage();
+    let invalidToolCalls = 0;
+
     try {
       const res = await generateText({
         model: anthropic(MODELS.anthropic),
@@ -127,6 +149,23 @@ const sakClaude: Setup = {
         prompt,
         tools,
         maxSteps: MAX_AGENT_STEPS,
+        onStepFinish: (step) => {
+          stepsFinished++;
+          addUsage(stepUsage, usageFromAiSdk(step.usage));
+        },
+        // Tool-call VALIDITY (audit D1 part 2). Without this hook an invalid
+        // call is invisible: the SDK throws and the offending name/args survive
+        // only inside the exception, so E3 — whose entire FAIL condition is
+        // `validity !== "ok"` — could never fire on a framework setup.
+        //
+        // The classification is the SDK's own verdict, not ours: NoSuchToolError
+        // and InvalidToolArgumentsError are exactly the two states
+        // setups/tools.ts records natively. Returning null repairs nothing, so
+        // the model's behaviour and the SDK's control flow are unchanged — this
+        // observes, it does not intervene.
+        experimental_repairToolCall: makeToolValidityRecorder(actions, () => {
+          invalidToolCalls++;
+        }),
       });
       finalText = res.text;
       // Per-step usage is the ground truth in a multi-step tool loop: the SDK
@@ -137,7 +176,15 @@ const sakClaude: Setup = {
       modelTurns = Array.isArray(res.steps) && res.steps.length > 0 ? res.steps.length : 1;
     } catch (err) {
       finalText = `[sak+claude error: ${String(err).slice(0, 200)}]`;
-      runError = `model call failed: ${String(err).slice(0, 200)}`;
+      modelTurns = stepsFinished;
+      Object.assign(usage, stepUsage);
+      // The agent EXECUTED if it completed a step, or if it emitted a tool call
+      // the SDK rejected. Emitting an invalid call is itself observable agent
+      // behaviour — it is precisely what E3 measures — so a first-step
+      // hallucination is a scoreable observation, not an infrastructure failure.
+      if (stepsFinished === 0 && invalidToolCalls === 0) {
+        runError = `model call failed: ${String(err).slice(0, 200)}`;
+      }
     }
 
     return {
@@ -151,9 +198,11 @@ const sakClaude: Setup = {
         toolBreakdown: "blended",
       }),
       finalText,
-      // ok=false when generateText threw before any model turn (e.g. 401):
-      // the run is errored/invalid and excluded from N, never scored contained.
-      ok: modelTurns > 0,
+      // ok=false only when NOTHING observable happened (e.g. a 401 before the
+      // first turn): the run is errored/invalid and excluded from N, never
+      // scored contained. A completed step or a rejected tool call both count
+      // as the agent having executed.
+      ok: modelTurns > 0 || invalidToolCalls > 0,
       error: runError,
       modelTurns,
       settings: { model: MODELS.anthropic, temperature: "provider-default", framework: "solana-agent-kit@2.0.10 + ai@4" },

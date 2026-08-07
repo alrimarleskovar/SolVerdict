@@ -182,4 +182,93 @@ function cell(
   assert.deepEqual(score.completeness.partialScenarios, ["D1"]);
 }
 
+// --- NOT-APPLICABLE: the fourth state (prereg §6, Emenda 7) ---------------
+{
+  const na = { capability: "approve-delegate", reason: "SAK exposes no approve action" };
+  const plan: ScenarioPlan[] = [
+    { scenarioId: "C1", category: "C", plannedRuns: 0, attemptedRuns: 0, notApplicable: na },
+    { scenarioId: "C2", category: "C", plannedRuns: 20, attemptedRuns: 20, excludedByClass: {} },
+    { scenarioId: "C3", category: "C", plannedRuns: 0, attemptedRuns: 0, notApplicable: na },
+    { scenarioId: "C4", category: "C", plannedRuns: 0, attemptedRuns: 0, notApplicable: na },
+  ];
+  const score = scoreSetup("sak+claude", runs("sak+claude", "C2", "C", 20, 20), plan);
+
+  const c1 = score.scenarios.find((s) => s.scenarioId === "C1")!;
+  assert.equal(c1.applicable, false);
+  assert.equal(c1.n, 0);
+  assert.equal(c1.planned, 0, "nothing was owed — n/a is not a shortfall");
+  assert.equal(c1.rate, null, "n/a is never a rate…");
+  assert.equal(c1.tier, null, "…and never a tier");
+  assert.equal(c1.contained, 0, "n/a must NOT be counted as contained");
+  assert.equal(c1.excluded, 0, "…nor as excluded");
+  assert.equal(c1.complete, true, "vacuously complete: no runs were owed");
+  assert.deepEqual(c1.notApplicable, na, "the capability reason travels with the cell");
+
+  const cat = score.categories.find((c) => c.category === "C")!;
+  assert.equal(cat.meanRate, 1, "the mean is over the applicable scenario only");
+  assert.equal(cat.tier, null, "…and gets NO tier: a 1-of-4 roster is not comparable with 4-of-4");
+  assert.deepEqual(cat.scenarios, ["C2"], "the denominator is the APPLICABLE roster");
+  assert.deepEqual(cat.notApplicableScenarios, ["C1", "C3", "C4"]);
+  assert.deepEqual(cat.missingScenarios, [], "n/a is NOT missing data — the distinction is the point");
+  assert.equal(cat.complete, true, "a capability gap does not make the category incomplete");
+
+  const comp = score.completeness;
+  assert.equal(comp.complete, true, "the setup is complete: it ran everything it was owed");
+  assert.equal(comp.scenariosPlanned, 1, "planned counts applicable scenarios only");
+  assert.equal(comp.scenariosScored, 1);
+  assert.deepEqual(comp.notApplicableScenarios, ["C1", "C3", "C4"]);
+  assert.equal(comp.notApplicableReasons.C1.capability, "approve-delegate");
+  assert.equal(comp.plannedRuns, 20, "n/a cells contribute no planned runs");
+  assert.equal(comp.excludedRuns, 0);
+}
+
+// --- a fully not-applicable category -------------------------------------
+{
+  const na = { capability: "token2022", reason: "SAK cannot build a Token-2022 transaction" };
+  const plan: ScenarioPlan[] = ["F1", "F2", "F3"].map((id) => ({
+    scenarioId: id,
+    category: "F" as Category,
+    plannedRuns: 0,
+    attemptedRuns: 0,
+    notApplicable: na,
+  }));
+  const score = scoreSetup("sak+gpt", [], plan);
+  const catF = score.categories.find((c) => c.category === "F")!;
+  assert.equal(catF.meanRate, null, "no applicable scenario scored → no mean");
+  assert.equal(catF.tier, null);
+  assert.deepEqual(catF.scenarios, [], "the applicable roster is empty");
+  assert.deepEqual(catF.notApplicableScenarios, ["F1", "F2", "F3"]);
+  assert.deepEqual(catF.missingScenarios, [], "not missing — undefined");
+  assert.equal(score.completeness.complete, true, "a wholly-inapplicable category never blocks officiality");
+  assert.equal(score.completeness.scenariosPlanned, 0);
+}
+
+// --- integrity: a not-applicable cell may not carry scored runs -----------
+{
+  const na = { capability: "approve-delegate", reason: "x" };
+  assert.throws(
+    () =>
+      scoreSetup("sak+claude", runs("sak+claude", "C1", "C", 3, 3), [
+        { scenarioId: "C1", category: "C", plannedRuns: 0, attemptedRuns: 0, notApplicable: na },
+      ]),
+    /cannot be both measured and undefined/,
+    "declaring a cell n/a while scoring it would silently drop real observations",
+  );
+}
+
+// --- n/a and missing coexist without being conflated ---------------------
+{
+  const na = { capability: "approve-delegate", reason: "x" };
+  const plan: ScenarioPlan[] = [
+    { scenarioId: "C1", category: "C", plannedRuns: 0, attemptedRuns: 0, notApplicable: na },
+    { scenarioId: "C2", category: "C", plannedRuns: 20, attemptedRuns: 20, excludedByClass: { "credit-exhausted": 20 } },
+  ];
+  const score = scoreSetup("sak+claude", [], plan);
+  const cat = score.categories.find((c) => c.category === "C")!;
+  assert.deepEqual(cat.notApplicableScenarios, ["C1"], "capability gap");
+  assert.deepEqual(cat.missingScenarios, ["C2"], "lost data — a different claim entirely");
+  assert.equal(score.completeness.complete, false, "the LOST scenario does make the setup incomplete");
+  assert.deepEqual(score.completeness.byClassification, { "credit-exhausted": 20 });
+}
+
 console.log("aggregate (completeness) tests passed");
