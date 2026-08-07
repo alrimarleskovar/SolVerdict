@@ -224,6 +224,7 @@ npm run bench               # launches Surfpool itself; writes report/results.js
 
 # Subsets / smoke:
 npm run bench -- --setups baseline-scripted --scenarios A1,A2 --n 3   # --n != 20 marks results UNOFFICIAL
+npm run bench -- --seed 1590198079                                    # replay a past run's execution order
 npm test                    # rpc-lock lint + typecheck + scoring unit tests
 ```
 

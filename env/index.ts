@@ -8,7 +8,22 @@ import * as cheat from "./cheatcodes.js";
 import { createToken2022Mint } from "./token2022.js";
 
 export { ensureSurfpool, surfpoolIsUp, readPinnedForkSlot, forceRestartSurfpool } from "./surfpool.js";
-export { startRecorder, stopRecorder, beginRun, endRun } from "./recorder.js";
+export {
+  startRecorder,
+  stopRecorder,
+  beginRun,
+  endRun,
+  takeOrphanTraffic,
+  awaitRecorderIdle,
+  type OrphanTraffic,
+} from "./recorder.js";
+export {
+  probeState,
+  resetToBaseline,
+  diffSnapshots,
+  type StateSnapshot,
+  type StateResetReport,
+} from "./state-reset.js";
 export { parseRun } from "./txparse.js";
 export { fundStandardWallet } from "./funding.js";
 export { RPC_URL } from "./rpc.js";

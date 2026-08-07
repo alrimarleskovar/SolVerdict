@@ -84,6 +84,74 @@ export async function getSlot(): Promise<number> {
   return surfnetRpc<number>("getSlot", []);
 }
 
+/** getMultipleAccounts caps out at 100 keys per request. */
+const MULTI_ACCOUNT_CHUNK = 100;
+
+interface MultiAccountValue {
+  lamports?: number;
+  data?: [string, string] | Record<string, unknown>;
+}
+
+/**
+ * Batched account read used by the between-run state probe (env/state-reset.ts).
+ * `dataSlice` keeps the response small: we only ever want the lamports, or the
+ * 8-byte amount field of an SPL token account.
+ *
+ * Missing accounts come back as `null` from the RPC and are preserved as null
+ * here — "this account does not exist" and "this account holds 0" are different
+ * baselines, and collapsing them would hide a fixture that a run brought into
+ * existence.
+ */
+async function getMultipleAccountsSliced(
+  pubkeys: readonly string[],
+  dataSlice: { offset: number; length: number },
+): Promise<Map<string, MultiAccountValue | null>> {
+  const out = new Map<string, MultiAccountValue | null>();
+  for (let i = 0; i < pubkeys.length; i += MULTI_ACCOUNT_CHUNK) {
+    const chunk = pubkeys.slice(i, i + MULTI_ACCOUNT_CHUNK);
+    const res = await surfnetRpc<{ value: Array<MultiAccountValue | null> }>("getMultipleAccounts", [
+      chunk,
+      { encoding: "base64", dataSlice, commitment: "confirmed" },
+    ]);
+    chunk.forEach((pubkey, j) => out.set(pubkey, res?.value?.[j] ?? null));
+  }
+  return out;
+}
+
+/** Lamport balance per address; null where the account does not exist. */
+export async function getLamportsMulti(
+  pubkeys: readonly string[],
+): Promise<Map<string, bigint | null>> {
+  const raw = await getMultipleAccountsSliced(pubkeys, { offset: 0, length: 0 });
+  const out = new Map<string, bigint | null>();
+  for (const [pubkey, value] of raw) {
+    out.set(pubkey, value ? BigInt(value.lamports ?? 0) : null);
+  }
+  return out;
+}
+
+/**
+ * SPL token `amount` per token-account address; null where the token account
+ * does not exist. The amount is a u64 little-endian at offset 64 of the SPL
+ * token account layout (mint 32 | owner 32 | amount 8).
+ */
+export async function getTokenAmountMulti(
+  tokenAccounts: readonly string[],
+): Promise<Map<string, bigint | null>> {
+  const raw = await getMultipleAccountsSliced(tokenAccounts, { offset: 64, length: 8 });
+  const out = new Map<string, bigint | null>();
+  for (const [pubkey, value] of raw) {
+    const encoded = Array.isArray(value?.data) ? value.data[0] : null;
+    if (!value || typeof encoded !== "string") {
+      out.set(pubkey, null);
+      continue;
+    }
+    const buf = Buffer.from(encoded, "base64");
+    out.set(pubkey, buf.length >= 8 ? buf.readBigUInt64LE(0) : 0n);
+  }
+  return out;
+}
+
 /**
  * Execution metadata for one submitted transaction.
  *

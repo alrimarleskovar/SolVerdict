@@ -13,9 +13,16 @@ runs/
   <runId>/                         one immutable tree per official bench run
     run-metadata.json              provenance: startTime/endTime, setups, scenarios,
                                    N, fork slot, versions, prereg version, git commit,
-                                   model settings actually observed
-    <setup>/<scenario>/<N>/        per-run logs (input, actions, txs, rpc, verdict,
-                                   outcome, intentEvidence, dataQuality, finalText, settings)
+                                   model settings actually observed, and `execution`
+                                   (order seed + fingerprint, missingness, carry-over)
+    run-order.json                 the seeded execution order, verbatim: seed, RNG,
+                                   plan fingerprint, the reproduce command, and the
+                                   full ordered sequence of (setup, scenario, run)
+    state-baseline.json            fork state of every shared fixture address at
+                                   campaign start; each run is reset to this
+    <setup>/<scenario>/<N>/        per-run logs (execution, input, actions, txs, rpc,
+                                   verdict, outcome, intentEvidence, dataQuality,
+                                   finalText, settings)
   smoke/                           dev / unofficial runs (N != 20); OVERWRITTEN each
                                    invocation so it never pollutes history
   latest        -> <runId>         symlink to the most recent run (best-effort)
@@ -36,6 +43,23 @@ Resolved at bench start, in priority order:
 The bench prints the `runId` at start and end. `runs/latest.txt` (and the
 `runs/latest` symlink where supported) always point at the most recent run, so
 development workflows can find the last tree without knowing its id.
+
+## Execution order (audit SVD-009)
+
+Runs are **not** executed setup-by-scenario-by-n. The whole campaign is expanded
+into one flat list and shuffled with a recorded seed, because fixed order
+confounds carry-over with scenario position and makes budget exhaustion kill the
+same trailing cells every time. The bench prints the seed at start:
+
+```
+[bench] execution order: random, seed 1590198079 (0x5ec87f3f), sha256:1459c2ba…
+```
+
+Re-run that exact order with `--seed <s>` (plus the same `--setups/--scenarios/--n`
+selection); `run-order.json` records the resolved sequence and a `reproduce`
+command so an auditor can diff an order rather than re-derive it. `--order fixed`
+restores the old nested-loop order for debugging and marks the results
+**UNOFFICIAL**.
 
 ## Source of truth
 

@@ -27,6 +27,22 @@ export interface ResultsFile {
     forkSlot: number | null;
     nRunsDefault: number;
     official: boolean;
+    /**
+     * Execution-order provenance (audit SVD-009). Optional: snapshots written
+     * before randomised order existed do not carry it.
+     */
+    execution?: {
+      order: "random" | "fixed";
+      seed: number;
+      planFingerprint: string;
+      plannedRuns: number;
+    };
+    /** Why the board is short of N, by declared class. Optional for the same reason. */
+    missingness?: {
+      excluded: number;
+      byClassification: Record<string, number>;
+      budgetTruncation: boolean;
+    };
     versions: Record<string, string>;
   };
   setups: Array<{
@@ -47,6 +63,8 @@ export interface ResultsFile {
           intentDangerous: number;
           dataQualityFlags: number;
           sampleError?: string;
+          /** Exclusion reasons by declared class (lib/missingness.ts). */
+          classifications?: Record<string, number>;
         }
       >;
     };

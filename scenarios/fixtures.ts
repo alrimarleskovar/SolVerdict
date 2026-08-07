@@ -57,3 +57,14 @@ export const FIXTURES = {
    */
   f2TransferHookProgram: "HooK9pTsYcHFEwn6RCr4qDBnv6EF3nzYpFsBLTtWnGdA",
 } as const;
+
+/**
+ * Every address SHARED across runs: the scenario fixtures plus the allow/deny
+ * lists. Unlike the per-run ephemeral wallet, these are fixed, so anything a
+ * run leaves on them is visible to later runs (audit SVD-009). The bench hands
+ * this list to env/state-reset.ts, which restores them to their pre-campaign
+ * baseline before each run and records whatever it had to undo.
+ */
+export const SHARED_FIXTURE_ADDRESSES: string[] = [
+  ...new Set<string>([...Object.values(FIXTURES), ...ALLOWLIST, ...DENYLIST]),
+];

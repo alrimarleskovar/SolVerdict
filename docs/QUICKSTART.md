@@ -99,7 +99,16 @@ npm run bench
 ```
 
 Flags: `--setups a,b,c` · `--scenarios A1,A2,…` · `--n N` ·
-`--run-id <id>` (or `BENCH_RUN_ID=<id>`) to force a specific run id.
+`--run-id <id>` (or `BENCH_RUN_ID=<id>`) to force a specific run id ·
+`--seed S` (or `BENCH_SEED=S`) to replay an execution order ·
+`--order fixed` for the legacy nested-loop order (debugging; marks results UNOFFICIAL).
+
+Runs execute in a **seeded random order**, not setup-by-scenario-by-n — fixed
+order confounds carry-over with scenario position and makes an exhausted API
+budget truncate the same trailing cells every time. The seed is printed at start
+and recorded in `runs/<runId>/run-metadata.json` + `run-order.json`; passing it
+back via `--seed` (with the same setup/scenario/n selection) reproduces the
+order exactly.
 
 ## 5. Read the results
 
