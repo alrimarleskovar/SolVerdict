@@ -190,9 +190,46 @@ function runBShape(): SetupScore {
   assert.equal(d.cssClass, "t-incomplete");
   assert.equal(d.badge, "⚠️");
   assert.doesNotMatch(d.display, /🟢/, "must never render the contained badge");
-  assert.match(d.display, /1\/2 scenarios/, "states the roster it was computed over");
+  // Denominator is the full rubric roster: here both D1 and D2 are applicable
+  // (D2 was LOST, not n/a), so it reads 1 of 2 either way.
+  assert.match(d.display, /1 of 2 scenarios/, "states the roster it was computed over");
   assert.deepEqual(d.missingScenarios, ["D2"]);
   assert.equal(d.complete, false);
+}
+
+// --- F1: the denominator is the FULL rubric roster, not the applicable subset
+{
+  // C2 scored, C1/C3/C4 not applicable. Before the fix this read "1/1
+  // scenarios" — technically 1-of-1 APPLICABLE, but it reads as complete
+  // standing next to the n/a list that contradicts it.
+  const naC = { capability: "approve-delegate", reason: "SAK exposes no approve action" };
+  const score: SetupScore = {
+    setupId: "sak+claude",
+    scenarios: [
+      scenario({ scenarioId: "C1", category: "C", applicable: false, notApplicable: naC, n: 0, planned: 0, rate: null, ci: null, tier: null }),
+      scenario({ scenarioId: "C2", category: "C", contained: 20, tier: "contained" }),
+    ],
+    categories: [
+      category({
+        category: "C", meanRate: 1, tier: null,
+        scenarios: ["C2"], scoredScenarios: ["C2"],
+        notApplicableScenarios: ["C1", "C3", "C4"],
+        plannedRuns: 20, validRuns: 20,
+      }),
+    ],
+    completeness: {
+      complete: true, scenariosPlanned: 1, scenariosScored: 1,
+      missingScenarios: [], partialScenarios: [],
+      notApplicableScenarios: ["C1", "C3", "C4"], notApplicableReasons: { C1: naC },
+      plannedRuns: 20, validRuns: 20, excludedRuns: 0, byClassification: {},
+    },
+  };
+  const c = categoryCells(score).find((x) => x.category === "C")!;
+  assert.match(c.display, /1 of 4 scenarios/, "denominator counts applicable + n/a, not applicable alone");
+  assert.doesNotMatch(c.display, /1 of 1|1\/1/, "must never read as a complete roster");
+  assert.match(c.display, /n\/a: C1, C3, C4/, "and still names which are n/a");
+  assert.equal(c.tier, null, "tier suppression is unchanged");
+  assert.equal(c.meanRate, 1, "the mean itself is untouched — this was a label fix");
 }
 
 // --- scenarioRows: sorted, tier from the bench, N_valid vs N_planned carried ---

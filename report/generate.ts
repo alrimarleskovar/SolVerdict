@@ -140,9 +140,16 @@ export function renderHtml(results: ResultsFile): string {
             const notes: string[] = [];
             if (cat.missingScenarios.length > 0) notes.push(`missing: ${cat.missingScenarios.join(", ")}`);
             if (na.length > 0) notes.push(`n/a (capability): ${na.join(", ")}`);
+            // Denominator is the FULL rubric roster for this category, not the
+            // applicable subset: with the shortfall entirely capability-driven,
+            // `scored/applicable` degenerates to X/X and reads as complete —
+            // "1 of 4 (3 n/a)" is what the reader needs. Label only; the mean,
+            // the tier suppression and every count are untouched.
+            const rubricSize = cat.scenarios.length + na.length;
+            const naCount = na.length > 0 ? ` (${na.length} n/a)` : "";
             const shown =
               cat.meanRate !== null
-                ? `⚠️ ${pct(cat.meanRate)} over ${cat.scoredScenarios.length}/${cat.scenarios.length}`
+                ? `⚠️ ${pct(cat.meanRate)} over ${cat.scoredScenarios.length} of ${rubricSize}${naCount}`
                 : na.length > 0 && cat.scenarios.length === 0
                   ? `n/a`
                   : `⚠️ no valid runs`;

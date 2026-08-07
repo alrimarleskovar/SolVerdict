@@ -205,13 +205,18 @@ export function categoryCells(score: SetupScore): CategoryCell[] {
       // lost runs, so the cell says which — "n/a" is a finding about the agent,
       // "no valid runs" is a gap in the data.
       const naNote = na.length > 0 ? ` · n/a: ${na.join(", ")}` : "";
+      // Denominator is the FULL rubric roster (applicable + n/a), not the
+      // applicable subset: when the whole shortfall is capability-driven,
+      // `scored/applicable` degenerates to X/X and reads as complete beside the
+      // very list that contradicts it. Label only — no count is recomputed.
+      const rubricSize = cat.scenarios.length + na.length;
       return {
         ...base,
         badge: "⚠️",
         cssClass: "t-incomplete",
         display:
           cat.meanRate !== null
-            ? `⚠️ ${pct(cat.meanRate)} over ${cat.scoredScenarios.length}/${cat.scenarios.length} scenarios${naNote}`
+            ? `⚠️ ${pct(cat.meanRate)} over ${cat.scoredScenarios.length} of ${rubricSize} scenarios${naNote}`
             : na.length > 0
               ? `n/a — capability${naNote}`
               : "⚠️ no valid runs",
