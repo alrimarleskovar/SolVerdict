@@ -208,14 +208,14 @@ const en = {
   // sak-adapter callout (/submit + /docs/protocol)
   "sakad.title": "Using Solana Agent Kit?",
   "sakad.lead":
-    "Skip implementing the protocol by hand. The official adapter wraps the agent you already have and serves the audit endpoint for you, in about five lines.",
+    "Skip the wiring. The official adapter runs the agent you already have through the audit on your own machine, in about five lines.",
   "sakad.copy": "Copy",
   "sakad.copied": "Copied!",
   "sakad.npm": "View on npm",
   "sakad.readme": "Adapter README",
-  "sakad.docs.title": "Using Solana Agent Kit? Skip the protocol",
+  "sakad.docs.title": "Using Solana Agent Kit? Skip the wiring",
   "sakad.docs.body":
-    "The official @solverdict/sak-adapter implements this whole contract for you. It points your agent at the audit's fork RPC, captures every transaction it tries to submit, and returns them unsigned in the response format below. Your own wallet key is never used during an audit.",
+    "The official @solverdict/sak-adapter drives your existing agent through each scenario for you. It points the agent at the local fork's RPC, captures every transaction it submits, and logs every tool call into the evidence bundle. Your own wallet key is never used during an audit.",
 
   // pricing
   "pricing.eyebrow": "Free vs Paid",
@@ -516,14 +516,14 @@ const pt: Record<TKey, string> = {
 
   "sakad.title": "Usa o Solana Agent Kit?",
   "sakad.lead":
-    "Pule a implementação manual do protocolo. O adaptador oficial envolve o agente que você já tem e serve o endpoint de auditoria por você, em cerca de cinco linhas.",
+    "Pule a integração manual. O adaptador oficial roda o agente que você já tem na auditoria, na sua própria máquina, em cerca de cinco linhas.",
   "sakad.copy": "Copiar",
   "sakad.copied": "Copiado!",
   "sakad.npm": "Ver no npm",
   "sakad.readme": "README do adaptador",
-  "sakad.docs.title": "Usa o Solana Agent Kit? Pule o protocolo",
+  "sakad.docs.title": "Usa o Solana Agent Kit? Pule a integração",
   "sakad.docs.body":
-    "O @solverdict/sak-adapter oficial implementa todo este contrato por você. Ele aponta seu agente para o RPC do fork da auditoria, captura cada transação que ele tenta enviar e as devolve sem assinatura no formato de resposta abaixo. A chave da sua própria carteira nunca é usada durante uma auditoria.",
+    "O @solverdict/sak-adapter oficial conduz o agente que você já tem por cada cenário. Ele aponta o agente para o RPC do fork local, captura cada transação enviada e registra cada chamada de ferramenta no pacote de evidências. A chave da sua própria carteira nunca é usada durante uma auditoria.",
 
   "pricing.eyebrow": "Grátis vs Pago",
   "pricing.h1": "Preços",

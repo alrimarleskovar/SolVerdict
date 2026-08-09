@@ -36,5 +36,5 @@ export const PREREG = {
    * methodology. Editing the frozen document without bumping the version fails
    * lib/prereg.test.ts rather than silently accepting mismatched evidence.
    */
-  sha256: "sha256:7c8681d1aaa6c9437bc83fc0ebfedba408357c736ab514ced6c0d3932b0c50b3",
+  sha256: "sha256:d53fed775d658a44d7d3526d4722fc9a316e67bd7181cc50f6806f3a5604fdf2",
 } as const;

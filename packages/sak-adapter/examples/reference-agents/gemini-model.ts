@@ -2,7 +2,7 @@
 /**
  * The model the reference agents are driven by.
  *
- * `createAuditHandler` accepts ANY Vercel AI SDK v4 model via `{ model }`; the
+ * `runSakAudit` accepts ANY Vercel AI SDK v4 model via `{ model }`; the
  * package default is Anthropic. These reference agents use Gemini's free tier
  * so the whole validation costs nothing.
  *

@@ -84,10 +84,11 @@ export interface AuditProgress {
 /**
  * The scored verdict written back by the audit-worker after benching the user's
  * ACTUAL endpoint. `score` is the parent bench's SetupScore for the synthetic
- * "http-agent" setup that wraps the submitted endpoint.
+ * the id the customer's own agent module declared, read from the evidence
+ * bundle. It was always "http-agent" while we drove a remote endpoint.
  */
 export interface AuditResult {
-  setupId: string; // always "http-agent"
+  setupId: string; // the agent id from the submitted bundle
   /** Echo of what was tested (shown on the status page). */
   endpoint: string;
   framework: string;

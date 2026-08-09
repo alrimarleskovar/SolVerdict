@@ -1,7 +1,7 @@
 {
   "name": "@solverdict/sak-adapter",
-  "version": "0.1.0",
-  "description": "Expose any Solana Agent Kit (SAK) agent as a SolVerdict Audit Protocol endpoint — no protocol plumbing required.",
+  "version": "0.2.0",
+  "description": "Run any Solana Agent Kit agent through the SolVerdict scenarios on your own machine.",
   "license": "Apache-2.0",
   "type": "module",
   "main": "./dist/index.js",
@@ -18,13 +18,14 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "tsx test/protocol.test.ts && tsx test/capture.test.ts && tsx test/handler.test.ts",
-    "prepublishOnly": "npm run build && npm test"
+    "test": "tsx test/capture.test.ts",
+    "prepublishOnly": "npm run build && npm test",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "engines": {
     "node": ">=20"
   },
-  "//pins": "ai + @ai-sdk/anthropic are EXACT-pinned to the versions the SolVerdict benchmark uses (root package.json) — the adapter must drive SAK identically to how the benchmark drives it, since that is what SolVerdict measures. solana-agent-kit and @solana/web3.js are peers so the adapter operates on the SAME instances/classes as the developer's agent.",
+  "//pins": "ai + @ai-sdk/anthropic are EXACT-pinned to the versions the SolVerdict benchmark uses (root package.json) \u2014 the adapter must drive SAK identically to how the benchmark drives it, since that is what SolVerdict measures. solana-agent-kit and @solana/web3.js are peers so the adapter operates on the SAME instances/classes as the developer's agent.",
   "dependencies": {
     "@ai-sdk/anthropic": "1.2.12",
     "ai": "4.3.19"

@@ -1,22 +1,20 @@
 // SPDX-License-Identifier: Apache-2.0
 /**
- * @solverdict/sak-adapter — expose any Solana Agent Kit agent as a SolVerdict
- * Audit Protocol endpoint.
+ * @solverdict/sak-adapter — run your Solana Agent Kit agent through the
+ * SolVerdict scenarios on your own machine.
  *
- * Quickstart:
+ * WHAT CHANGED IN STEP 8. This package used to export `createAuditHandler`,
+ * which wrapped an agent as an HTTP endpoint for SolVerdict to call. Nothing
+ * calls it any more: the audit runs locally, against the customer's own fork,
+ * and only the evidence travels. Exporting a server handler we never dial would
+ * invite people to build an integration that leads nowhere, so the handler and
+ * the wire protocol it spoke are gone (see the git history if you need the
+ * HTTP-era code — `examples/validation/validation-report.json` was produced by
+ * it and is kept as a dated artifact, not as something reproducible at HEAD).
  *
- *   import { createAuditHandler } from "@solverdict/sak-adapter";
- *   const handler = createAuditHandler(agent);      // your SolanaAgentKit
- *   app.post("/audit", handler.node);               // Express / node:http
- *   // or: export const POST = handler.fetch;       // Next.js App Router
+ * What is left is the part that was always about the agent: drive a
+ * SolanaAgentKit through one scenario instance and report what it did.
  */
-export {
-  createAuditHandler,
-  type AuditHandler,
-  type AuditHandlerOptions,
-  type HandledResponse,
-} from "./handler.js";
-
 export {
   runSakAudit,
   DEFAULT_MAX_STEPS,
@@ -42,18 +40,4 @@ export {
   type BenchmarkModelOptions,
 } from "./provider.js";
 
-export {
-  PROTOCOL_VERSION,
-  DEFAULT_TIMEOUT_MS,
-  MAX_RESPONSE_BYTES,
-  MAX_TRANSACTIONS,
-  MAX_TX_BASE64_LEN,
-  validateAuditRequest,
-  validateAuditResponse,
-  type ActionType,
-  type AuditRequest,
-  type AuditResponse,
-  type ScenarioInput,
-  type ValidatedRequest,
-  type ValidatedResponse,
-} from "./protocol.js";
+export type { AuditTask, ScenarioInput } from "./task.js";

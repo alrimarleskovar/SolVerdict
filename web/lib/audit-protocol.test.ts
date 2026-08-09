@@ -1,70 +1,30 @@
 // SPDX-License-Identifier: Apache-2.0
 /**
- * Round-trip + validation tests for the HTTP audit protocol, plus the SSRF and
- * submission guards. Run with `npm test` (tsx).
+ * Submission-protocol constants, plus the SSRF and submission guards.
+ *
+ * The HTTP request/response round-trip this file used to cover was deleted in
+ * step 8 along with the protocol itself; what is left of the protocol is a
+ * format identifier and a size cap, and what is left to test about them is that
+ * they cannot silently become something else. The SSRF and submission coverage
+ * below is unchanged and still live: /api/audit/submit validates the endpoint a
+ * customer types into the form.
  */
 import assert from "node:assert/strict";
-import {
-  buildAuditRequest,
-  validateAuditResponse,
-  PROTOCOL_VERSION,
-  DEFAULT_TIMEOUT_MS,
-  MAX_TRANSACTIONS,
-} from "./audit-protocol";
+import { PROTOCOL_VERSION, MAX_BUNDLE_BYTES, SUBMISSION_FIELDS } from "./audit-protocol";
 import { isPrivateIp, looksLikePrivateHostname } from "./ssrf";
 import { validateSubmission } from "./submission";
 
-const B64 = Buffer.from("a-fake-transaction").toString("base64");
-
-// --- buildAuditRequest ---
+// --- the bundle protocol identifier -----------------------------------------
 {
-  const req = buildAuditRequest({
-    scenarioId: "A2",
-    walletPubkey: "7Np41oeYqPefeNQEHSv1UDhYrehxin3NStELsSKCT4K2",
-    rpcUrl: "http://localhost:8899",
-    scenarioInput: { task: "move all funds", context: [] },
-  });
-  assert.equal(req.protocol, PROTOCOL_VERSION);
-  assert.equal(req.timeoutMs, DEFAULT_TIMEOUT_MS);
-  assert.equal(req.scenarioId, "A2");
-}
+  // A NEW namespace, not a revision of the old one: a client built for the HTTP
+  // era must not be able to read this as "compatible".
+  assert.equal(PROTOCOL_VERSION, "solverdict-bundle/v1");
+  assert.ok(!PROTOCOL_VERSION.startsWith("solverdict/"), "must not reuse the retired HTTP namespace");
 
-// --- validateAuditResponse: round-trip a well-formed agent reply ---
-{
-  const execute = validateAuditResponse({ actionType: "execute", transactions: [B64], memo: "ok" });
-  assert.equal(execute.ok, true);
-  if (execute.ok) {
-    assert.equal(execute.value.actionType, "execute");
-    assert.deepEqual(execute.value.transactions, [B64]);
-    assert.equal(execute.value.memo, "ok");
-  }
+  // Large enough for a full paid audit, small enough to bound a hostile upload.
+  assert.equal(MAX_BUNDLE_BYTES, 64 * 1024 * 1024);
 
-  const refuse = validateAuditResponse({ actionType: "refuse", transactions: [] });
-  assert.equal(refuse.ok, true);
-
-  // execute with no txs is valid (agent chose to do nothing == containment).
-  assert.equal(validateAuditResponse({ actionType: "execute", transactions: [] }).ok, true);
-  // missing transactions defaults to [].
-  assert.equal(validateAuditResponse({ actionType: "flag" }).ok, true);
-}
-
-// --- validateAuditResponse: rejections ---
-{
-  assert.equal(validateAuditResponse(null).ok, false);
-  assert.equal(validateAuditResponse("nope").ok, false);
-  assert.equal(validateAuditResponse({ actionType: "boom", transactions: [] }).ok, false);
-  // refuse/flag must not smuggle a transaction.
-  assert.equal(validateAuditResponse({ actionType: "refuse", transactions: [B64] }).ok, false);
-  assert.equal(validateAuditResponse({ actionType: "flag", transactions: [B64] }).ok, false);
-  // not-base64.
-  assert.equal(validateAuditResponse({ actionType: "execute", transactions: ["!!!not base64!!!"] }).ok, false);
-  // too many.
-  assert.equal(
-    validateAuditResponse({ actionType: "execute", transactions: Array(MAX_TRANSACTIONS + 1).fill(B64) }).ok,
-    false,
-  );
-  // wrong memo type.
-  assert.equal(validateAuditResponse({ actionType: "execute", transactions: [], memo: 5 }).ok, false);
+  assert.deepEqual([...SUBMISSION_FIELDS], ["bundle", "manifest", "signature"]);
 }
 
 // --- SSRF: private IP + hostname screens ---
@@ -111,4 +71,4 @@ const B64 = Buffer.from("a-fake-transaction").toString("base64");
   );
 }
 
-console.log("audit-protocol + ssrf + submission tests passed");
+console.log("submission-protocol + ssrf + submission tests passed");

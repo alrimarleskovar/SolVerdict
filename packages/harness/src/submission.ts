@@ -27,7 +27,18 @@ import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from "
 import path from "node:path";
 import { PREREG } from "./config/prereg.js";
 
+/**
+ * The evidence-bundle format this package produces.
+ *
+ * Restated here rather than imported from the server: the harness ships without
+ * the web app. `web/lib/audit-protocol.ts` holds the server's copy and the two
+ * must agree — a mismatch is what tells an old client to update.
+ */
+export const BUNDLE_FORMAT = "solverdict-bundle/v1";
+
 export interface SubmissionManifest {
+  /** The bundle format these bytes are laid out in. */
+  format: typeof BUNDLE_FORMAT;
   /** The audit this evidence answers. Binds the bundle to one paid audit. */
   auditId: string | null;
   runId: string;
@@ -86,6 +97,7 @@ export function packageSubmission(args: { runDir: string; auditId?: string | nul
   cells.sort();
 
   const manifest: SubmissionManifest = {
+    format: BUNDLE_FORMAT,
     auditId: args.auditId ?? null,
     runId,
     producedBy: "@solverdict/harness",

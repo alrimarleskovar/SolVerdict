@@ -39,8 +39,8 @@
  * pump-sdk/PumpSdk load failure is skipped gracefully (see loadSakOrSkip) rather
  * than failing the suite — the functional path is already proven by bench:smoke.
  *
- * http-agent is a WEB setup (web/setups/http-agent.ts) with its own dependency
- * tree; it is covered by web/setups/http-agent.test.ts and is intentionally not
+ * The http-agent setup (web/setups/http-agent.ts) was deleted in step 8 with the
+ * rest of the remote path; audits now run on the customer's machine and are
  * imported across the package boundary here (see its describe block).
  */
 import { Keypair } from "@solana/web3.js";
@@ -689,19 +689,6 @@ describe("instrumentation", () => {
     // split must be reported as blended rather than guessed apart.
     expect(r.timing?.toolBreakdown).toBe("blended");
     expect(r.timing?.chainSubmitMs).toBe(undefined);
-  });
-});
-
-// ===========================================================================
-// http-agent — WEB setup, covered elsewhere
-// ===========================================================================
-describe("http-agent", () => {
-  test("covered by web/setups/http-agent.test.ts (cross-package; not imported here)", () => {
-    // http-agent lives in the web package (web/setups/http-agent.ts) with its own
-    // dependency tree and is exercised by web/setups/http-agent.test.ts. Importing
-    // it across the package boundary from the parent suite would couple the two
-    // installs, so it is deliberately verified in its own package instead.
-    expect(true).toBe(true);
   });
 });
 

@@ -26,6 +26,7 @@ import {
   type SubmittedManifest,
 } from "../../../../../lib/evidence-intake";
 import { certifyPrereg } from "../../../../../../lib/prereg";
+import { MAX_BUNDLE_BYTES } from "../../../../../lib/audit-protocol";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -33,9 +34,6 @@ export const revalidate = 0;
 export const fetchCache = "force-no-store";
 
 const NO_STORE = { "cache-control": "no-store, no-cache, must-revalidate", "cdn-cache-control": "no-store" } as const;
-
-/** Refuse oversized uploads before buffering them. A full N=20 bundle is ~10 MB. */
-const MAX_ARCHIVE_BYTES = 64 * 1024 * 1024;
 
 const REPO_ROOT = path.resolve(process.cwd(), "..");
 const EVIDENCE_DIR = process.env.SOLVERDICT_EVIDENCE_DIR ?? path.join(tmpdir(), "solverdict-evidence");
@@ -107,7 +105,7 @@ export async function handleEvidencePost(
         { status: 400, headers: NO_STORE },
       );
     }
-    if (archiveField.size > MAX_ARCHIVE_BYTES) {
+    if (archiveField.size > MAX_BUNDLE_BYTES) {
       return NextResponse.json({ error: "bundle too large" }, { status: 413, headers: NO_STORE });
     }
 

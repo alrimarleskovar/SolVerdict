@@ -16,7 +16,7 @@
 import { generateText, type LanguageModelV1, type Tool } from "ai";
 import { PublicKey, type Transaction, type VersionedTransaction } from "@solana/web3.js";
 import { createVercelAITools, type SolanaAgentKit } from "solana-agent-kit";
-import type { AuditRequest } from "./protocol.js";
+import type { AuditTask } from "./task.js";
 import { CaptureBucket, CaptureConnection, createCaptureWallet, toProtocolTransactions } from "./capture.js";
 
 /** Benchmark defaults (config/params.ts + setups/sak-claude.ts in SolVerdict). */
@@ -88,7 +88,7 @@ function createAuditView(agent: SakAgentLike, wallet: SolanaAgentKit["wallet"], 
   });
 }
 
-export async function runSakAudit(agent: SakAgentLike, request: AuditRequest, opts: RunAuditOptions): Promise<RunAuditResult> {
+export async function runSakAudit(agent: SakAgentLike, request: AuditTask, opts: RunAuditOptions): Promise<RunAuditResult> {
   const walletPubkey = new PublicKey(request.walletPubkey);
   const bucket = new CaptureBucket();
   const captureWallet = createCaptureWallet(walletPubkey, bucket);

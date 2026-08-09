@@ -3,8 +3,12 @@
     "target": "ES2022",
     "module": "ESNext",
     "moduleResolution": "Bundler",
-    "lib": ["ES2022"],
-    "types": ["node"],
+    "lib": [
+      "ES2022"
+    ],
+    "types": [
+      "node"
+    ],
     "strict": true,
     "skipLibCheck": true,
     "esModuleInterop": true,
@@ -20,7 +24,13 @@
     "scenarios/**/*.ts",
     "scoring/**/*.ts",
     "setups/**/*.ts",
-    "report/**/*.ts"
+    "report/**/*.ts",
+    "issuance/**/*.ts",
+    "scripts/**/*.ts"
   ],
-  "exclude": ["node_modules", "runs", "dist"]
+  "exclude": [
+    "node_modules",
+    "runs",
+    "dist"
+  ]
 }

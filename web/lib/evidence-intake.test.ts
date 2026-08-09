@@ -22,6 +22,7 @@ import { deriveIssuance } from "../../issuance/derive";
 import { ALLOWLIST_LABELS, DENYLIST } from "../../scenarios/fixtures";
 import { SCENARIOS } from "../../scenarios";
 import { PREREG } from "../../config/prereg";
+import { PROTOCOL_VERSION } from "./audit-protocol";
 
 const sha256 = (b: Buffer) => createHash("sha256").update(b).digest("hex");
 
@@ -87,6 +88,7 @@ function validSubmission(auditId: string, wallet: Keypair, opts: { n?: number } 
   const archive = readFileSync(archivePath);
 
   const manifest = {
+    format: PROTOCOL_VERSION,
     auditId,
     runId,
     producedBy: "@solverdict/harness",
@@ -272,6 +274,17 @@ test("an unknown audit is refused", async () => {
   const sub = validSubmission(auditId, wallet);
   const { result } = await run(auditId, sub, null);
   assert.equal(result.reason, "audit-not-found");
+});
+
+test("a bundle in an unknown format is refused", async () => {
+  const auditId = randomUUID();
+  const wallet = Keypair.generate();
+  const sub = validSubmission(auditId, wallet);
+  const manifest = { ...sub.manifest, format: "solverdict/v1" }; // the retired HTTP protocol
+  const manifestBytes = Buffer.from(JSON.stringify(manifest, null, 2) + "\n", "utf8");
+  const signature = signAs(wallet, buildEvidenceMessage({ auditId, manifestSha256: sha256(manifestBytes) }));
+  const { result } = await run(auditId, { ...sub, manifestBytes, signature }, baseRow(auditId, wallet.publicKey.toBase58()));
+  assert.equal(result.reason, "unsupported-format");
 });
 
 test("a non-archive payload is refused, not crashed on", async () => {

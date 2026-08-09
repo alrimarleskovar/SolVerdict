@@ -39,33 +39,46 @@ web/
     placard-model.ts             SetupScore → placard view-model (reuses tierFor)
     *.test.ts                    unit tests (npm test)
   supabase/schema.sql            tables, indexes, and atomic RPC functions
-  setups/http-agent.ts           SetupRun impl: POST scenario → sign+submit txs → action log
-  worker/run-audit.ts            always-on worker: claim → Surfpool → 20 scenarios → Supabase
+  lib/evidence-intake.ts         verify a submitted bundle (sha256, signature, prereg, instance)
+  app/api/audit/[id]/evidence/   POST endpoint the harness submits to
+  worker/run-audit.ts            always-on worker: claim → re-score bundle → Supabase
+  worker/rescore-audit.ts        the job body: evidence in, AuditResult out
   worker/Dockerfile              Railway image (Node 20 + pinned Surfpool 1.3.1)
   worker/queue-claim.test.ts     atomic-claim contract test
-  examples/reference-agent.ts    ~50-line Express agent implementing the protocol
 railway.json                     Railway service config (repo root)
 ```
 
-## The SolVerdict Audit Protocol (v1)
+## The SolVerdict submission protocol (solverdict-bundle/v1)
 
-Your agent exposes ONE HTTPS endpoint. For each scenario SolVerdict POSTs:
+The customer runs the audit on their own machine with
+[`@solverdict/harness`](../packages/harness) and uploads what it produces:
 
-```json
-{ "protocol": "solverdict/v1", "scenarioId": "A2", "walletPubkey": "…",
-  "rpcUrl": "http://localhost:8899", "scenarioInput": { "task": "…", "context": [] },
-  "timeoutMs": 30000 }
+```
+POST /api/audit/<auditId>/evidence     multipart: bundle + manifest + signature
 ```
 
-Your agent replies with a decision — zero or more **unsigned** legacy
-transactions (SolVerdict holds the key and signs):
+- `bundle` — `<runId>.tar.gz`, the evidence tree the local runner wrote;
+- `manifest` — the archive's SHA-256 plus provenance (bundle format, run id,
+  the pre-registration digest the harness implements);
+- `signature` — ed25519 over the manifest digest, by the wallet that owns the
+  audit (`lib/wallet-auth.ts`, the same primitive as the login flow).
 
-```json
-{ "actionType": "execute" | "refuse" | "flag", "transactions": ["<base64>"], "memo": "…" }
-```
+Intake (`lib/evidence-intake.ts`) fails closed on: unknown bundle format,
+archive/manifest digest mismatch, a signature that is not the audit owner's, a
+pre-registration digest that is not ours, or `ctx.params` that do not match the
+instance this audit was issued. Nothing is stored or enqueued unless every check
+passes.
 
-Full spec, examples, and a reference implementation: **`/docs/protocol`** and
-`web/examples/reference-agent.ts`.
+Then the worker re-derives the verdict rather than trusting the bundle:
+transaction magnitudes from the validator's pre/post balances, destinations and
+program ids from the signed bytes, and the denominator from the pre-registered
+N. Full spec: **`/docs/protocol`**.
+
+> The HTTP request/response protocol this section used to describe (we POST an
+> `AuditRequest`, the agent replies with unsigned transactions) was deleted in
+> step 8 along with `setups/http-agent.ts`. It carried
+> `rpcUrl: "http://localhost:8899"` — our fork, their loopback — so it stopped
+> being implementable once the agent and the fork lived on different machines.
 
 ## Data model (Supabase)
 
@@ -110,8 +123,10 @@ keys behind its endpoint.
 Other scripts:
 
 ```bash
-npm run build   # production build (also type-checks the worker + http-agent + parent graph)
-npm test        # tsc --noEmit + placard-model + audit-protocol + payment + notify + supabase + queue-claim + http-agent
+npm run build   # production build (also type-checks the worker + parent graph)
+npm test        # tsc --noEmit + placard-model + wallet-auth + evidence-intake + landing
+                #   + submit-outcomes + server-only-secrets + submission-protocol
+                #   + payment + notify + supabase + queue-claim
 ```
 
 ## Environment
@@ -170,10 +185,12 @@ Because the app imports parent modules above `web/`, `next.config.js` sets
    `enqueue_paid` to move the audit to `queued`.
 3. The worker loops: it periodically reclaims stale claims and resolves stuck
    payments, then `claim_next_audit` atomically takes the oldest queued audit.
-4. For the claimed audit it ensures Surfpool is up and runs **all 20 scenarios at
-   N** single-shot: fund an ephemeral wallet, POST the scenario to the endpoint
-   (`http-agent`), sign + submit the returned transactions, score with `check()`
-   → `classifyOutcome`. Progress is written to `audits.progress` as it goes.
+4. For the claimed audit it re-scores the submitted evidence bundle
+   (`worker/rescore-audit.ts`): extract, re-derive every transaction's magnitude
+   from the validator's own pre/post balances, run each scenario's `check()` →
+   `classifyOutcome`, and aggregate against the pre-registered denominator. No
+   Surfpool and no RPC recorder — the audit already ran, on the customer's
+   machine. Progress is written to `audits.progress`.
 5. On completion it writes the aggregated `SetupScore` to `audits.results`, sets
    status `done` (or `failed`), deletes the queue row, and sends the email.
 6. `/audit/<id>` polls the API — a queue-depth wait estimate while queued, then

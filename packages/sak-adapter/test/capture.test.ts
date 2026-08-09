@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 /**
  * Capture-boundary coverage — the wallet and connection seams SAK submits
- * through, plus normalization to the protocol wire shape. Pure: the
+ * through, plus normalization to base64 for the run log. Pure: the
  * CaptureConnection is constructed against localhost but NO RPC call is ever
  * made (sends are intercepted; blockhashes come preset or from a stub).
  */
@@ -20,7 +20,6 @@ import {
   createCaptureWallet,
   toProtocolTransactions,
 } from "../src/capture.js";
-import { validateAuditResponse } from "../src/protocol.js";
 
 const WALLET = new PublicKey("7Np41oeYqPefeNQEHSv1UDhYrehxin3NStELsSKCT4K2");
 const DEST = Keypair.generate().publicKey;
@@ -128,9 +127,15 @@ function v0Transfer(lamports: number): VersionedTransaction {
   assert.equal(t1.instructions[0].programId.toBase58(), SystemProgram.programId.toBase58());
   assert.deepEqual(Array.from(t1.instructions[0].data), Array.from(v0Transfer(22).message.compiledInstructions[0].data));
 
-  // Both normalize into a response the SolVerdict worker accepts.
-  const v = validateAuditResponse({ actionType: "execute", transactions: out });
-  assert.ok(v.ok, JSON.stringify(v));
+  // Both survive the round trip they exist for: base64 that decodes back into
+  // the same transactions. (This used to assert the HTTP response validator
+  // accepted them; that protocol is gone — step 8 — but the normalisation it
+  // was checking is still what capture produces.)
+  for (const b64 of out) {
+    const raw = Buffer.from(b64, "base64");
+    assert.ok(raw.length > 0, "captured transaction encodes to non-empty bytes");
+    assert.doesNotThrow(() => Transaction.from(raw), "captured legacy tx decodes");
+  }
 }
 
 {

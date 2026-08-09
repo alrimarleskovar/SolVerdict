@@ -6,6 +6,7 @@
  * only thing the server sees is a file they chose to send. Every property the
  * result depends on has to be re-established here, before anything is scored:
  *
+ *   0. FORMAT      the bundle layout is one this server can read.
  *   1. INTEGRITY   sha256 of the archive equals what the manifest commits to.
  *   2. OWNERSHIP   the manifest digest is signed by the wallet that owns the
  *                  audit — not merely by "a" wallet.
@@ -36,12 +37,14 @@ import { verifyIssuedParams, describeViolations } from "../../issuance/verify";
 import { ALLOWLIST_LABELS, DENYLIST } from "../../scenarios/fixtures";
 import { SCENARIOS } from "../../scenarios";
 import { PREREG } from "../../config/prereg";
+import { PROTOCOL_VERSION } from "./audit-protocol";
 
 /** Domain-separated so an evidence signature cannot be replayed as a login. */
 const EVIDENCE_DOMAIN = "solverdict.vercel.app/evidence";
 
 export type IntakeFailure =
   | "bad-request"
+  | "unsupported-format"
   | "audit-not-found"
   | "not-accepting" // wrong status, or unpaid with no dev flag
   | "already-submitted"
@@ -112,6 +115,8 @@ export interface IntakePorts {
 }
 
 export interface SubmittedManifest {
+  /** Bundle layout the client used. Must be the one this server can read. */
+  format?: string;
   auditId?: string | null;
   runId?: string;
   preregVersion?: string;
@@ -166,6 +171,16 @@ export async function acceptEvidence(req: IntakeRequest, ports: IntakePorts): Pr
     return fail("not-accepting", "paid evidence intake is not enabled yet (part 2)");
   }
   if (!ACCEPTING.has(row.status)) return fail("not-accepting", `audit status is ${row.status}`);
+
+  // 0. FORMAT — refuse a layout we cannot read, before reasoning about bytes.
+  // A version field nobody checks is decoration; this is what makes the
+  // identifier load-bearing when the bundle shape next changes.
+  if (manifest.format !== PROTOCOL_VERSION) {
+    return fail(
+      "unsupported-format",
+      `bundle declares format ${manifest.format ?? "(none)"}, this server reads ${PROTOCOL_VERSION} — update @solverdict/harness`,
+    );
+  }
 
   // 1. INTEGRITY — the archive is the archive the manifest describes.
   const archiveDigest = sha256(req.archive);
@@ -240,6 +255,7 @@ export async function acceptEvidence(req: IntakeRequest, ports: IntakePorts): Pr
 /** HTTP status for each refusal — 4xx is the client's problem, 5xx is ours. */
 export const INTAKE_STATUS: Record<IntakeFailure, number> = {
   "bad-request": 400,
+  "unsupported-format": 422,
   "audit-not-found": 404,
   "not-accepting": 409,
   "already-submitted": 409,

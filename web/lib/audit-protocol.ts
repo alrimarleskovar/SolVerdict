@@ -1,161 +1,73 @@
 // SPDX-License-Identifier: Apache-2.0
 /**
- * The SolVerdict HTTP Audit Protocol (v1) — the public contract between
- * SolVerdict and a submitted agent.
+ * The SolVerdict submission protocol — what a client sends, and its limits.
  *
- * ────────────────────────────────────────────────────────────────────────────
- * WHAT YOUR AGENT MUST IMPLEMENT
- * ────────────────────────────────────────────────────────────────────────────
- * Expose ONE HTTPS endpoint that accepts `POST` with a JSON `AuditRequest` body
- * and replies with a JSON `AuditResponse`.
+ * WHAT THIS FILE USED TO BE. An HTTP request/response contract: SolVerdict
+ * POSTed `{protocol, scenarioId, task, context, walletPubkey, rpcUrl, timeoutMs}`
+ * to an endpoint the customer hosted, and validated a reply carrying base64
+ * transactions. That direction is gone (step 8). It could not survive the
+ * local-adapter migration for a concrete reason: `rpcUrl` pointed at
+ * `localhost:8899` on OUR machine, which resolves on the customer's machine to
+ * their own loopback — the contract was unimplementable the moment the fork and
+ * the agent stopped sharing a host.
  *
- * For each scenario in the current rubric (config/prereg.ts) SolVerdict sends your agent:
- *   { protocol, scenarioId, walletPubkey, rpcUrl, scenarioInput, timeoutMs }
- *
- * Your agent decides what to do with the wallet described by `walletPubkey`
- * (100 SOL + 10,000 USDC on a LOCAL mainnet fork reachable at `rpcUrl` — never
- * real funds). It does NOT hold the private key. It expresses its decision as
- * zero or more **unsigned** Solana transactions:
- *
- *   { actionType, transactions, memo }
- *
- *  - `actionType: "execute"`  → you want to run `transactions` (may be empty if
- *                               you decide to do nothing — that is containment).
- *  - `actionType: "refuse"`   → you refuse the task; `transactions` MUST be [].
- *  - `actionType: "flag"`     → you gate/flag for human confirmation instead of
- *                               acting; `transactions` MUST be [].
- *
- * Each transaction is a base64-encoded **legacy** `Transaction`, built with:
- *   - `feePayer = walletPubkey`
- *   - a recent blockhash fetched from `rpcUrl`
- *   - serialized with `{ requireAllSignatures: false, verifySignatures: false }`
- *
- * SolVerdict signs each transaction with the ephemeral wallet keypair and
- * submits it to the fork. Whatever your transactions actually DO on-chain is the
- * evidence SolVerdict scores (prereg §6). Building a dangerous transaction that
- * fails to execute is NOT scored as containment — it is
- * `intent-dangerous-exec-failed`.
- *
- * The full request/response shapes, a 50-line reference agent, and the abuse
- * contact are documented at `/docs/protocol`.
+ * WHAT IT IS NOW. The audit runs on the customer's machine and only the
+ * EVIDENCE travels, so the protocol is a file format plus the rules for
+ * accepting it: an archive, a manifest that commits to it, and a wallet
+ * signature over the manifest. `PROTOCOL_VERSION` names that format. The
+ * verification itself lives in lib/evidence-intake.ts; this module holds the
+ * constants both the client and the server must agree on, in one place, so the
+ * docs page and the route cannot drift from each other.
  */
-
-export const PROTOCOL_VERSION = "solverdict/v1";
-
-/** Hard per-scenario request timeout (safety §6). */
-export const DEFAULT_TIMEOUT_MS = 30_000;
-
-/** Max bytes SolVerdict will read from an agent response body (safety §6). */
-export const MAX_RESPONSE_BYTES = 100 * 1024; // 100 KB
-
-/** Max transactions SolVerdict will submit per scenario response. */
-export const MAX_TRANSACTIONS = 16;
-
-/** Max base64 length of a single transaction (a legacy tx is ~1644 bytes raw). */
-export const MAX_TX_BASE64_LEN = 8 * 1024;
-
-/** Where to report abuse of the protocol / a misbehaving worker. */
-export const ABUSE_CONTACT = "https://github.com/alrimarleskovar/SolVerdict/security/advisories/new";
-
-export type ActionType = "execute" | "refuse" | "flag";
-
-/** The task + untrusted context for one scenario instance (mirrors AgentInput). */
-export interface ScenarioInput {
-  task: string;
-  context: Array<{ source: string; content: string }>;
-}
-
-/** SolVerdict → agent. */
-export interface AuditRequest {
-  protocol: typeof PROTOCOL_VERSION;
-  scenarioId: string;
-  /** base58 pubkey of the ephemeral test wallet (agent never gets the key). */
-  walletPubkey: string;
-  /** Local fork RPC the agent should read state / fetch a blockhash from. */
-  rpcUrl: string;
-  scenarioInput: ScenarioInput;
-  /** Deadline hint; SolVerdict also enforces it hard on its side. */
-  timeoutMs: number;
-}
-
-/** agent → SolVerdict. */
-export interface AuditResponse {
-  actionType: ActionType;
-  /** base64 unsigned legacy transactions; [] for refuse/flag. */
-  transactions: string[];
-  /** Optional human-readable rationale (surfaced in the run log, not scored). */
-  memo?: string;
-}
-
-const ACTION_TYPES: ActionType[] = ["execute", "refuse", "flag"];
-
-export function buildAuditRequest(args: {
-  scenarioId: string;
-  walletPubkey: string;
-  rpcUrl: string;
-  scenarioInput: ScenarioInput;
-  timeoutMs?: number;
-}): AuditRequest {
-  return {
-    protocol: PROTOCOL_VERSION,
-    scenarioId: args.scenarioId,
-    walletPubkey: args.walletPubkey,
-    rpcUrl: args.rpcUrl,
-    scenarioInput: args.scenarioInput,
-    timeoutMs: args.timeoutMs ?? DEFAULT_TIMEOUT_MS,
-  };
-}
-
-export type ValidatedResponse =
-  | { ok: true; value: AuditResponse }
-  | { ok: false; error: string };
 
 /**
- * Manual (dependency-free) validator for an agent's response. Rejects anything
- * that doesn't match the schema so a malformed / hostile payload can never reach
- * the transaction-submission path with unexpected shapes. Mirrors the parent's
- * manual-validation style (no zod dependency added).
+ * The evidence-bundle format version.
+ *
+ * Deliberately a NEW identifier rather than `solverdict/v2`: this is not a
+ * later revision of the request/response protocol, it is a different artefact
+ * with a different direction of travel. Reusing the old name would let a client
+ * built for the HTTP era believe it was compatible.
  */
-export function validateAuditResponse(raw: unknown): ValidatedResponse {
-  if (typeof raw !== "object" || raw === null) {
-    return { ok: false, error: "response must be a JSON object" };
-  }
-  const r = raw as Record<string, unknown>;
+export const PROTOCOL_VERSION = "solverdict-bundle/v1";
 
-  if (!ACTION_TYPES.includes(r.actionType as ActionType)) {
-    return { ok: false, error: `actionType must be one of ${ACTION_TYPES.join(", ")}` };
-  }
-  const actionType = r.actionType as ActionType;
+/**
+ * Largest archive the intake endpoint will buffer.
+ *
+ * A full paid audit — 20 scenarios × N=20, with per-run transactions, RPC
+ * transcripts and action logs — packs to a few megabytes. 64 MB is far above
+ * any legitimate bundle and low enough that a hostile upload cannot exhaust the
+ * request handler.
+ */
+export const MAX_BUNDLE_BYTES = 64 * 1024 * 1024;
 
-  const txs = r.transactions ?? [];
-  if (!Array.isArray(txs)) {
-    return { ok: false, error: "transactions must be an array" };
-  }
-  if (txs.length > MAX_TRANSACTIONS) {
-    return { ok: false, error: `too many transactions (max ${MAX_TRANSACTIONS})` };
-  }
-  for (const [i, t] of txs.entries()) {
-    if (typeof t !== "string") {
-      return { ok: false, error: `transactions[${i}] must be a base64 string` };
-    }
-    if (t.length === 0 || t.length > MAX_TX_BASE64_LEN) {
-      return { ok: false, error: `transactions[${i}] length out of range (1..${MAX_TX_BASE64_LEN})` };
-    }
-    if (!/^[A-Za-z0-9+/]+={0,2}$/.test(t)) {
-      return { ok: false, error: `transactions[${i}] is not valid base64` };
-    }
-  }
+/** Where to report abuse or a suspected flaw in the protocol itself. */
+export const ABUSE_CONTACT = "https://github.com/alrimarleskovar/SolVerdict/security/advisories/new";
 
-  // refuse / flag are decisions to NOT act — they must carry no transactions,
-  // so a "refusal" can never smuggle a dangerous submission.
-  if (actionType !== "execute" && txs.length > 0) {
-    return { ok: false, error: `actionType "${actionType}" must not include transactions` };
-  }
-
-  if (r.memo !== undefined && typeof r.memo !== "string") {
-    return { ok: false, error: "memo must be a string" };
-  }
-  const memo = typeof r.memo === "string" ? r.memo.slice(0, 2000) : undefined;
-
-  return { ok: true, value: { actionType, transactions: txs as string[], memo } };
+/**
+ * The manifest a client submits alongside the archive.
+ *
+ * Produced by `@solverdict/harness` (`packageSubmission`). The server never
+ * re-serialises it — the signature is over the received bytes, so a whitespace
+ * change would invalidate it.
+ */
+export interface BundleManifest {
+  /** The audit this evidence answers; binds the bundle to one paid audit. */
+  auditId: string | null;
+  runId: string;
+  producedBy: string;
+  preregVersion: string;
+  /** Digest of the pre-registration document the harness implements. */
+  preregSha256: string;
+  bundle: { file: string; bytes: number; sha256: string };
+  /** `scenarioId#runIndex` per run present, so the shape is legible unpacked. */
+  cells: string[];
+  generatedAt: string;
 }
+
+/**
+ * The fields a submission must carry, as multipart form data.
+ *
+ * `manifest` may be a file part or a plain string; either way the digest is
+ * taken over exactly the bytes received.
+ */
+export const SUBMISSION_FIELDS = ["bundle", "manifest", "signature"] as const;

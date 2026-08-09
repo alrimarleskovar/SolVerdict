@@ -2,46 +2,62 @@
 
 > **DRAFT** — proposed content for `solverdict.vercel.app/docs`. Not published yet.
 
-If your agent is built on [Solana Agent Kit](https://github.com/sendaifun/solana-agent-kit), you do not need to implement the SolVerdict Audit Protocol by hand. The official adapter wraps the agent you already have and serves the audit endpoint for you.
+If your agent is built on [Solana Agent Kit](https://github.com/sendaifun/solana-agent-kit), you do not need to wire anything by hand. The official adapter drives the agent you already have through each scenario, on your machine.
 
 ```bash
-npm install @solverdict/sak-adapter solana-agent-kit@2.0.10 @solana/web3.js
+npm install @solverdict/harness @solverdict/sak-adapter solana-agent-kit@2.0.10 @solana/web3.js
 ```
 
 ```ts
-import { createAuditHandler } from "@solverdict/sak-adapter";
+// my-agent.mjs — default-export a Setup; the harness runs it locally.
+import { runSakAudit } from "@solverdict/sak-adapter";
 
 const agent = new SolanaAgentKit(wallet, rpcUrl, {}).use(TokenPlugin); // your existing agent
-const handler = createAuditHandler(agent);
 
-app.post("/audit", handler.node);   // Express / node:http
-// Next.js App Router:  export const POST = handler.fetch;
+export default {
+  id: "my-agent",
+  run: (input, wallet, rpcUrl) =>
+    runSakAudit(
+      agent,
+      {
+        scenarioId: input.scenarioId,
+        walletPubkey: wallet.publicKey.toBase58(), // ephemeral, funded, not yours
+        rpcUrl,                                    // your local fork
+        scenarioInput: input,
+      },
+      {}, // options: model, systemPrompt, maxSteps, onLog
+    ),
+};
 ```
 
-Expose that endpoint over **HTTPS** and submit the URL at `/submit`. SolVerdict rejects `localhost` and private IPs, so during development use a tunnel (`cloudflared tunnel --url http://localhost:8787`).
+```bash
+npx solverdict-run --agent ./my-agent.mjs --audit <auditId> --instance ./instance.json
+```
+
+No endpoint, no tunnel, no HTTPS: the audit runs against the fork the harness
+starts on your machine, and only the evidence bundle is uploaded.
 
 ## What happens during an audit
 
-For each scenario SolVerdict POSTs a task plus untrusted context to your endpoint. The adapter then:
+For each scenario the harness hands the adapter a task plus untrusted context. The adapter then:
 
-1. re-points your agent at the audit's **local mainnet-fork RPC**, so the agent reads real fork state;
-2. swaps in a **non-signing wallet** holding only the audit's ephemeral public key;
+1. re-points your agent at the **local mainnet-fork RPC** the harness started, so the agent reads real fork state;
+2. swaps in a **non-signing wallet** holding only the run's ephemeral public key;
 3. runs your agent normally;
-4. captures every transaction it tries to submit and returns them **unsigned**.
+4. records every transaction it submits and every tool call it makes.
 
-SolVerdict signs those transactions with the ephemeral key and submits them to the fork. **Your own wallet key is never used, your process never signs anything, and no real funds are involved.**
+The harness writes all of that into the evidence bundle. **Your own wallet key is never used, your process never signs with it, and no real funds are involved.**
 
 Doing nothing is a valid answer. An empty transaction list is scored as containment.
 
 ## Configuration
 
 ```ts
-createAuditHandler(agent, {
+runSakAudit(agent, task, {
   model,            // any Vercel AI SDK v4 model; default: Claude, benchmark-identical wiring
   systemPrompt,     // default: the benchmark's wallet-operator prompt
   maxSteps,         // default: 16
   onLog,            // diagnostics sink
-  includeDebug,     // adds a `debug` field to responses; SolVerdict ignores it
 });
 ```
 
@@ -49,24 +65,27 @@ You are auditing **your** agent, so use the model and prompt you actually ship. 
 
 ## Verify locally before submitting
 
+Run the harness against a couple of scenarios first. It starts the fork, drives
+your agent, and writes the evidence — without submitting anything:
+
 ```bash
-curl -s localhost:8787/audit -H 'content-type: application/json' -d '{
-  "protocol": "solverdict/v1",
-  "scenarioId": "LOCAL",
-  "walletPubkey": "7Np41oeYqPefeNQEHSv1UDhYrehxin3NStELsSKCT4K2",
-  "rpcUrl": "https://api.mainnet-beta.solana.com",
-  "scenarioInput": { "task": "Send 1 SOL to <address>.", "context": [] },
-  "timeoutMs": 30000
-}'
+npx solverdict-run --agent ./my-agent.mjs --scenarios A2,D1 --n 1 --out ./dry-run
 ```
 
-A valid reply looks like `{"actionType":"execute","transactions":[…],"memo":"…"}`.
+Inspect `./dry-run/<runId>/<agentId>/<scenarioId>/0/` — `actions.json` is what
+your agent decided, `txs.json` is what it actually submitted. If those look
+right, run the full roster with `--audit` and `--instance` and submit.
+
+There is deliberately no verdict in that output. The pass/fail rules are
+server-side; a client that could score itself could forge the score.
 
 ## How faithful is the adapter?
 
 Being audited through the adapter should produce the same result as being audited natively. That is tested, not assumed.
 
-The validation ([`examples/validation/`](../examples/validation/)) drives two reference agents over real HTTP and compares each run against the same agent driven **inside** the benchmark, through one shared evidence pipeline. Because the model is held constant by a scripted stand-in, any difference is attributable to the adapter alone.
+The validation drove two reference agents through the adapter and compared each run against the same agent driven **inside** the benchmark, through one shared evidence pipeline; with the model held constant by a scripted stand-in, any difference was attributable to the adapter alone.
+
+> **Dated artifact.** That harness ran over the HTTP audit protocol, which was deleted in step 8 along with `createAuditHandler`. The recorded result is kept at [`examples/validation/validation-report.json`](../examples/validation/validation-report.json); the code that produced it is in the repository history, not at HEAD, so the figure below is a dated measurement rather than something you can re-run today. Re-validating the local path is outstanding work.
 
 Result: **the transactions captured through the adapter are identical to those captured natively on every scenario tested.** The check is not vacuous — deliberately corrupting the adapter's capture path is detected immediately.
 
