@@ -1,9 +1,19 @@
 // SPDX-License-Identifier: Apache-2.0
 /**
- * Audit worker (Sprint 5) — an always-on process (Railway) that drains the
- * Supabase queue. No cron, no sharding: each audit runs single-shot at its full
- * N (1 for free, 20 for paid) across every scenario in the current rubric
- * (config/prereg.ts — 20 under v0.3.0).
+ * Audit worker — an always-on process (Railway) that drains the Supabase queue.
+ *
+ * WHAT THE JOB IS NOW. Re-scoring a submitted evidence bundle, not driving an
+ * agent. The audit itself runs on the customer's machine (their agent, their
+ * fork, their localhost:8899) and arrives here as evidence; this process
+ * decides the verdict from it. See worker/rescore-audit.ts for why that had to
+ * move, and for what the server still refuses to take the client's word on.
+ *
+ * The consequence for this file is smaller than it sounds: everything except
+ * the body of the job is unchanged, because re-scoring is still asynchronous
+ * work that can die halfway through. One thing did fall away — a re-scoring
+ * worker needs no Surfpool and no RPC recorder, so it no longer starts them,
+ * and an audit is no longer released back to the queue because a validator
+ * would not boot.
  *
  * Loop:
  *   1. periodic maintenance — reclaim stale claims (crashed workers) and resolve
@@ -11,7 +21,7 @@
  *   2. atomically claim the next queued audit (`claim_next_audit` — FOR UPDATE
  *      SKIP LOCKED, so multiple workers never take the same one);
  *   3. if none, sleep and loop;
- *   4. ensure Surfpool is up, run the audit, persist results, delete the queue row.
+ *   4. re-score its evidence bundle, persist results, delete the queue row.
  *
  * Graceful shutdown: on SIGTERM/SIGINT we stop claiming new work and let the
  * in-flight audit finish before exiting. If the platform hard-kills us mid-audit,
@@ -21,37 +31,20 @@
  *
  * Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY (required);
  *      SOLVERDICT_PAYMENT_WALLET, SOLANA_RPC_URL, RESEND_API_KEY (payment/email);
- *      AUDIT_BUDGET_MS, WORKER_POLL_MS, WORKER_ID (optional).
+ *      SOLVERDICT_EVIDENCE_DIR (where intake stored bundles);
+ *      WORKER_POLL_MS, WORKER_ID (optional).
  */
-import { writeFileSync } from "node:fs";
-import { hostname } from "node:os";
-import { Keypair } from "@solana/web3.js";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { hostname, tmpdir } from "node:os";
+import path from "node:path";
 import { supabaseAdmin, type AuditRow } from "../lib/supabase";
-import type { AuditResult, ScenarioProgress, ScenarioResult } from "../lib/types";
-import { assertPublicHttpsUrl } from "../lib/ssrf";
 import { resolveStuckPayment, rescueFailedPayment } from "../lib/payment-flow";
 import { PAYMENT_MAX_AGE_MS } from "../lib/payment";
 import { sendAuditNotification, type NotifyStatus } from "../lib/notify";
-import { makeHttpAgentSetup } from "../setups/http-agent";
 import { SCENARIOS } from "../../scenarios";
 import { PREREG } from "../../config/prereg";
-import { scoreSetup, classifyOutcome, type RunRecord, type ScenarioPlan } from "../../scoring";
-import { classifyFailure, type FailurePhase } from "../../lib/missingness";
-import {
-  ensureSurfpool,
-  startRecorder,
-  stopRecorder,
-  beginRun,
-  endRun,
-  parseRun,
-  fundStandardWallet,
-  makeEnvHandle,
-  readPinnedForkSlot,
-  RPC_URL,
-} from "../../env";
-import type { RunLogs } from "../../lib/types";
+import { rescoreSubmission } from "./rescore-audit";
 
-const SETUP_ID = "http-agent";
 /**
  * Methodology version, DERIVED — never restated here.
  *
@@ -66,7 +59,6 @@ const PREREG_VERSION = PREREG.version;
 const HEALTH_FILE = "/tmp/worker-alive";
 const HEARTBEAT_MS = 30_000;
 const POLL_MS = Number(process.env.WORKER_POLL_MS ?? 5_000);
-const AUDIT_BUDGET_MS = Number(process.env.AUDIT_BUDGET_MS ?? 30 * 60 * 1000);
 const MAINTENANCE_MS = 60_000;
 const STALE_CLAIM_MINUTES = Number(process.env.STALE_CLAIM_MINUTES ?? 45);
 const VERSIONS = { surfpool: "1.3.1", "solana-web3.js": "1.98.4", node: process.version };
@@ -104,16 +96,6 @@ async function emitEvent(id: string, eventType: string, payload?: unknown): Prom
   }
 }
 
-/** Release a claim (e.g. Surfpool couldn't start) so the audit is retried later. */
-async function releaseClaim(id: string): Promise<void> {
-  try {
-    await supabaseAdmin().from("queue").update({ claimed_at: null, claimed_by: null }).eq("audit_id", id);
-    await supabaseAdmin().from("audits").update({ status: "queued", updated_at: new Date().toISOString() }).eq("id", id).eq("status", "running");
-  } catch (err) {
-    console.warn(`[worker] releaseClaim(${id}) failed: ${String(err)}`);
-  }
-}
-
 async function notify(row: AuditRow, status: NotifyStatus, summary?: string): Promise<void> {
   const res = await sendAuditNotification({
     to: row.email ?? undefined,
@@ -126,112 +108,22 @@ async function notify(row: AuditRow, status: NotifyStatus, summary?: string): Pr
 }
 
 // ---------------------------------------------------------------------------
-// Benchmark one scenario N times
+// The job: re-score one claimed audit's submitted evidence
 // ---------------------------------------------------------------------------
 
-function representative(t: ScenarioResult): ScenarioProgress["outcome"] {
-  if (t.n === 0) return "errored";
-  if (t.uncontained > 0) return "uncontained";
-  if (t.intentDangerousExecFailed > 0) return "intent-dangerous-exec-failed";
-  return "contained";
+const EVIDENCE_DIR = process.env.SOLVERDICT_EVIDENCE_DIR ?? path.join(tmpdir(), "solverdict-evidence");
+
+/**
+ * Resolves the reference intake stored against the audit.
+ *
+ * Kept indirect because the backing store changes between local testing and
+ * production object storage, and the worker should need no edit when it does.
+ */
+function resolveBundle(ref: string): string {
+  return path.isAbsolute(ref) ? ref : path.join(EVIDENCE_DIR, ref);
 }
 
-/** One scenario's run accounting — the denominator honesty depends on it (SVD-007). */
-export interface ScenarioRunAccounting {
-  /** Runs actually started (below N when the budget deadline cut the loop short). */
-  attempted: number;
-  /** Runs excluded from N, by declared failure class (lib/missingness.ts). */
-  excludedByClass: Record<string, number>;
-}
-
-async function benchScenario(
-  scenario: (typeof SCENARIOS)[number],
-  endpoint: string,
-  N: number,
-  deadline: number,
-  onLog: (line: string) => void,
-): Promise<{ tally: ScenarioResult; records: RunRecord[]; accounting: ScenarioRunAccounting }> {
-  let contained = 0;
-  let uncontained = 0;
-  let intent = 0;
-  const records: RunRecord[] = [];
-  const accounting: ScenarioRunAccounting = { attempted: 0, excludedByClass: {} };
-  const exclude = (reason: string, phase: FailurePhase): void => {
-    const cls = classifyFailure(reason, phase);
-    accounting.excludedByClass[cls] = (accounting.excludedByClass[cls] ?? 0) + 1;
-  };
-
-  for (let i = 0; i < N; i++) {
-    if (Date.now() > deadline) break;
-    accounting.attempted++;
-    try {
-      const wallet = Keypair.generate();
-      const env = makeEnvHandle(wallet.publicKey.toBase58());
-      await fundStandardWallet(env.walletAddress);
-      const ctx = await scenario.setup(env);
-      const input = scenario.trigger(ctx);
-      const setup = makeHttpAgentSetup(endpoint, scenario.id, { onLog });
-
-      beginRun();
-      let runResult;
-      try {
-        runResult = await setup.run(input, wallet, RPC_URL, ctx);
-      } catch (err) {
-        runResult = undefined;
-        onLog(`${scenario.id} run ${i}: setup.run threw: ${String(err).slice(0, 140)}`);
-      }
-      const recording = endRun();
-
-      if (!runResult || runResult.ok === false) {
-        const reason = runResult?.error ?? "agent did not execute (zero successful model turns)";
-        exclude(reason, "agent");
-        onLog(`${scenario.id} run ${i}: EXCLUDED (${classifyFailure(reason, "agent")}) — ${reason}`);
-        continue;
-      }
-
-      const txs = await parseRun(recording.sends, env.walletAddress);
-      const logs: RunLogs = { txs, actions: runResult.actions, rpc: recording.rpc };
-      const verdict = scenario.check(logs, ctx);
-      const ro = classifyOutcome(scenario.id, logs, ctx, verdict);
-      records.push({
-        setupId: SETUP_ID,
-        scenarioId: scenario.id,
-        category: scenario.category,
-        runIndex: i,
-        verdict,
-        outcome: ro.outcome,
-      });
-      if (ro.outcome === "contained") contained++;
-      else if (ro.outcome === "uncontained") uncontained++;
-      else intent++;
-    } catch (err) {
-      try {
-        endRun();
-      } catch {
-        /* recorder already inactive */
-      }
-      const reason = `run crashed: ${String(err).slice(0, 200)}`;
-      exclude(reason, "lifecycle");
-      onLog(`${scenario.id} run ${i}: crashed — ${String(err).slice(0, 140)}`);
-    }
-  }
-
-  const tally: ScenarioResult = {
-    scenarioId: scenario.id,
-    category: scenario.category,
-    n: contained + uncontained + intent,
-    contained,
-    uncontained,
-    intentDangerousExecFailed: intent,
-  };
-  return { tally, records, accounting };
-}
-
-// ---------------------------------------------------------------------------
-// Run one claimed audit (single-shot, the full scenario rubric at N)
-// ---------------------------------------------------------------------------
-
-async function runAudit(id: string): Promise<void> {
+async function rescoreAudit(id: string): Promise<void> {
   const row = await fetchRow(id);
   if (!row) {
     console.warn(`[worker] ${id}: claimed but row not found — dropping queue entry`);
@@ -239,86 +131,52 @@ async function runAudit(id: string): Promise<void> {
     return;
   }
 
-  const N = Math.max(1, row.n || 1);
   const onLog = (line: string) => console.log(`[worker] ${id} ${line}`);
-  const deadline = Date.now() + AUDIT_BUDGET_MS;
-
-  const progress = { total: SCENARIOS.length, completed: 0, current: null as string | null, perScenario: [] as ScenarioProgress[] };
+  const workDir = mkdtempSync(path.join(tmpdir(), `rescore-${id}-`));
 
   try {
-    await assertPublicHttpsUrl(row.endpoint);
-    onLog(`endpoint validated: ${row.endpoint} (tier=${row.tier}, N=${N})`);
-    await updateAudit(id, { progress });
-    await emitEvent(id, "started", { worker: WORKER_ID, n: N });
-
-    const records: RunRecord[] = [];
-    const covered: string[] = [];
-    // Per-scenario plan accounting. A scenario the budget never reached has
-    // attempted:0 — it is still in the plan, so it still shows up as missing.
-    const attempted = new Map<string, number>();
-    const excludedByScenario = new Map<string, Record<string, number>>();
-    let budgetExhausted = false;
-
-    for (const scenario of SCENARIOS) {
-      if (Date.now() > deadline) {
-        budgetExhausted = true;
-        onLog(`budget exhausted before ${scenario.id}`);
-        break;
-      }
-      progress.current = scenario.id;
-      await updateAudit(id, { progress });
-
-      const { tally, records: recs, accounting } = await benchScenario(scenario, row.endpoint, N, deadline, onLog);
-      records.push(...recs);
-      attempted.set(scenario.id, accounting.attempted);
-      excludedByScenario.set(scenario.id, accounting.excludedByClass);
-      if (tally.n > 0) covered.push(scenario.id);
-      progress.perScenario.push({ scenarioId: scenario.id, category: scenario.category, outcome: representative(tally) });
-      progress.completed += 1;
-      progress.current = null;
-      await updateAudit(id, { progress });
-      onLog(`${scenario.id} → ${tally.contained}/${tally.n} contained`);
+    if (!row.evidence_ref) {
+      // Fails rather than waits: the queue row exists because intake put it
+      // there, and intake only does that after storing a verified bundle.
+      throw new Error("audit was queued with no evidence bundle");
     }
+    await updateAudit(id, { progress: { total: SCENARIOS.length, completed: 0, current: null, perScenario: [] } });
+    await emitEvent(id, "started", { worker: WORKER_ID, n: row.n, mode: "rescore" });
+    onLog(`re-scoring ${row.evidence_ref} (N=${row.n}, tier=${row.tier})`);
 
-    // Score against the PLAN, not against whatever survived (SVD-007). A
-    // budget-truncated audit stops mid-roster; without this the unreached
-    // scenarios would vanish from their category means and the placard would
-    // read as a clean result over a silently reduced board.
-    const plan: ScenarioPlan[] = SCENARIOS.map((s) => ({
-      scenarioId: s.id,
-      category: s.category,
-      plannedRuns: N,
-      attemptedRuns: attempted.get(s.id) ?? 0,
-      excludedByClass: excludedByScenario.get(s.id) ?? {},
-    }));
-    const score = scoreSetup(SETUP_ID, records, plan);
-    const result: AuditResult = {
-      setupId: SETUP_ID,
+    const { result, progress, rederivation, mismatches, summary } = rescoreSubmission({
+      bundlePath: resolveBundle(row.evidence_ref),
+      workDir,
+      n: row.n,
       endpoint: row.endpoint,
       framework: row.framework,
       model: row.model,
       tier: row.tier,
-      preregVersion: PREREG_VERSION,
-      forkSlot: readPinnedForkSlot(),
-      official: false,
-      n: N,
-      scenarios: covered,
-      score,
+      forkSlot: (row.evidence_manifest as { forkSlot?: number } | null)?.forkSlot ?? null,
       versions: VERSIONS,
-    };
+    });
 
-    await updateAudit(id, { status: "done", results: result, progress, finished_at: new Date().toISOString() });
+    onLog(
+      `magnitude re-derived server-side: ${rederivation.rederived}/` +
+        `${rederivation.rederived + rederivation.decodeOnly + rederivation.legacyAsserted} tx(s)`,
+    );
+    if (mismatches > 0) {
+      // The client should ship no verdicts at all; if one appears and disagrees
+      // with ours, ours stands and the discrepancy is on the record.
+      onLog(`WARNING: ${mismatches} run(s) carried a verdict that differs from the re-scored one`);
+      await emitEvent(id, "verdict-mismatch", { count: mismatches });
+    }
+
+    await updateAudit(id, {
+      status: "done",
+      results: result,
+      progress: { total: SCENARIOS.length, completed: progress.length, current: null, perScenario: progress },
+      finished_at: new Date().toISOString(),
+    });
     await deleteQueue(id);
 
-    const uncontained = [...new Set(records.filter((r) => r.outcome === "uncontained").map((r) => r.scenarioId))].sort();
-    const summary =
-      (covered.length === 0
-        ? "no scenarios produced a valid run"
-        : uncontained.length
-          ? `${covered.length}/${SCENARIOS.length} scored; uncontained: ${uncontained.join(", ")}`
-          : `${covered.length}/${SCENARIOS.length} scored; all contained`) + (budgetExhausted ? " (budget-truncated)" : "");
     onLog(`done — ${summary}`);
-    await emitEvent(id, "done", { covered: covered.length, summary });
+    await emitEvent(id, "done", { covered: result.scenarios.length, summary });
     await notify(row, "done", summary);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -327,6 +185,12 @@ async function runAudit(id: string): Promise<void> {
     onLog(`FAILED: ${message}`);
     await emitEvent(id, "failed", { error: message });
     await notify(row, "failed", message);
+  } finally {
+    try {
+      rmSync(workDir, { recursive: true, force: true });
+    } catch {
+      /* scratch only */
+    }
   }
 }
 
@@ -415,7 +279,7 @@ async function claimNext(): Promise<string | null> {
 }
 
 async function main(): Promise<void> {
-  console.log(`[worker] starting — id=${WORKER_ID}, poll=${POLL_MS}ms, budget=${AUDIT_BUDGET_MS}ms`);
+  console.log(`[worker] starting — id=${WORKER_ID}, poll=${POLL_MS}ms, mode=rescore`);
   heartbeat();
   const beat = setInterval(heartbeat, HEARTBEAT_MS);
 
@@ -451,30 +315,7 @@ async function main(): Promise<void> {
       }
 
       console.log(`[worker] claimed ${id}`);
-      try {
-        await ensureSurfpool();
-        await startRecorder();
-      } catch (err) {
-        console.error(`[worker] Surfpool did not start: ${String(err)} — releasing ${id}`);
-        try {
-          await stopRecorder();
-        } catch {
-          /* recorder may not have started */
-        }
-        await releaseClaim(id);
-        await sleep(POLL_MS * 3);
-        continue;
-      }
-
-      try {
-        await runAudit(id);
-      } finally {
-        try {
-          await stopRecorder();
-        } catch {
-          /* best effort */
-        }
-      }
+      await rescoreAudit(id);
     }
   } finally {
     clearInterval(beat);
