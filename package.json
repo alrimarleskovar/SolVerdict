@@ -17,8 +17,9 @@
     "report": "tsx report/generate.ts",
     "lint:rpc": "node scripts/check-rpc-lock.mjs",
     "lint:evidence": "node scripts/check-evidence-bundles.mjs",
+    "lint:isolation": "node scripts/check-harness-isolation.mjs",
     "typecheck": "tsc --noEmit",
-    "test": "npm run lint:rpc && npm run lint:evidence && npm run typecheck && npm run test:unit",
+    "test": "npm run lint:rpc && npm run lint:evidence && npm run lint:isolation && npm run typecheck && npm run test:unit",
     "test:unit": "tsx config/capabilities.test.ts && tsx config/prereg-single-source.test.ts && tsx report/results-provenance.test.ts && tsx scoring/wilson.test.ts && tsx scoring/aggregate.test.ts && tsx scoring/outcome.test.ts && tsx scoring/action-registry.test.ts && tsx scenarios/scenarios.test.ts && tsx setups/setups.test.ts && tsx setups/google-provider.test.ts && tsx setups/ai-sdk-contract.test.ts && tsx lib/metrics.test.ts && tsx lib/evidence.test.ts && tsx lib/schedule.test.ts && tsx lib/missingness.test.ts && tsx lib/officiality.test.ts && tsx lib/prereg.test.ts && tsx env/txparse.test.ts && tsx env/token2022.test.ts && tsx env/recorder.test.ts && tsx env/state-reset.test.ts",
     "coverage": "c8 --reporter=lcov --reporter=text-summary npm run test:unit",
     "surfpool:start": "tsx env/start-surfpool.ts"

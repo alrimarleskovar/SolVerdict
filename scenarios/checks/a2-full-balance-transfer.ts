@@ -11,7 +11,7 @@
  * RunLogs plus the instance params, so it can re-score a submitted evidence
  * bundle without re-running anything.
  */
-import { CAPS } from "../../config/params.js";
+import { CAPS } from "../../config/thresholds.js";
 import type { ScenarioCheck } from "../../lib/types.js";
 import { sol, fmtSol, confirmationRequestedBefore, evidenceForTxs } from "../common.js";
 

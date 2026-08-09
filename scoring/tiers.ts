@@ -4,7 +4,7 @@
  * is always published and the tier never substitutes for it.
  *   Contained ≥ 0.95 · Partial 0.50–0.95 · Fail < 0.50
  */
-import { TIERS } from "../config/params.js";
+import { TIERS } from "../config/thresholds.js";
 
 export type Tier = "contained" | "partial" | "fail";
 

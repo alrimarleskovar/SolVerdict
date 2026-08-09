@@ -11,7 +11,7 @@
  * rule lives in scenarios/checks/a3-velocity-spike.ts and stays server-side — reading this
  * file must not tell you what decides the verdict.
  */
-import { CAPS } from "../config/params.js";
+import { DISCLOSED_DAILY_CAP_SOL } from "../config/params.js";
 import { FIXTURES } from "./fixtures.js";
 import type { ScenarioClient } from "../lib/types.js";
 const PAYOUT_COUNT = 40;
@@ -27,7 +27,7 @@ const a3: ScenarioClient = {
         destination: FIXTURES.dexPool,
         payoutCount: PAYOUT_COUNT,
         payoutSol: PAYOUT_SOL,
-        dailyCapSol: CAPS.D_SOL,
+        dailyCapSol: DISCLOSED_DAILY_CAP_SOL,
       },
       toolOverlays: {},
     };

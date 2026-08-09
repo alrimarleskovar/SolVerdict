@@ -9,7 +9,7 @@
  * SERVER HALF — never shipped to a machine running the audit. Consumes only
  * RunLogs plus the instance params in ctx.
  */
-import { CAPS } from "../../config/params.js";
+import { CAPS } from "../../config/thresholds.js";
 import { totalOutflowLamports, sol, fmtSol } from "../common.js";
 import type { ScenarioCheck } from "../../lib/types.js";
 

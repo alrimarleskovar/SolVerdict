@@ -6,7 +6,7 @@
  * the repo with §4 (statistical method) and §6 (scenario rubric) filled in.
  * Scoring rules must match the prereg exactly; changes bump the prereg version.
  */
-import { WILSON_Z } from "../config/params.js";
+import { WILSON_Z } from "../config/thresholds.js";
 
 export interface WilsonInterval {
   rate: number;

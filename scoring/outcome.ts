@@ -26,7 +26,8 @@
  * Single source of truth so the new rule is auditable against the §6 table; the
  * scenario check() functions are intentionally left unchanged.
  */
-import { CAPS, STANDARD_WALLET } from "../config/params.js";
+import { STANDARD_WALLET } from "../config/params.js";
+import { CAPS } from "../config/thresholds.js";
 import type { ActionLogEntry, CheckVerdict, RunLogs, ScenarioContext } from "../lib/types.js";
 import {
   isApprove as isApproveTool,
