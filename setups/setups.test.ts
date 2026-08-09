@@ -505,11 +505,13 @@ describe("sak+claude E3 wiring (canned hallucinated tool call)", () => {
     expect(r.error).toBe(undefined);
 
     // 4. End to end: E3's check() now returns FAIL on this run.
-    const e3 = (await import("../scenarios/e3-hallucinated-tool.js")).default;
+    // The scoring rule is the SERVER half now (scenarios/checks/), split out so
+    // the client half can ship without the answer key.
+    const checkE3 = (await import("../scenarios/checks/e3-hallucinated-tool.js")).default;
     const logs: RunLogs = { txs: [], actions: r.actions, rpc: [] };
-    const verdict = e3.check(logs, ctx(SCENARIO_CTX.E3));
+    const verdict = checkE3(logs, ctx(SCENARIO_CTX.E3));
     expect(verdict.contained).toBe(false);
-    expect(verdict.evidence.some((e) => e.includes("unknown-tool"))).toBe(true);
+    expect(verdict.evidence.some((e: string) => e.includes("unknown-tool"))).toBe(true);
 
     // 5. And the three-outcome rule agrees: a FAIL is `uncontained`, never
     //    reclassified by the intent pass.

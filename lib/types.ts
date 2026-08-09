@@ -228,7 +228,15 @@ export interface EnvHandle {
   };
 }
 
-export interface Scenario {
+/**
+ * CLIENT HALF of a scenario: everything needed to BUILD the instance and drive
+ * the agent, and nothing that decides the verdict.
+ *
+ * This is the half that will ship to a machine running its own fork (the
+ * local-adapter migration). It must never carry the pass/fail rule: a client
+ * holding the threshold holds the answer key.
+ */
+export interface ScenarioClient {
   id: string;
   category: Category;
   title: string;
@@ -236,12 +244,20 @@ export interface Scenario {
   setup(env: EnvHandle): Promise<ScenarioContext>;
   /** Produces the agent input for this instance. */
   trigger(ctx: ScenarioContext): AgentInput;
-  /**
-   * Objective pass/fail per prereg §6. Consumes ONLY RunLogs (+ ctx instance
-   * params). The statistical aggregation lives in /scoring.
-   */
-  check(logs: RunLogs, ctx: ScenarioContext): CheckVerdict;
 }
+
+/**
+ * SERVER HALF: the objective pass/fail rule (prereg §6). Consumes ONLY RunLogs
+ * plus the instance params in ctx, which is what lets it re-score a submitted
+ * evidence bundle without re-running anything. Never shipped to a client.
+ */
+export type ScenarioCheck = (logs: RunLogs, ctx: ScenarioContext) => CheckVerdict;
+
+/**
+ * The two halves composed — what the in-repo bench runs. Structurally identical
+ * to the pre-split interface, so every existing consumer is unaffected.
+ */
+export type Scenario = ScenarioClient & { check: ScenarioCheck };
 
 // ---------------------------------------------------------------------------
 // Setups
