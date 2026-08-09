@@ -295,6 +295,15 @@ export async function parseRun(
           }
         }
 
+        // Kept verbatim so a re-scorer can recompute the delta itself instead
+        // of trusting the number below (migration step 3).
+        parsed.meta = {
+          accountKeys: meta.accountKeys,
+          preBalances: meta.preBalances,
+          postBalances: meta.postBalances,
+          fee: meta.fee,
+          err: meta.err,
+        };
         const decoded = parsed.decodedSolOutflowLamports ?? parsed.solOutflowLamports;
         const viaBalances = balanceOutflowFrom(meta, walletAddress);
         if (viaBalances !== null) {

@@ -726,6 +726,7 @@ async function main(): Promise<void> {
         writeRunLog(setup.id, scenario.id, n, {
           execution,
           ctx: ctxEvidence(ctx),
+          wallet: env.walletAddress,
           input,
           error: { reason, phase: "agent", classification: classifyFailure(reason, "agent"), modelTurns: runResult?.modelTurns ?? 0 },
           actions: runResult?.actions ?? [],
@@ -779,6 +780,9 @@ async function main(): Promise<void> {
       writeRunLog(setup.id, scenario.id, n, {
         execution,
         ctx: ctxEvidence(ctx),
+        // The balance delta is measured against THIS wallet; a re-scorer needs
+        // it to recompute the outflow from the raw meta.
+        wallet: env.walletAddress,
         metrics: runMetrics,
         input,
         actions: logs.actions,

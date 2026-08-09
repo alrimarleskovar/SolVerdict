@@ -14,17 +14,30 @@
  *   ctx.json                            → the instance params check() needs
  *   excludedFromScoring                 → the run is not scored
  *
- * WHAT THIS DOES NOT VERIFY. `txs.json` is parsed client-side, because the
- * balance-delta cross-check needs live RPC against the fork that ran. So
- * `solOutflowLamports` arrives asserted. A submitter cannot report BELOW what
- * the raw bytes decode to (scoring takes the max of decode and balance-delta,
- * and the decode is re-derivable from `rawBase64`), but CPI-only movement can
- * be under-reported. Closing that is a separate decision — see the migration
- * plan's forgery-surface note. Nothing here pretends otherwise.
+ * NO ASSERTED MAGNITUDE (migration step 3). The client supplies only bytes it
+ * cannot forge into a smaller number: the wire transaction (`rawBase64`) and
+ * the validator's raw execution metadata (`meta` — resolved account keys, pre
+ * and post balances, fee). The server recomputes BOTH halves of the outflow
+ * itself, with the same pure functions env/txparse.ts uses:
+ *
+ *   decoded  = parseRawSend(rawBase64, wallet, meta.accountKeys)
+ *   balance  = balanceOutflowFrom(meta, wallet)
+ *   outflow  = max(decoded, balance)
+ *
+ * So the CPI-only hole is closed: previously a client could report
+ * `balanceSolOutflowLamports: 0` for a routed drain that outer-instruction
+ * decoding cannot see, and the server had no way to contradict it. Now the
+ * delta comes from pre/post balances the server subtracts itself. A client that
+ * wants a smaller number has to falsify the balance arrays — which contradicts
+ * the fee, the other accounts in the transaction, and the raw wire bytes.
+ *
+ * `txs.json`'s own `solOutflowLamports` is IGNORED for scoring and kept only
+ * for the differential report.
  */
 import { readFileSync, existsSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import type { RunLogs, ScenarioContext, SubmittedTx } from "../lib/types.js";
+import { balanceOutflowFrom, parseRawSend } from "../env/txparse.js";
 import { classifyOutcome } from "./outcome.js";
 import { scoreSetup, type RunRecord, type ScenarioPlan, type SetupScore } from "./aggregate.js";
 
@@ -64,6 +77,77 @@ function reviveTx(t: Record<string, unknown>): SubmittedTx {
 
 const readJson = (p: string): unknown => (existsSync(p) ? JSON.parse(readFileSync(p, "utf8")) : undefined);
 
+export interface Rederivation {
+  /** Txs whose magnitude the server recomputed from raw bytes + raw meta. */
+  rederived: number;
+  /** Txs with raw meta absent — decode alone stands; no balance delta claimed. */
+  decodeOnly: number;
+  /**
+   * Txs from a pre-step-3 bundle that carry a client-computed
+   * `balanceSolOutflowLamports` but no raw meta to re-derive it from. Counted
+   * and reported, never silently trusted.
+   */
+  legacyAsserted: number;
+}
+
+/**
+ * Recomputes each tx's magnitude from evidence the client cannot shrink.
+ *
+ * Mutates nothing: returns fresh SubmittedTx objects with server-derived
+ * `solOutflowLamports`. Falls back to the recorded value ONLY for pre-step-3
+ * bundles that have no raw meta, and counts every such tx so the caller can
+ * state exactly how much of a verdict rests on re-derivation.
+ */
+export function rederiveOutflow(
+  txs: SubmittedTx[],
+  wallet: string | undefined,
+  tally: Rederivation,
+): SubmittedTx[] {
+  return txs.map((t) => {
+    // Re-decode the wire bytes with the validator's resolved key list, so ALT
+    // destinations resolve exactly as they did at capture time.
+    let decoded = t.decodedSolOutflowLamports ?? t.solOutflowLamports;
+    let rebuilt: SubmittedTx | null = null;
+    if (wallet && t.rawBase64) {
+      try {
+        rebuilt = parseRawSend(
+          { index: t.index, txBase64: t.rawBase64, observedAt: t.observedAt },
+          wallet,
+          t.meta?.accountKeys,
+        );
+        decoded = rebuilt.solOutflowLamports;
+      } catch {
+        /* undecodable bytes — keep the recorded decode */
+      }
+    }
+
+    if (t.meta && wallet) {
+      const balance = balanceOutflowFrom(
+        { accountKeys: t.meta.accountKeys, preBalances: t.meta.preBalances, postBalances: t.meta.postBalances, fee: t.meta.fee, err: t.meta.err },
+        wallet,
+      );
+      tally.rederived++;
+      const outflow = balance !== null && balance > decoded ? balance : decoded;
+      return {
+        ...(rebuilt ?? t),
+        meta: t.meta,
+        decodedSolOutflowLamports: decoded,
+        balanceSolOutflowLamports: balance ?? undefined,
+        solOutflowLamports: outflow,
+        outflowSource: balance === null ? "decoded" : balance > decoded ? "balance-delta" : "agree",
+      };
+    }
+
+    if (t.balanceSolOutflowLamports !== undefined) tally.legacyAsserted++;
+    else tally.decodeOnly++;
+    // No raw meta: the decode stands on its own, or (legacy) the recorded value
+    // is used and counted above so the caller can report it honestly.
+    const fallback = t.balanceSolOutflowLamports;
+    const outflow = fallback !== undefined && fallback > decoded ? fallback : decoded;
+    return { ...(rebuilt ?? t), decodedSolOutflowLamports: decoded, solOutflowLamports: outflow, balanceSolOutflowLamports: fallback };
+  });
+}
+
 /**
  * Reads one run directory.
  *
@@ -75,7 +159,8 @@ export function readRun(
   setupId: string,
   scenarioId: string,
   runIndex: number,
-  ctxOverride?: (input: unknown, dir: string) => ScenarioContext | undefined,
+  ctxOverride: ((input: unknown, dir: string) => ScenarioContext | undefined) | undefined,
+  tally: Rederivation,
 ): RunEvidence | null {
   const excluded = readJson(path.join(dir, "excludedFromScoring.json")) === true;
   const stored = readJson(path.join(dir, "ctx.json")) as CtxEvidence | undefined;
@@ -84,7 +169,9 @@ export function readRun(
     : ctxOverride?.(readJson(path.join(dir, "input.json")), dir);
   if (!ctx) return null;
 
-  const txs = ((readJson(path.join(dir, "txs.json")) ?? []) as Array<Record<string, unknown>>).map(reviveTx);
+  const rawTxs = ((readJson(path.join(dir, "txs.json")) ?? []) as Array<Record<string, unknown>>).map(reviveTx);
+  const wallet = readJson(path.join(dir, "wallet.json")) as string | undefined;
+  const txs = rederiveOutflow(rawTxs, wallet, tally);
   const logs: RunLogs = {
     txs,
     actions: (readJson(path.join(dir, "actions.json")) ?? []) as RunLogs["actions"],
@@ -122,6 +209,8 @@ export interface RescoreOptions {
 export interface RescoreResult {
   scores: Map<string, SetupScore>;
   runs: RunEvidence[];
+  /** How much of the magnitude the server recomputed vs had to fall back on. */
+  rederivation: Rederivation;
   /** Runs whose re-scored verdict/outcome differs from the recorded one. */
   mismatches: Array<{ cell: string; field: "verdict" | "outcome"; recorded: unknown; rescored: unknown }>;
 }
@@ -140,13 +229,16 @@ export function rescoreBundle(root: string, opts: RescoreOptions): RescoreResult
   const mismatches: RescoreResult["mismatches"] = [];
   const records: RunRecord[] = [];
   const attempted = new Map<string, number>();
+  const tally: Rederivation = { rederived: 0, decodeOnly: 0, legacyAsserted: 0 };
 
   for (const setupId of dirs(root)) {
     for (const scenarioId of dirs(path.join(root, setupId))) {
       for (const nDir of dirs(path.join(root, setupId, scenarioId))) {
         const dir = path.join(root, setupId, scenarioId, nDir);
-        const run = readRun(dir, setupId, scenarioId, Number(nDir), (input, d) =>
-          opts.ctxOverride?.(scenarioId, input, d),
+        const run = readRun(
+          dir, setupId, scenarioId, Number(nDir),
+          (input, d) => opts.ctxOverride?.(scenarioId, input, d),
+          tally,
         );
         if (!run) continue;
         runs.push(run);
@@ -203,5 +295,5 @@ export function rescoreBundle(root: string, opts: RescoreOptions): RescoreResult
     scores.set(setupId, scoreSetup(setupId, records, plan));
   }
 
-  return { scores, runs, mismatches };
+  return { scores, runs, mismatches, rederivation: tally };
 }

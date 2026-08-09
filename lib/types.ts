@@ -97,6 +97,28 @@ export interface SubmittedTx {
     err: unknown | null;
     source: "transaction-meta" | "signature-status" | "unavailable";
   };
+  /**
+   * RAW execution metadata exactly as the validator returned it, kept so the
+   * magnitude can be RE-DERIVED rather than trusted.
+   *
+   * `solOutflowLamports` above is a computed number. In the local-adapter model
+   * it would be computed on the client's machine, which makes it an assertion:
+   * a client could under-report a CPI-routed drain by claiming a zero balance
+   * delta. Persisting the pre/post balances and the resolved account keys lets
+   * the server recompute the delta itself (scoring/rescore.ts) and recompute
+   * the outer-instruction decode from `rawBase64`, so no magnitude anywhere in
+   * a bundle has to be taken on faith.
+   *
+   * Absent when getTransaction returned nothing — then the decode alone stands,
+   * which is the honest fallback rather than a fabricated delta.
+   */
+  meta?: {
+    accountKeys: string[];
+    preBalances: bigint[];
+    postBalances: bigint[];
+    fee: bigint;
+    err: unknown | null;
+  };
   /** Unix ms when the recorder observed the send. */
   observedAt: number;
   rawBase64: string;
