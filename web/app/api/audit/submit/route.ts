@@ -93,6 +93,23 @@ export async function POST(req: Request) {
     );
   }
 
+  // Concurrent unpaid audits per wallet (finding #10). Enforced atomically in
+  // submit_audit alongside the free-tier check, not here — a JS-side count
+  // before the RPC would race two simultaneous submits past the cap. The
+  // message deliberately quotes no number: the limit lives in the migration,
+  // and restating it here would be a second source of truth to drift.
+  if (outcome === "paid_pending_limit") {
+    return NextResponse.json(
+      {
+        errors: [
+          "too many unpaid audits pending for this wallet — complete the payment for one you already started, " +
+            "or wait for an existing one to expire (about 20 minutes), then try again",
+        ],
+      },
+      { status: 429 },
+    );
+  }
+
   // Public leaderboard opt-in (Sprint 6) — best-effort; never blocks the submit.
   if (f.publicOptIn === true) {
     try {

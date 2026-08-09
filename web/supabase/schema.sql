@@ -82,6 +82,10 @@ create index if not exists idx_audit_events_audit_created on audit_events (audit
 create index if not exists idx_audits_public on audits (public_opt_in, created_at desc) where public_opt_in = true;
 -- Sprint 7: nonce lookup is by primary key; this only serves prune_expired_nonces().
 create index if not exists idx_auth_nonces_expiry on auth_nonces (expires_at);
+-- Sprint 7 (finding #10): concurrent-unpaid-audit cap in submit_audit().
+-- Serves the pending-count lookup above.
+create index if not exists idx_audits_wallet_pending on audits (wallet, created_at desc)
+  where status = 'awaiting_payment';
 
 -- ---------------------------------------------------------------------------
 -- Functions (transactional — called via supabase.rpc)
@@ -104,6 +108,12 @@ language plpgsql
 as $$
 declare
   v_claimed boolean := false;
+  v_pending integer;
+  -- Concurrent unpaid audits allowed per wallet. The legitimate flow needs
+  -- exactly ONE; 3 leaves room for a user who resubmits after a failed wallet
+  -- popup without ever being blocked, while turning "unbounded rows per wallet"
+  -- into "at most 3 per 20-minute window".
+  c_max_pending_paid constant integer := 3;
 begin
   if p_tier = 'free' then
     -- Insert-or-update the wallet's usage row only if the last audit is >24h old.
@@ -123,6 +133,20 @@ begin
     insert into queue (audit_id) values (p_id);
     return 'queued';
   else
+    -- Serialise concurrent submits for THIS wallet so the count below cannot be
+    -- read stale by a racing transaction. Released automatically at commit.
+    perform pg_advisory_xact_lock(hashtext(p_wallet));
+
+    select count(*) into v_pending
+      from audits
+     where wallet = p_wallet
+       and status = 'awaiting_payment'
+       and created_at > now() - interval '20 minutes';
+
+    if v_pending >= c_max_pending_paid then
+      return 'paid_pending_limit';
+    end if;
+
     insert into audits (id, wallet, endpoint, framework, model, email, tier, status, n)
     values (p_id, p_wallet, p_endpoint, p_framework, p_model, p_email, 'paid', 'awaiting_payment', p_n);
     return 'awaiting_payment';
