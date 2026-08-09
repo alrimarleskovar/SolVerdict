@@ -6,17 +6,13 @@
 **Versão deste documento:** 0.3.0 (nova categoria F; 20 cenários; superfície de ferramentas alargada)
 **Versão anterior:** 0.2.2 (permanece publicada e continua a ser a autoridade dos resultados corridos sob ela)
 **Autor / responsável:** Alrimar Sobrinho (autor único)
-**Data de commit:** 2026-08-09 · **Commit do congelamento:** `94bfdde`
+**Data de commit:** `[gerado no commit — ver §9]`
 
-> **ESTADO: CONGELADO (FROZEN) — 2026-08-09.** O §9 está cumprido. A **primeira corrida oficial** sob esta versão foi pontuada e publicada: `runId 2026-08-08T213043Z`, seed `778906133`, commit `94bfdde`. A partir deste momento a **v0.3.0 é a versão autoritativa** dos resultados publicados sob ela, e a v0.2.2 passa a ser autoritativa apenas para os resultados corridos sob a v0.2.2. Qualquer alteração de cenários, caps ou regras a partir daqui **sobe a versão** (§8), nunca edita este documento.
+> **ESTADO: RASCUNHO — NÃO CONGELADO.** Este documento ainda **não** foi committed com data nem teve o hash calculado, e **nenhuma corrida foi pontuada sob ele**. Até que o §9 esteja cumprido, a **v0.2.2 permanece a versão autoritativa** para todos os resultados publicados. Nenhum número produzido pelo harness enquanto este ficheiro estiver neste estado pode ser apresentado como oficial.
 
-> **Compromisso de imutabilidade.** O hash deste documento (SHA-256) é committed via Git numa data fixa. Qualquer alteração posterior produz uma nova versão com novo hash; as versões antigas permanecem publicadas. Isto prova que o rubric precede os resultados.
+> **Compromisso de imutabilidade.** O hash deste documento (SHA-256) é committed via Git numa data fixa, **antes da primeira corrida oficial sob v0.3.0**. Qualquer alteração posterior produz uma nova versão com novo hash; as versões antigas permanecem publicadas. Isto prova que o rubric precede os resultados.
 >
-> **Hash pontuado (o que a corrida oficial registou):** `sha256:6854db1ad8c7918a923ee8d65060c2d670b041a2b5f7dbd38d90d5c604c4b325` (35 330 bytes). É este o valor gravado em `report/results-OFFICIAL-v030-run1-2103.json` (`meta.preregSha256`) e no manifesto do pacote de evidência `runs/evidence/2026-08-08T213043Z.manifest.json`.
->
-> **Onde verificar esse hash.** O texto exato que a corrida pontuou está arquivado, byte a byte, em `docs/prereg-history/tripwire-prereg-v0.3.0-as-scored-2026-08-08T213043Z.md`. É esse ficheiro — e não este — que reproduz o hash acima.
->
-> **Delta administrativo.** Este bloco de estado foi escrito **depois** da corrida, pelo que o presente ficheiro tem necessariamente um hash diferente do pontuado: marcar um documento como congelado altera-lhe os bytes, e nenhum documento pode conter o seu próprio hash. A diferença entre o texto arquivado e este é **exclusivamente** o cabeçalho de estado e este bloco: **zero alterações a cenários, caps, limiares, roster, regras de outcome ou a qualquer emenda**. O hash pós-congelamento é publicado em `docs/prereg-freeze-v0.3.0.md` (§9.5), não aqui, para não criar uma auto-referência.
+> Hash v0.3.0: `[gerado no commit — ver §9]` · Commit Git: `[gerado no commit — ver §9]`
 
 ---
 
@@ -208,4 +204,4 @@ Qualquer pessoa pode depois verificar que os resultados publicados são posterio
 
 ---
 
-*Documento de pré-registo v0.3.0, **CONGELADO em 2026-08-09**. Acrescenta a categoria F (Token-2022), três cenários de reforço (A4, C4, D3), quatro ferramentas de mint arbitrário e dois setups de smoke não-oficiais. Total: 20 cenários, 6 categorias, roster core inalterado de 4 setups. A primeira corrida oficial sob esta versão (`runId 2026-08-08T213043Z`) está publicada; o texto por ela pontuado está arquivado em `docs/prereg-history/`.*
+*Documento de pré-registo v0.3.0, em RASCUNHO. Acrescenta a categoria F (Token-2022), três cenários de reforço (A4, C4, D3), quatro ferramentas de mint arbitrário e dois setups de smoke não-oficiais. Total: 20 cenários, 6 categorias, roster core inalterado de 4 setups. Nenhuma corrida foi pontuada sob esta versão; a v0.2.2 permanece autoritativa até ao §9 estar cumprido.*
