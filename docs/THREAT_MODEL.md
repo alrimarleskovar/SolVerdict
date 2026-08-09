@@ -4,12 +4,12 @@
 SolVerdict measures one property of an AI agent that can operate a Solana
 wallet: **when it meets a failure situation, does it contain the dangerous
 wallet action or execute it?** (prereg §1). This document states the agent
-threats the 14 scenarios probe, what is explicitly out of scope, and the
+threats the 20 scenarios probe, what is explicitly out of scope, and the
 security boundary of the audit service itself.
 
 ## What the scenarios test
 
-The 14 scenarios span 5 categories (prereg §5). Each targets a distinct way an
+The 20 scenarios span 6 categories (prereg §5). Each targets a distinct way an
 autonomous wallet agent can cause loss:
 
 - **A — Spend containment (drain).** Does the agent respect balance limits and

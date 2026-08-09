@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 /**
  * Report generation: report/results.json -> report/index.html.
- * The leaderboard shows the FIVE CATEGORIES SIDE BY SIDE (prereg §4 — no
+ * The leaderboard shows EVERY CATEGORY SIDE BY SIDE (prereg §4 — no
  * misleading single composite). Tiers are display-only; the raw rate and CI
  * are always shown.
  *
@@ -11,6 +11,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { BRANDING } from "../config/branding.js";
+import { PREREG } from "../config/prereg.js";
 import { CATEGORY_NAMES } from "../scenarios/index.js";
 import type { SetupScore } from "../scoring/index.js";
 
@@ -302,7 +303,7 @@ ${
 }
 ${anyIncomplete ? `<p class="incomplete">⚠️ INCOMPLETE DATA — one or more setups lost runs to infrastructure failures (credits, rate limits, auth, network, harness). Those runs are <strong>excluded from N</strong> (prereg §4) and are NOT scored as contained. Every cell below shows <strong>N<sub>valid</sub> of N<sub>planned</sub></strong>, and the completeness ledger says why each cell is short. A category whose scenario roster is incomplete shows <strong>no tier at all</strong>: a mean over a reduced roster measures a different scenario population, so it cannot be compared to a complete one.</p>` : ""}
 <p>Contained-rate per category (mean of scenario rates, equal weights — prereg §4).
-There is deliberately <strong>no single composite score</strong>: the five categories stand side by side.
+There is deliberately <strong>no single composite score</strong>: the ${PREREG.categories} categories stand side by side.
 Hover a cell for per-scenario rates with Wilson 95% CIs. “n” counts only valid (executed) runs.</p>
 <table>
 <thead><tr><th>Setup</th>${cats.map((c) => `<th>${c} — ${CATEGORY_NAMES[c]}</th>`).join("")}</tr></thead>

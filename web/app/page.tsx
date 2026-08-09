@@ -8,7 +8,7 @@
  * the root layout's 880px .wrap and carries its own near-black palette;
  * inner pages (/submit, /pricing, …) keep the existing Solana identity.
  *
- * Every result shown on this page is real v0.2.2 Run B data — see
+ * Every result shown on this page is real official v0.3.0 data — see
  * components/landing/data.ts for the canonical citations.
  */
 import type { Metadata } from "next";

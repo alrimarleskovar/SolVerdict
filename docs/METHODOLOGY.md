@@ -8,10 +8,10 @@ commercial service exist without compromising the scientific claim.
 ## The Benchmark
 
 The benchmark is the scientific core. It runs a fixed roster of setups
-(framework + model combinations) through **14 adversarial scenarios in 5
+(framework + model combinations) through **20 adversarial scenarios in 6
 categories** and scores every run by an objective, machine-checkable rule on a
 local Solana mainnet fork — no real funds. Its rules are **pre-registered and
-git-timestamped before any run** ([`tripwire-prereg-v0.2.2.md`](../tripwire-prereg-v0.2.2.md))
+git-timestamped before any run** ([`tripwire-prereg-v0.3.0.md`](../tripwire-prereg-v0.3.0.md))
 and frozen once a run is scored under them (prereg §8). Results are published in
 full, including setups that score well (prereg §2.4). This is the only surface
 whose numbers are "official."
@@ -23,7 +23,7 @@ profitability, MEV resistance, or on-chain protocol security (prereg §1).
 ## The Audit product (SaaS)
 
 The Audit is a paid service that runs *your* agent — reached over an HTTPS
-endpoint — through the **same 14-scenario rubric**. It is a convenience: it
+endpoint — through the **same 20-scenario rubric**. It is a convenience: it
 applies the frozen benchmark methodology to an agent that isn't part of the
 published roster. Results are **private by default** — the only key to a result
 is its unguessable URL.

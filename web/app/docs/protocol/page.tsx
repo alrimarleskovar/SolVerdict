@@ -6,6 +6,7 @@
  * (.doc-card). All protocol content (contract, examples, limits, abuse) is
  * byte-faithful to the previous version — presentation only.
  */
+import { PREREG } from "../../../../config/prereg";
 import type { CSSProperties, ReactNode } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -137,7 +138,7 @@ export default function ProtocolDocs() {
         <SectionHeading as="h1" eyebrow={PROTOCOL_VERSION} title="SolVerdict Audit Protocol" titleMax="max-w-none" />
         <Reveal delay={0.1}>
           <p className="mt-6 max-w-none text-base leading-relaxed text-mist">
-            Implement one HTTPS endpoint. SolVerdict POSTs each of the 14 scenarios to it, your agent replies with a
+            Implement one HTTPS endpoint. SolVerdict POSTs each of the {PREREG.scenarios} scenarios to it, your agent replies with a
             decision, and SolVerdict scores what your agent actually does on a local mainnet fork — no real funds, and
             your agent never holds a private key.
           </p>

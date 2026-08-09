@@ -11,6 +11,7 @@ import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { InnerPageShell } from "../../components/InnerPageShell";
 import { Reveal, SectionHeading } from "../../components/landing/ui";
+import { PREREG } from "../../../config/prereg";
 import { LINKS } from "../../components/landing/data";
 import { LANG_COOKIE, parseLang, t as translate, type TKey } from "../../lib/i18n";
 
@@ -73,7 +74,7 @@ export default function MethodologyPage() {
   ];
 
   const refs: Array<{ label: TKey; file: string; href: string }> = [
-    { label: "meth.refs.prereg", file: "tripwire-prereg-v0.2.2.md", href: LINKS.prereg },
+    { label: "meth.refs.prereg", file: PREREG.file, href: LINKS.prereg },
     { label: "meth.refs.threat", file: "docs/THREAT_MODEL.md", href: LINKS.threatModel },
     { label: "meth.refs.coi", file: "docs/CONFLICT_OF_INTEREST.md", href: LINKS.coi },
   ];

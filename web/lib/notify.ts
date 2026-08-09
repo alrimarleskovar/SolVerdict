@@ -20,7 +20,7 @@ export interface NotifyOpts {
   auditId: string;
   endpoint: string;
   status: NotifyStatus;
-  /** One-line verdict summary (e.g. "12/14 scenarios contained"). */
+  /** One-line verdict summary (e.g. "18/20 scenarios contained"). */
   summary?: string;
   baseUrl?: string;
   apiKey?: string;

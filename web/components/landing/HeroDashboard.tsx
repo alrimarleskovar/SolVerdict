@@ -3,7 +3,7 @@
  * Hero telemetry panel — a deterministic pipeline replay:
  *   Prompt → Agent → Tools → Wallet → Verdict
  * with one failure-state event ("prompt injection detected") and ONE live
- * metric (containment score). Every value is the REAL v0.2.2 Run B result for
+ * metric (containment score). Every value is the REAL official v0.3.0 result for
  * scenario B2 under model-only-claude: 20/20 contained at N=20 → 100%.
  * Styled as engineering telemetry: mono type, quiet surfaces, no glow.
  */

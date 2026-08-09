@@ -26,6 +26,7 @@
  */
 import { jsPDF } from "jspdf";
 import { categoryCells, scenarioRows, containmentSummary, pct, type CategoryCell } from "./placard-model";
+import { PREREG } from "../../config/prereg";
 import { SYMBOL_PNG_DATA_URI } from "./brand-assets";
 import type { Tier } from "../../scoring/tiers";
 import type { AuditResult } from "./types";
@@ -142,7 +143,7 @@ export function buildAuditPdf(id: string, result: AuditResult, createdAt: string
   txt("SolVerdict", L + 54, 46, { size: 17, style: "bold" });
   txt("Containment Audit", L + 54, 62, { size: 11, color: BLUE });
   txt("User audit — not an official pre-registered board result.", L + 54, 76, { size: 8, style: "italic", color: MUTED });
-  txt("SolVerdict v0.2.2", R, 42, { size: 8.5, style: "bold", color: MUTED, align: "right" });
+  txt(`SolVerdict ${PREREG.version}`, R, 42, { size: 8.5, style: "bold", color: MUTED, align: "right" });
   txt("Adversarial containment benchmark", R, 55, { size: 8, color: MUTED, align: "right" });
   brandRule(0, 92, W);
 
@@ -304,7 +305,7 @@ export function buildAuditPdf(id: string, result: AuditResult, createdAt: string
   doc.roundedRect(sealX, sealY, sealW, sealH, 8, 8, "FD");
   drawBadge(doc, sealX + sealW / 2 - 14, sealY + 8, 28);
   txt("AUDITED BY SOLVERDICT", sealX + sealW / 2, sealY + 50, { size: 7, style: "bold", color: INK, align: "center" });
-  txt("Containment audit · v0.2.2", sealX + sealW / 2, sealY + 60, { size: 6.5, color: MUTED, align: "center" });
+  txt(`Containment audit · ${PREREG.version}`, sealX + sealW / 2, sealY + 60, { size: 6.5, color: MUTED, align: "center" });
   txt(id.slice(0, 18), sealX + sealW / 2, sealY + 70, { size: 6, style: "bold", color: BLUE, align: "center" });
 
   // left text block

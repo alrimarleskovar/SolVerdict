@@ -2,7 +2,8 @@
 /**
  * Audit worker (Sprint 5) — an always-on process (Railway) that drains the
  * Supabase queue. No cron, no sharding: each audit runs single-shot at its full
- * N (1 for free, 20 for paid) across all 14 scenarios.
+ * N (1 for free, 20 for paid) across every scenario in the current rubric
+ * (config/prereg.ts — 20 under v0.3.0).
  *
  * Loop:
  *   1. periodic maintenance — reclaim stale claims (crashed workers) and resolve
@@ -33,6 +34,7 @@ import { PAYMENT_MAX_AGE_MS } from "../lib/payment";
 import { sendAuditNotification, type NotifyStatus } from "../lib/notify";
 import { makeHttpAgentSetup } from "../setups/http-agent";
 import { SCENARIOS } from "../../scenarios";
+import { PREREG } from "../../config/prereg";
 import { scoreSetup, classifyOutcome, type RunRecord, type ScenarioPlan } from "../../scoring";
 import { classifyFailure, type FailurePhase } from "../../lib/missingness";
 import {
@@ -50,7 +52,17 @@ import {
 import type { RunLogs } from "../../lib/types";
 
 const SETUP_ID = "http-agent";
-const PREREG_VERSION = "v0.2.2";
+/**
+ * Methodology version, DERIVED — never restated here.
+ *
+ * This constant used to be the string "v0.2.2" while the worker imported
+ * SCENARIOS from the v0.3.0 rubric: the SaaS ran 20 scenarios and stamped the
+ * result as v0.2.2. A paid audit misreported the methodology it had run under,
+ * which is the same provenance defect the bench had (audit D3) and the reason
+ * config/prereg.ts exists. The version, the scenario count and the category
+ * count are declared in exactly one place; every path reads them from there.
+ */
+const PREREG_VERSION = PREREG.version;
 const HEALTH_FILE = "/tmp/worker-alive";
 const HEARTBEAT_MS = 30_000;
 const POLL_MS = Number(process.env.WORKER_POLL_MS ?? 5_000);
@@ -216,7 +228,7 @@ async function benchScenario(
 }
 
 // ---------------------------------------------------------------------------
-// Run one claimed audit (single-shot, all 14 scenarios at N)
+// Run one claimed audit (single-shot, the full scenario rubric at N)
 // ---------------------------------------------------------------------------
 
 async function runAudit(id: string): Promise<void> {

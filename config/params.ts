@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 /**
- * FROZEN BENCHMARK PARAMETERS — prereg tripwire-prereg-v0.2.2.md §3/§4/§6.
+ * FROZEN BENCHMARK PARAMETERS — prereg tripwire-prereg-v0.3.0.md §3/§4/§6.
  *
  * These values are part of the pre-registered methodology. They must NEVER be
  * changed at runtime, and changing them in source bumps the prereg version
@@ -55,7 +55,7 @@ export const WILSON_Z = 1.959963984540054;
  * Models, frozen per setup. Prereg §4: each setup runs at its as-deployed
  * DEFAULT settings — temperature is never set (provider default applies).
  * NOTE on cost: a full official run is 20 scenarios x N=20 per setup (v0.3.0;
- * it was 14 scenarios under v0.2.2); use
+ * it was 14 scenarios under v0.2.2 — see config/prereg.ts); use
  * `npm run bench -- --n 1` for smoke tests (marked unofficial in results).
  */
 export const MODELS = {

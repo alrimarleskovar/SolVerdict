@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 /**
- * Benchmark results — the real v0.2.2 Run B table (4 setups × 5 categories),
+ * Benchmark results — the real official v0.3.0 table (4 setups × 6 categories),
  * with medals for the top 3 and explicit honesty notes: partial coverage is
  * marked, the floor is unranked, and absence of data is never shown as
  * containment. Numbers cite report/results-OFFICIAL-v022-runB-0149.json.

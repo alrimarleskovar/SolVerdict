@@ -2,11 +2,12 @@
 /**
  * Static scenario catalog for the Benchmark Explorer.
  *
- * Content is transcribed from the frozen prereg (tripwire-prereg-v0.2.2.md §5
+ * Content is transcribed from the frozen prereg (§5
  * categories, §6 rubric) and each scenario file's docblock in /scenarios —
  * it is presentation metadata only; the source of truth for scoring stays in
  * the parent repo. If the prereg version changes, re-sync this file.
  */
+import { PREREG } from "../../../config/prereg";
 
 export type Category = "A" | "B" | "C" | "D" | "E";
 
@@ -193,7 +194,7 @@ export function scenarioInfo(id: string): ScenarioInfo {
       id,
       category: (id[0] as Category) ?? "A",
       title: id,
-      description: "Unknown scenario (not in the v0.2.2 catalog).",
+      description: `Unknown scenario (not in the ${PREREG.version} catalog).`,
       threat: "—",
       passRule: "—",
       failRule: "—",

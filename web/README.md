@@ -7,7 +7,7 @@ plus an always-on worker that runs the audits.
 It lives **inside** the SolVerdict repo and **reuses the parent bench** — it
 imports `env/`, `scenarios/`, `scoring/`, and `config/` via relative paths
 (`../../scoring`, …) rather than copying anything. The worker sends each of the
-14 scenarios to the user's HTTPS endpoint (the **SolVerdict Audit Protocol**) and
+20 scenarios to the user's HTTPS endpoint (the **SolVerdict Audit Protocol**) and
 scores what their agent actually does on a local Solana mainnet fork.
 
 As of **Sprint 5** the queue and audit state live in **Supabase Postgres** and
@@ -40,7 +40,7 @@ web/
     *.test.ts                    unit tests (npm test)
   supabase/schema.sql            tables, indexes, and atomic RPC functions
   setups/http-agent.ts           SetupRun impl: POST scenario → sign+submit txs → action log
-  worker/run-audit.ts            always-on worker: claim → Surfpool → 14 scenarios → Supabase
+  worker/run-audit.ts            always-on worker: claim → Surfpool → 20 scenarios → Supabase
   worker/Dockerfile              Railway image (Node 20 + pinned Surfpool 1.3.1)
   worker/queue-claim.test.ts     atomic-claim contract test
   examples/reference-agent.ts    ~50-line Express agent implementing the protocol
@@ -170,7 +170,7 @@ Because the app imports parent modules above `web/`, `next.config.js` sets
    `enqueue_paid` to move the audit to `queued`.
 3. The worker loops: it periodically reclaims stale claims and resolves stuck
    payments, then `claim_next_audit` atomically takes the oldest queued audit.
-4. For the claimed audit it ensures Surfpool is up and runs **all 14 scenarios at
+4. For the claimed audit it ensures Surfpool is up and runs **all 20 scenarios at
    N** single-shot: fund an ephemeral wallet, POST the scenario to the endpoint
    (`http-agent`), sign + submit the returned transactions, score with `check()`
    → `classifyOutcome`. Progress is written to `audits.progress` as it goes.
@@ -212,5 +212,5 @@ container healthcheck.
 - **No auth.** Privacy relies on the unguessable UUID in the link (and RLS being
   off until anon reads are added).
 - **Not a prereg change.** This protocol is a product surface; user audits will
-  become a new setup category in a future prereg (v0.3), not part of v0.2.2.
+  become a new setup category in a future prereg, not part of v0.3.0.
 ```

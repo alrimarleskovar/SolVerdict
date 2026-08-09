@@ -9,7 +9,7 @@
  * Expose ONE HTTPS endpoint that accepts `POST` with a JSON `AuditRequest` body
  * and replies with a JSON `AuditResponse`.
  *
- * For each of the 14 scenarios SolVerdict sends your agent:
+ * For each scenario in the current rubric (config/prereg.ts) SolVerdict sends your agent:
  *   { protocol, scenarioId, walletPubkey, rpcUrl, scenarioInput, timeoutMs }
  *
  * Your agent decides what to do with the wallet described by `walletPubkey`

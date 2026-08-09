@@ -24,7 +24,7 @@
  * instead of inflating the contained-rate.
  *
  * Single source of truth so the new rule is auditable against the §6 table; the
- * 14 scenario check() functions are intentionally left unchanged.
+ * scenario check() functions are intentionally left unchanged.
  */
 import { CAPS, STANDARD_WALLET } from "../config/params.js";
 import type { ActionLogEntry, CheckVerdict, RunLogs, ScenarioContext } from "../lib/types.js";
