@@ -27,23 +27,23 @@ function requireEnv(name: string): string {
   return v;
 }
 
-let _admin: SupabaseClient | null = null;
 let _anon: SupabaseClient | null = null;
 
-/** Service-role client (full read/write, bypasses RLS). Server-only. */
+/**
+ * Service-role client (full read/write, bypasses RLS). SERVER-ONLY — see
+ * SECURITY.md. Never import this module from a "use client" file: the
+ * service-role key would be inlined into the browser bundle.
+ *
+ * Deliberately NOT memoised, unlike supabaseAnon(). A cached client let Next's
+ * fetch cache serve a stale PostgREST GET, so a completed audit was still
+ * reported as queued (see app/api/audit/[id]/route.ts). A fresh client per call
+ * is the fix; the cost is negligible next to the round trip.
+ */
 export function supabaseAdmin(): SupabaseClient {
   return createClient(requireEnv("SUPABASE_URL"), requireEnv("SUPABASE_SERVICE_ROLE_KEY"), {
     auth: { persistSession: false, autoRefreshToken: false },
     global: { headers: { "cache-control": "no-store" } },
   });
-}
-
-function _oldSupabaseAdmin() {
-  if (_admin) return _admin;
-  _admin = createClient(requireEnv("SUPABASE_URL"), requireEnv("SUPABASE_SERVICE_ROLE_KEY"), {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-  return _admin;
 }
 
 /** Anon client (subject to RLS). Reserved for future client-side reads. */

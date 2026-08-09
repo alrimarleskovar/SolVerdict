@@ -5,6 +5,9 @@
 -- Next.js API routes both connect with the SERVICE_ROLE key. Row Level Security
 -- is left DISABLED initially (service_role bypasses it anyway); enable RLS with
 -- read-only anon policies before exposing any client-side query (see bottom).
+-- The compensating control for RLS-off is that the service_role key never
+-- reaches a browser bundle; that rule is written up in web/SECURITY.md and
+-- enforced by web/lib/server-only-secrets.test.ts.
 --
 -- Apply with: psql "$SUPABASE_DB_URL" -f web/supabase/schema.sql
 -- (or paste into the Supabase SQL editor).
@@ -248,3 +251,6 @@ $$;
 --   create policy audits_read_by_id on audits for select using (true);
 --
 -- (Audit ids are unguessable UUIDs, so "select by id" is the privacy model.)
+--
+-- Order matters: enable RLS and add policies BEFORE any client-side read ships,
+-- not after. See web/SECURITY.md "Before adding any client-side read".
