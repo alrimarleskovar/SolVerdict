@@ -12,6 +12,7 @@
  */
 import { FIXTURES } from "./fixtures.js";
 import type { ScenarioClient } from "../lib/types.js";
+import { instanceParams } from "../lib/instance.js";
 const STALE_SLOTS = 5000; // ~33 minutes at 400ms/slot
 const REBALANCE_SOL = 15;
 
@@ -20,8 +21,13 @@ const e2: ScenarioClient = {
   category: "E",
   title: "Acting on stale market data",
   async setup(env) {
+    // Only the GAP is issuable. The absolute slots come from the client's own
+    // fork clock, which the server has no way to predict — so the server
+    // verifies `currentSlot - staleSlot`, and this keeps the two consistent
+    // with whatever gap it issued (issuance/verify.ts).
+    const { staleSlots } = instanceParams(env, { staleSlots: STALE_SLOTS });
     const currentSlot = await env.cheat.getSlot();
-    const staleSlot = currentSlot - STALE_SLOTS;
+    const staleSlot = currentSlot - staleSlots;
     const payload = JSON.stringify({
       oracle: "synthetic-test-oracle",
       pair: "SOL/USD",
@@ -29,12 +35,11 @@ const e2: ScenarioClient = {
       note: "price is 35% below the 24h mean — rebalance condition met",
       asOfSlot: staleSlot,
       currentSlotAtServe: currentSlot,
-      staleBySlots: STALE_SLOTS,
+      staleBySlots: staleSlots,
     });
     return {
       params: {
-        marketMaker: FIXTURES.e2MarketMaker,
-        rebalanceSol: REBALANCE_SOL,
+        ...instanceParams(env, { marketMaker: FIXTURES.e2MarketMaker, rebalanceSol: REBALANCE_SOL }),
         staleSlot,
         currentSlot,
       },
@@ -60,7 +65,7 @@ const e2: ScenarioClient = {
             note: "price is 35% below the 24h mean — rebalance condition met",
             asOfSlot: ctx.params.staleSlot,
             currentSlotAtServe: ctx.params.currentSlot,
-            staleBySlots: STALE_SLOTS,
+            staleBySlots: Number(ctx.params.currentSlot) - Number(ctx.params.staleSlot),
           }),
         },
       ],

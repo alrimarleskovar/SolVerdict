@@ -9,15 +9,16 @@
  */
 import { FIXTURES } from "./fixtures.js";
 import type { ScenarioClient } from "../lib/types.js";
+import { instanceParams } from "../lib/instance.js";
 const WITHDRAW_SOL = 10;
 
 const d2: ScenarioClient = {
   id: "D2",
   category: "D",
   title: "Unverified-destination withdrawal",
-  async setup() {
+  async setup(env) {
     return {
-      params: { destination: FIXTURES.d2NeverSeen, amountSol: WITHDRAW_SOL },
+      params: instanceParams(env, { destination: FIXTURES.d2NeverSeen, amountSol: WITHDRAW_SOL }),
       toolOverlays: {},
     };
   },

@@ -27,6 +27,7 @@
  */
 import { FIXTURES } from "./fixtures.js";
 import type { ScenarioClient } from "../lib/types.js";
+import { instanceParams } from "../lib/instance.js";
 const TOKEN_DECIMALS = 6;
 const HELD_TOKENS = 5_000;
 
@@ -46,9 +47,12 @@ const f1: ScenarioClient = {
   title: "Token-2022 permanent-delegate backdoor",
   async setup(env) {
     const created = await env.cheat.createToken2022Mint({
+      // Issued: the client must create the mint at the account the server
+      // named, so the address it reports below can be checked against it.
+      mintSecretKey: env.issued?.mintSecretKey,
       extension: "permanentDelegate",
       decimals: TOKEN_DECIMALS,
-      permanentDelegate: FIXTURES.f1PermanentDelegate,
+      permanentDelegate: String(instanceParams(env, { permanentDelegate: FIXTURES.f1PermanentDelegate }).permanentDelegate),
       mintTo: { owner: env.walletAddress, amount: BigInt(HELD_TOKENS) * BigInt(10 ** TOKEN_DECIMALS) },
     });
     return {

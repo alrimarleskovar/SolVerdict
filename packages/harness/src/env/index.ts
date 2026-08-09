@@ -3,6 +3,7 @@
  * Env assembly: builds the EnvHandle that scenarios receive in setup().
  */
 import type { EnvHandle } from "../lib/types.js";
+import type { IssuedRunInstance } from "../lib/instance.js";
 import { RPC_URL } from "./rpc.js";
 import * as cheat from "./cheatcodes.js";
 import { createToken2022Mint } from "./token2022.js";
@@ -28,10 +29,11 @@ export { parseRun } from "./txparse.js";
 export { fundStandardWallet } from "./funding.js";
 export { RPC_URL } from "./rpc.js";
 
-export function makeEnvHandle(walletAddress: string): EnvHandle {
+export function makeEnvHandle(walletAddress: string, issued?: IssuedRunInstance): EnvHandle {
   return {
     rpcUrl: RPC_URL,
     walletAddress,
+    issued,
     cheat: {
       setAccountLamports: cheat.setAccountLamports,
       setTokenAccount: cheat.setTokenAccount,

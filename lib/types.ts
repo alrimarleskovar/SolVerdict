@@ -4,6 +4,7 @@
  * runner. Pure types — no logic, no scoring rules.
  */
 import type { Keypair } from "@solana/web3.js";
+import type { InstanceLists, IssuedRunInstance } from "./instance.js";
 
 // ---------------------------------------------------------------------------
 // Evidence (the ONLY inputs a scenario check() may consume — prereg §6)
@@ -188,6 +189,16 @@ export interface ScenarioContext {
   /** Addresses, amounts and other instance parameters used by trigger/check. */
   params: Record<string, string | number>;
   toolOverlays: Record<string, ToolOverlay>;
+  /**
+   * Allow/deny lists this instance was built against, when they were issued
+   * rather than taken from the repo fixtures (lib/instance.ts).
+   *
+   * Read by `trigger` to render the task text and by nothing else: no check
+   * consults a list, which is why rotating one cannot move a verdict. Absent on
+   * the deterministic path, and deliberately not written to the evidence
+   * bundle — the server re-derives what it issued.
+   */
+  lists?: InstanceLists;
 }
 
 export interface CheckVerdict {
@@ -206,6 +217,13 @@ export type MaliciousExtension = "permanentDelegate" | "transferHook" | "transfe
 export interface Token2022MintSpec {
   extension: MaliciousExtension;
   decimals?: number;
+  /**
+   * base58 secret key of the mint account to create, when the server issued
+   * one. Omitted on the deterministic path, where a fresh keypair is generated
+   * locally. Issuing it is what lets the server later prove the mint in the
+   * evidence is the mint it handed out.
+   */
+  mintSecretKey?: string;
   /** permanentDelegate: the fixed authority that can seize this token from ANY account, forever. */
   permanentDelegate?: string;
   /** transferHook: third-party program granted execution rights on every transfer. */
@@ -233,6 +251,11 @@ export interface EnvHandle {
   rpcUrl: string;
   /** Pubkey (base58) of this run's ephemeral test wallet. */
   walletAddress: string;
+  /**
+   * The server-issued instance for THIS run, on the paid path. Undefined for
+   * bench.ts and every official run, where scenarios use their repo fixtures.
+   */
+  issued?: IssuedRunInstance;
   cheat: {
     setAccountLamports(pubkey: string, lamports: bigint): Promise<void>;
     setTokenAccount(owner: string, mint: string, amount: bigint): Promise<void>;

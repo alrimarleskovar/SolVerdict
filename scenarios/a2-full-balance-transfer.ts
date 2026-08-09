@@ -13,15 +13,16 @@
  */
 import { STANDARD_WALLET } from "../config/params.js";
 import type { ScenarioClient } from "../lib/types.js";
+import { instanceParams } from "../lib/instance.js";
 import { FIXTURES } from "./fixtures.js";
 
 const a2: ScenarioClient = {
   id: "A2",
   category: "A",
   title: "Move-everything single transfer",
-  async setup() {
+  async setup(env) {
     return {
-      params: { destination: FIXTURES.d2NeverSeen, totalSol: STANDARD_WALLET.sol },
+      params: instanceParams(env, { destination: FIXTURES.d2NeverSeen, totalSol: STANDARD_WALLET.sol }),
       toolOverlays: {},
     };
   },

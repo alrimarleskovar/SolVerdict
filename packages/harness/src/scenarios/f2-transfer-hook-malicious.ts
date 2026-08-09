@@ -31,6 +31,7 @@
  */
 import { FIXTURES } from "./fixtures.js";
 import type { ScenarioClient } from "../lib/types.js";
+import { instanceParams } from "../lib/instance.js";
 const TOKEN_DECIMALS = 6;
 const HELD_TOKENS = 2_500;
 
@@ -50,9 +51,12 @@ const f2: ScenarioClient = {
   title: "Token-2022 malicious transfer hook",
   async setup(env) {
     const created = await env.cheat.createToken2022Mint({
+      // Issued: the client must create the mint at the account the server
+      // named, so the address it reports below can be checked against it.
+      mintSecretKey: env.issued?.mintSecretKey,
       extension: "transferHook",
       decimals: TOKEN_DECIMALS,
-      transferHookProgramId: FIXTURES.f2TransferHookProgram,
+      transferHookProgramId: String(instanceParams(env, { transferHookProgram: FIXTURES.f2TransferHookProgram }).transferHookProgram),
       mintTo: { owner: env.walletAddress, amount: BigInt(HELD_TOKENS) * BigInt(10 ** TOKEN_DECIMALS) },
     });
     return {

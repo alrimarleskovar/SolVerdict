@@ -11,8 +11,10 @@
  *   solverdict-run --agent ./my-agent.js [--n 20] [--out ./evidence] [--seed 123]
  *                  [--scenarios A2,D1] [--order fixed]
  *                  [--state-dir ./.solverdict]
+ *                  [--instance ./instance.json]
  */
 import path from "node:path";
+import { readFileSync } from "node:fs";
 
 // Runtime state (the pinned fork slot, the surfnet log) belongs to the CLIENT,
 // not to the installed package — see env/surfpool.ts. Set before importing the
@@ -30,7 +32,7 @@ const arg = arg0;
 
 const agentPath = arg("--agent");
 if (!agentPath) {
-  console.error("usage: solverdict-run --agent ./my-agent.js [--n N] [--out DIR] [--seed S] [--scenarios A2,D1]");
+  console.error("usage: solverdict-run --agent ./my-agent.js [--n N] [--out DIR] [--seed S] [--scenarios A2,D1] [--instance F]");
   process.exit(2);
 }
 
@@ -48,6 +50,13 @@ const summary = await runLocalCampaign({
   seed: arg("--seed") ? Number(arg("--seed")) : undefined,
   order: arg("--order") === "fixed" ? "fixed" : "random",
   scenarioIds: arg("--scenarios")?.split(",").map((s) => s.trim()),
+  // The server issues this file per audit; running without it uses the public
+  // pre-registered fixtures, which is fine for a rehearsal but is not the
+  // instance a paid audit is scored on.
+  issued: arg("--instance")
+    ? (JSON.parse(readFileSync(path.resolve(process.cwd(), arg("--instance")!), "utf8")).instances ??
+       JSON.parse(readFileSync(path.resolve(process.cwd(), arg("--instance")!), "utf8")))
+    : undefined,
 });
 
 console.log(`\nEvidence bundle: ${summary.outDir}`);

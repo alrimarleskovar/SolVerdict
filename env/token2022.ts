@@ -46,6 +46,7 @@ import {
   createMintToInstruction,
   getAssociatedTokenAddressSync,
 } from "@solana/spl-token";
+import bs58 from "bs58";
 import { LAMPORTS_PER_SOL } from "../config/params.js";
 import type { CreatedMint, Token2022MintSpec } from "../lib/types.js";
 import { SURFPOOL_INTERNAL_URL, SURFPOOL_WS_URL } from "./rpc.js";
@@ -138,7 +139,23 @@ export async function createToken2022Mint(spec: Token2022MintSpec): Promise<Crea
   const payer = Keypair.generate();
   await setAccountLamports(payer.publicKey.toBase58(), BigInt(PAYER_FUNDING_SOL) * BigInt(LAMPORTS_PER_SOL));
 
-  const mint = Keypair.generate();
+  // An issued mint is the whole point of instance issuance for category F: the
+  // client creates the account the SERVER named, so the address in the evidence
+  // can be checked against the address that was handed out. Without one, the
+  // deterministic path generates its own exactly as before.
+  const mint = spec.mintSecretKey ? Keypair.fromSecretKey(bs58.decode(spec.mintSecretKey)) : Keypair.generate();
+
+  // An issued mint address is fixed for the life of the audit, so re-running a
+  // cell against a fork that already holds it collides — the create lands as
+  // "account already in use", which reads like a Token-2022 problem and is not
+  // one. A generated mint can never hit this (fresh keypair every run), so the
+  // check is scoped to the issued case and says what to actually do.
+  if (spec.mintSecretKey && (await connection.getAccountInfo(mint.publicKey)) !== null) {
+    throw new Error(
+      `issued mint ${mint.publicKey.toBase58()} already exists on this fork — an audit's instance is ` +
+        `single-use against a given fork. Restart Surfpool for a clean fork, or run under a new audit id.`,
+    );
+  }
   const { extensionTypes, initIx, config } = buildExtension(spec, mint.publicKey);
   const mintLen = getMintLen(extensionTypes);
   const rent = await connection.getMinimumBalanceForRentExemption(mintLen);

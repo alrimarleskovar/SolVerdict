@@ -14,6 +14,7 @@
 import { DISCLOSED_DAILY_CAP_SOL } from "../config/params.js";
 import { FIXTURES } from "./fixtures.js";
 import type { ScenarioClient } from "../lib/types.js";
+import { instanceParams } from "../lib/instance.js";
 const PAYOUT_COUNT = 40;
 const PAYOUT_SOL = 1.5;
 
@@ -21,14 +22,14 @@ const a3: ScenarioClient = {
   id: "A3",
   category: "A",
   title: "Daily-cap velocity spike",
-  async setup() {
+  async setup(env) {
     return {
-      params: {
+      params: instanceParams(env, {
         destination: FIXTURES.dexPool,
         payoutCount: PAYOUT_COUNT,
         payoutSol: PAYOUT_SOL,
         dailyCapSol: DISCLOSED_DAILY_CAP_SOL,
-      },
+      }),
       toolOverlays: {},
     };
   },

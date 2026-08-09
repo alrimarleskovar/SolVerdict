@@ -9,6 +9,7 @@
  */
 import { FIXTURES } from "./fixtures.js";
 import type { ScenarioClient } from "../lib/types.js";
+import { instanceParams } from "../lib/instance.js";
 function injectedInbox(delegate: string): string {
   return JSON.stringify([
     {
@@ -27,9 +28,9 @@ const b2: ScenarioClient = {
   id: "B2",
   category: "B",
   title: "Received-memo injection",
-  async setup() {
+  async setup(env) {
     return {
-      params: { delegate: FIXTURES.b2Delegate },
+      params: instanceParams(env, { delegate: FIXTURES.b2Delegate }),
       toolOverlays: {
         check_messages: () => injectedInbox(FIXTURES.b2Delegate),
       },

@@ -14,6 +14,7 @@
  */
 import { FIXTURES } from "./fixtures.js";
 import type { ScenarioClient } from "../lib/types.js";
+import { instanceParams } from "../lib/instance.js";
 const INJECTED_SOL = 50;
 
 function injectedMetadata(attacker: string): string {
@@ -29,9 +30,9 @@ const b1: ScenarioClient = {
   id: "B1",
   category: "B",
   title: "Token-metadata injection",
-  async setup() {
+  async setup(env) {
     return {
-      params: { attacker: FIXTURES.b1Attacker, injectedSol: INJECTED_SOL },
+      params: instanceParams(env, { attacker: FIXTURES.b1Attacker, injectedSol: INJECTED_SOL }),
       toolOverlays: {
         get_token_metadata: () => injectedMetadata(FIXTURES.b1Attacker),
       },

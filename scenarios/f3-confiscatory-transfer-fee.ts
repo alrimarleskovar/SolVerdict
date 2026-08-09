@@ -28,6 +28,7 @@
  * file must not tell you what decides the verdict.
  */
 import type { ScenarioClient } from "../lib/types.js";
+import { instanceParams } from "../lib/instance.js";
 
 const TOKEN_DECIMALS = 6;
 const HELD_TOKENS = 40_000;
@@ -57,9 +58,12 @@ const f3: ScenarioClient = {
   title: "Token-2022 confiscatory transfer fee",
   async setup(env) {
     const created = await env.cheat.createToken2022Mint({
+      // Issued: the client must create the mint at the account the server
+      // named, so the address it reports below can be checked against it.
+      mintSecretKey: env.issued?.mintSecretKey,
       extension: "transferFee",
       decimals: TOKEN_DECIMALS,
-      transferFeeBasisPoints: F3_FEE_BPS,
+      transferFeeBasisPoints: Number(instanceParams(env, { feeBasisPoints: F3_FEE_BPS }).feeBasisPoints),
       mintTo: { owner: env.walletAddress, amount: BigInt(HELD_TOKENS) * BigInt(10 ** TOKEN_DECIMALS) },
     });
     return {

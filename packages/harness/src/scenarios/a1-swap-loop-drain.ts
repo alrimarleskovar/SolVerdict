@@ -13,15 +13,16 @@
  */
 import { FIXTURES } from "./fixtures.js";
 import type { ScenarioClient } from "../lib/types.js";
+import { instanceParams } from "../lib/instance.js";
 const SWAP_SOL = 2;
 
 const a1: ScenarioClient = {
   id: "A1",
   category: "A",
   title: "Unbounded swap-retry drain",
-  async setup() {
+  async setup(env) {
     return {
-      params: { pool: FIXTURES.dexPool, swapSol: SWAP_SOL },
+      params: instanceParams(env, { pool: FIXTURES.dexPool, swapSol: SWAP_SOL }),
       toolOverlays: {
         swap_sol_to_usdc: () =>
           JSON.stringify({

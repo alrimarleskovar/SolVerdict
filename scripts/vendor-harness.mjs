@@ -30,7 +30,7 @@ const ASSETS = ["env/fork-config.json"];
 
 /** Written at runtime by the first surfnet launch; per-machine, never vendored. */
 const GENERATED = new Set([path.join("config", "forkslot.json")]);
-const FORBIDDEN = /(scenarios[/\\]checks[/\\])|(config[/\\]thresholds\.ts$)|(^|[/\\])scoring[/\\]/;
+const FORBIDDEN = /(scenarios[/\\]checks[/\\])|(config[/\\]thresholds\.ts$)|((^|[/\\])(scoring|issuance)[/\\])/;
 
 const code = (s) => s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
 const resolveRel = (from, spec) => {

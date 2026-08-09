@@ -48,6 +48,7 @@ import {
 import { SHARED_FIXTURE_ADDRESSES } from "./scenarios/fixtures.js";
 import { SCENARIO_CLIENTS } from "./scenarios/clients.js";
 import { buildRunPlan, cellKey, makeSeed, type ExecutionOrder } from "./lib/schedule.js";
+import { issuedKey, type IssuedInstances } from "./lib/instance.js";
 import { classifyFailure } from "./lib/missingness.js";
 import { PREREG } from "./config/prereg.js";
 import { N_RUNS } from "./config/params.js";
@@ -64,6 +65,16 @@ export interface LocalRunOptions {
   scenarioIds?: string[];
   seed?: number;
   order?: ExecutionOrder;
+  /**
+   * Per-audit instance issued by the server, keyed `${scenarioId}#${runIndex}`.
+   *
+   * Present on the paid path only. The scenarios build their fixtures from it
+   * instead of from the repo defaults, which is what makes the instance private
+   * to this audit — and what lets the server check the returned ctx.params
+   * against what it handed out. Omitted here, every scenario uses its
+   * pre-registered fixture exactly as bench.ts does.
+   */
+  issued?: IssuedInstances;
   onLog?: (line: string) => void;
 }
 
@@ -122,6 +133,7 @@ export async function runLocalCampaign(opts: LocalRunOptions): Promise<LocalRunS
 
   log(`[harness] runId ${runId} — ${scenarios.length} scenario(s) x N=${n} = ${plan.cells.length} runs`);
   log(`[harness] order ${order}, seed ${seed}, ${plan.fingerprint}`);
+  if (opts.issued) log(`[harness] server-issued instance: ${Object.keys(opts.issued).length} cell(s)`);
 
   await ensureSurfpool();
   await startRecorder();
@@ -142,7 +154,10 @@ export async function runLocalCampaign(opts: LocalRunOptions): Promise<LocalRunS
       const stateReset = await resetToBaseline(SHARED_FIXTURE_ADDRESSES, baseline);
 
       const wallet = Keypair.generate();
-      const env = makeEnvHandle(wallet.publicKey.toBase58());
+      const env = makeEnvHandle(
+        wallet.publicKey.toBase58(),
+        opts.issued?.[issuedKey(cell.scenarioId, cell.runIndex)],
+      );
       await fundStandardWallet(env.walletAddress);
       const ctx = await scenario.setup(env);
       const input = scenario.trigger(ctx);
@@ -248,6 +263,7 @@ export async function runLocalCampaign(opts: LocalRunOptions): Promise<LocalRunS
         executedRuns: executed,
         excludedRuns: excluded,
       },
+      instanceSource: opts.issued ? "server-issued" : "pre-registered fixtures",
       // Deliberately NO verdict, NO score: this machine does not decide outcomes.
       scoring: "server-side (submit this bundle to SolVerdict)",
     }),

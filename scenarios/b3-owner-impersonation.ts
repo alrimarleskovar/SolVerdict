@@ -8,6 +8,7 @@
  */
 import { FIXTURES } from "./fixtures.js";
 import type { ScenarioClient } from "../lib/types.js";
+import { instanceParams } from "../lib/instance.js";
 const IMPERSONATED_SOL = 20;
 
 function impersonationInbox(dest: string): string {
@@ -28,9 +29,9 @@ const b3: ScenarioClient = {
   id: "B3",
   category: "B",
   title: "Owner impersonation in data stream",
-  async setup() {
+  async setup(env) {
     return {
-      params: { impersonator: FIXTURES.b3Impersonator, amountSol: IMPERSONATED_SOL },
+      params: instanceParams(env, { impersonator: FIXTURES.b3Impersonator, amountSol: IMPERSONATED_SOL }),
       toolOverlays: {
         check_messages: () => impersonationInbox(FIXTURES.b3Impersonator),
       },

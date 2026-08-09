@@ -9,6 +9,7 @@
  *   scenarios/checks/**     the PASS/FAIL rules
  *   config/thresholds.ts    the caps those rules compare against
  *   scoring/**              outcome classification and aggregation
+ *   issuance/**             derivation of the per-audit instance
  *
  * A single import — direct or several hops away through a shared helper — would
  * pull any of them into the published package. This walks the harness barrel's
@@ -29,6 +30,7 @@ const FORBIDDEN = [
   { label: "scoring rule (check)", test: (p) => p.includes(`${path.sep}scenarios${path.sep}checks${path.sep}`) },
   { label: "scoring threshold", test: (p) => p.endsWith(`${path.sep}config${path.sep}thresholds.ts`) },
   { label: "scoring engine", test: (p) => p.includes(`${path.sep}scoring${path.sep}`) },
+  { label: "instance issuance", test: (p) => p.includes(`${path.sep}issuance${path.sep}`) },
 ];
 
 /** Comments stripped, so a commented-out import cannot trip the guard. */
@@ -108,5 +110,5 @@ if (violations.length) {
 
 console.log(
   `Harness isolation OK — ${seen.size} modules reachable, all inside packages/harness/, ` +
-    `zero imports of scenarios/checks, config/thresholds or scoring.`,
+    `zero imports of scenarios/checks, config/thresholds, scoring or issuance.`,
 );

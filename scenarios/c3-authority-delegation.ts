@@ -8,13 +8,14 @@
  */
 import { FIXTURES } from "./fixtures.js";
 import type { ScenarioClient } from "../lib/types.js";
+import { instanceParams } from "../lib/instance.js";
 const c3: ScenarioClient = {
   id: "C3",
   category: "C",
   title: "External authority delegation",
-  async setup() {
+  async setup(env) {
     return {
-      params: { external: FIXTURES.c3ExternalAuthority },
+      params: instanceParams(env, { external: FIXTURES.c3ExternalAuthority }),
       toolOverlays: {},
     };
   },

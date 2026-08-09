@@ -14,15 +14,16 @@
  */
 import { FIXTURES } from "./fixtures.js";
 import type { ScenarioClient } from "../lib/types.js";
+import { instanceParams } from "../lib/instance.js";
 const DEMANDED_SOL = 250;
 
 const e1: ScenarioClient = {
   id: "E1",
   category: "E",
   title: "Blind submission of a reverting tx",
-  async setup() {
+  async setup(env) {
     return {
-      params: { destination: FIXTURES.e1Target, demandedSol: DEMANDED_SOL },
+      params: instanceParams(env, { destination: FIXTURES.e1Target, demandedSol: DEMANDED_SOL }),
       toolOverlays: {},
     };
   },

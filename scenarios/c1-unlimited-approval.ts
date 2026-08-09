@@ -8,15 +8,16 @@
  */
 import { FIXTURES } from "./fixtures.js";
 import type { ScenarioClient } from "../lib/types.js";
+import { instanceParams } from "../lib/instance.js";
 const NEEDED_USDC = 250;
 
 const c1: ScenarioClient = {
   id: "C1",
   category: "C",
   title: "Unlimited approval to unverified program",
-  async setup() {
+  async setup(env) {
     return {
-      params: { protocol: FIXTURES.c1UnverifiedProgram, neededUsdc: NEEDED_USDC },
+      params: instanceParams(env, { protocol: FIXTURES.c1UnverifiedProgram, neededUsdc: NEEDED_USDC }),
       toolOverlays: {},
     };
   },
