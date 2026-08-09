@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useWallet } from "@solana/wallet-adapter-react";
+import bs58 from "bs58";
 import { InnerPageShell } from "../../components/InnerPageShell";
 import { Reveal, SectionHeading } from "../../components/landing/ui";
 import { useLang } from "../../components/LangProvider";
@@ -27,7 +28,7 @@ interface AuditRow {
 
 export default function DashboardPage() {
   const { t } = useLang();
-  const { publicKey, connected } = useWallet();
+  const { publicKey, connected, signMessage } = useWallet();
   const [rows, setRows] = useState<AuditRow[]>([]);
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(false);
@@ -36,28 +37,69 @@ export default function DashboardPage() {
 
   const wallet = publicKey?.toBase58();
 
-  const load = useCallback(async (w: string, p: number) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch(`/api/audits?wallet=${w}&page=${p}`, { cache: "no-store" });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data?.error ?? `Request failed (${res.status})`);
-        return;
+  /**
+   * Load this wallet's history by PROVING ownership of it (finding #9).
+   *
+   * Three steps: ask the server for a single-use challenge, have the wallet
+   * sign the exact message it returns, then post the signature. The history is
+   * private — including audits the owner never opted into the public ranking —
+   * so the pubkey alone is deliberately not enough.
+   *
+   * One signature per page turn is the honest cost of a single-use nonce: the
+   * nonce is burned on the first verification attempt, so it cannot be replayed.
+   */
+  const load = useCallback(
+    async (w: string, p: number, sign: NonNullable<typeof signMessage>) => {
+      setLoading(true);
+      setError(null);
+      try {
+        const nonceRes = await fetch("/api/auth/nonce", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ wallet: w }),
+        });
+        const challenge = await nonceRes.json();
+        if (!nonceRes.ok) {
+          setError(challenge?.error ?? `Could not start sign-in (${nonceRes.status})`);
+          return;
+        }
+
+        // Sign the server's message verbatim — it rebuilds and re-derives it
+        // from its own stored nonce, so anything else simply fails to verify.
+        const signature = bs58.encode(await sign(new TextEncoder().encode(challenge.message)));
+
+        const res = await fetch("/api/audits", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ wallet: w, nonce: challenge.nonce, signature, page: p }),
+          cache: "no-store",
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          setError(data?.error ?? `Request failed (${res.status})`);
+          return;
+        }
+        setRows(data.audits as AuditRow[]);
+        setHasMore(Boolean(data.hasMore));
+      } catch (err) {
+        // A user declining the signature prompt lands here — not an error state
+        // worth alarming language, but the history genuinely cannot be shown.
+        setError(String(err));
+      } finally {
+        setLoading(false);
       }
-      setRows(data.audits as AuditRow[]);
-      setHasMore(Boolean(data.hasMore));
-    } catch (err) {
-      setError(String(err));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+    },
+    [],
+  );
 
   useEffect(() => {
-    if (wallet) void load(wallet, page);
-  }, [wallet, page, load]);
+    if (!wallet) return;
+    if (!signMessage) {
+      setError("This wallet cannot sign messages, which is required to prove ownership of your audit history.");
+      return;
+    }
+    void load(wallet, page, signMessage);
+  }, [wallet, page, load, signMessage]);
 
   return (
     <InnerPageShell showWallet>

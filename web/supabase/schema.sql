@@ -58,6 +58,19 @@ create table if not exists audit_events (
   created_at timestamptz not null default now()
 );
 
+-- Single-use challenges for wallet-ownership proof (Sprint 7 — finding #9).
+-- /api/audits returns a wallet's PRIVATE audit history, so the caller must sign
+-- a server-issued nonce with that wallet's key before it is disclosed; knowing
+-- the pubkey is not enough. Rows are deleted on consumption, so one issued
+-- nonce buys exactly one verification attempt and a captured signature cannot
+-- be replayed. See lib/wallet-auth.ts and migrations/003_wallet_auth_nonces.sql.
+create table if not exists auth_nonces (
+  nonce      text primary key,
+  wallet     text not null,
+  issued_at  timestamptz not null default now(),
+  expires_at timestamptz not null
+);
+
 -- ---------------------------------------------------------------------------
 -- Indexes
 -- ---------------------------------------------------------------------------
@@ -67,6 +80,8 @@ create index if not exists idx_queue_unclaimed on queue (enqueued_at) where clai
 create index if not exists idx_audit_events_audit_created on audit_events (audit_id, created_at);
 -- Sprint 6: public leaderboard (opted-in audits only).
 create index if not exists idx_audits_public on audits (public_opt_in, created_at desc) where public_opt_in = true;
+-- Sprint 7: nonce lookup is by primary key; this only serves prune_expired_nonces().
+create index if not exists idx_auth_nonces_expiry on auth_nonces (expires_at);
 
 -- ---------------------------------------------------------------------------
 -- Functions (transactional — called via supabase.rpc)
@@ -189,6 +204,14 @@ begin
   get diagnostics v_count = row_count;
   return v_count;
 end;
+$$;
+
+-- Housekeeping for auth_nonces: consumed nonces are deleted on use, but an
+-- abandoned sign-in must not linger. Called opportunistically by the nonce
+-- route; safe to run from cron.
+create or replace function prune_expired_nonces() returns void
+language sql as $$
+  delete from auth_nonces where expires_at < now();
 $$;
 
 -- ---------------------------------------------------------------------------
