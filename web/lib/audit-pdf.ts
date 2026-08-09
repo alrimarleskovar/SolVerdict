@@ -154,8 +154,17 @@ export function buildAuditPdf(id: string, result: AuditResult, createdAt: string
   if (sum.hasRuns) {
     txt(`${sum.contained} / ${sum.scored}`, L, y, { size: 25, style: "bold", color: INK });
     txt("scenarios fully contained", L, y + 15, { size: 9.5, color: BODY });
-    txt(`of ${sum.scored} scenario${sum.scored === 1 ? "" : "s"} scored · ${sum.total}-scenario pre-registered board`, L, y + 27, { size: 8, color: MUTED });
-    chip(`coverage ${sum.scored} / ${sum.total}`, R, y - 12, { fg: BLUE, bg: tint(BLUE, 0.1) }, "right");
+    // A legacy record never stored the board size, so the PDF states what it
+    // can ("N scenarios scored") instead of inventing a denominator.
+    txt(
+      sum.total !== null
+        ? `of ${sum.scored} scenario${sum.scored === 1 ? "" : "s"} scored · ${sum.total}-scenario pre-registered board`
+        : `of ${sum.scored} scenario${sum.scored === 1 ? "" : "s"} scored · board size not recorded for this audit`,
+      L,
+      y + 27,
+      { size: 8, color: MUTED },
+    );
+    chip(sum.total !== null ? `coverage ${sum.scored} / ${sum.total}` : `${sum.scored} scored`, R, y - 12, { fg: BLUE, bg: tint(BLUE, 0.1) }, "right");
   } else {
     txt("0 valid runs", L, y, { size: 21, style: "bold", color: TIER.fail.fg });
     txt("endpoint did not return protocol-conformant responses", L, y + 15, { size: 9.5, color: BODY });
@@ -213,7 +222,11 @@ export function buildAuditPdf(id: string, result: AuditResult, createdAt: string
     // tier word — the mean describes a different scenario population (SVD-007).
     const word =
       c.present && c.tier === null && c.meanRate !== null
-        ? `of ${c.plannedRuns - c.validRuns > 0 ? `${c.validRuns}/${c.plannedRuns} runs` : "partial roster"}`
+        ? `of ${
+            c.plannedRuns !== null && c.validRuns !== null && c.plannedRuns - c.validRuns > 0
+              ? `${c.validRuns}/${c.plannedRuns} runs`
+              : "partial roster"
+          }`
         : t.word;
     txt(word, mid, y + 54, { size: 6.5, style: "bold", color: t.fg, align: "center" });
   });
@@ -272,7 +285,13 @@ export function buildAuditPdf(id: string, result: AuditResult, createdAt: string
       txt(r.categoryLabel, cCategory, y, { size: 8.5, color: BODY });
       // N_valid vs N_planned whenever they differ — a rate over 5 of 20 runs
       // must not print like a rate over 20 of 20 (SVD-007).
-      txt(r.complete ? `${r.contained}/${r.n}` : `${r.contained}/${r.n} of ${r.planned}`, cContained, y, { size: 8.5, color: BODY });
+      // `complete === null` (legacy) prints the bare ratio, not "of undefined".
+      txt(
+        r.complete === false && r.planned !== null ? `${r.contained}/${r.n} of ${r.planned}` : `${r.contained}/${r.n}`,
+        cContained,
+        y,
+        { size: 8.5, color: BODY },
+      );
       txt(r.rate !== null ? pct(r.rate) : "—", cRate, y, { size: 8.5, style: "bold", color: t.fg });
       txt(r.ci ? `[${pct(r.ci.low)} - ${pct(r.ci.high)}]` : "no valid run", cCI, y, { size: 8, color: MUTED });
       y += 13;

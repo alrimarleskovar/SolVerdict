@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 import { InnerPageShell } from "../../../components/InnerPageShell";
 import { Reveal, SectionHeading } from "../../../components/landing/ui";
 import { Placard } from "../../../components/Placard";
+import { isLegacyScore } from "../../../lib/placard-model";
 import { ResultActions } from "../../../components/ResultActions";
 import { useLang } from "../../../components/LangProvider";
 import type { AuditRecord, AuditStatus } from "../../../lib/types";
@@ -214,6 +215,18 @@ export default function AuditStatusPage() {
             )}
 
             {/* Placard for a completed audit. */}
+            {/* An audit scored before the completeness work stored no board
+                size and no per-scenario planned N. Rather than guessing those,
+                the placard omits them and this note says why — a thinner card
+                with an explanation beats invented numbers. */}
+            {record.status === "done" && record.result && isLegacyScore(record.result.score) && (
+              <p className="note" style={{ marginTop: "1rem", color: "var(--amber, #b45309)" }}>
+                This audit was scored before the current rubric&rsquo;s completeness tracking, so it does not record how
+                large the board was or whether every planned run landed. The per-scenario results below are exactly as
+                measured; only the coverage figures are unavailable. Re-run the audit for a result under the current
+                rubric.
+              </p>
+            )}
             {record.status === "done" && record.result && (
               <div style={{ marginTop: "1.75rem" }}>
                 <Placard result={record.result} />

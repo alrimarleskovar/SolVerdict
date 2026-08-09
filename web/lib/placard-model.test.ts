@@ -18,6 +18,7 @@ import {
   pct,
   CATEGORY_LABELS,
   EMPTY_CONTAINMENT,
+  isLegacyScore,
 } from "./placard-model";
 
 const ci = (rate: number, n = 20) => ({ rate, low: Math.max(0, rate - 0.1), high: Math.min(1, rate + 0.1), n });
@@ -297,6 +298,61 @@ function runBShape(): SetupScore {
   assert.equal(pct(0), "0.0%");
   assert.equal(pct(0.667), "66.7%");
   assert.equal(pct(1), "100.0%");
+}
+
+// --- LEGACY RECORDS: the production crash --------------------------------
+// "TypeError: Cannot read properties of undefined (reading 'scenariosPlanned')"
+// An audit stored before the SVD-007 completeness work has no `completeness`
+// and no per-scenario `applicable`/`planned`/`complete`. The detail page must
+// render it, and must not invent the numbers it does not have.
+{
+  const legacy = {
+    setupId: "http-agent",
+    scenarios: [
+      { scenarioId: "A1", category: "A", n: 20, contained: 20, uncontained: 0, intentDangerousExecFailed: 0, rate: 1, ci: ci(1), tier: "contained" },
+      { scenarioId: "A2", category: "A", n: 20, contained: 0, uncontained: 20, intentDangerousExecFailed: 0, rate: 0, ci: ci(0), tier: "fail" },
+    ],
+    categories: [{ category: "A", meanRate: 0.5, tier: "partial", scenarios: ["A1", "A2"] }],
+    // no `completeness` — this is the whole point
+  } as unknown as SetupScore;
+
+  assert.equal(isLegacyScore(legacy), true, "a record without completeness is legacy");
+  assert.equal(isLegacyScore(fixture()), false, "a current record is not");
+
+  // 1. It must not throw. This is the reported production error.
+  const sum = containmentSummary(legacy);
+
+  // 2. It must not invent a board size or claim completeness.
+  assert.equal(sum.total, null, "board size was never stored — must be null, not a guess");
+  assert.equal(sum.complete, null, "completeness was never stored — must be null, not false");
+  assert.equal(sum.legacy, true);
+
+  // 3. It must still report what the record DOES support.
+  assert.equal(sum.scored, 2, "both scenarios have valid runs");
+  assert.equal(sum.contained, 1, "A1 contained, A2 failed");
+  assert.equal(sum.hasRuns, true, "a missing `applicable` must not be read as falsy");
+  assert.equal(sum.validRuns, 40);
+
+  // 4. Rows render without "of undefined".
+  const rows = scenarioRows(legacy);
+  assert.equal(rows.length, 2);
+  assert.equal(rows[0].applicable, true, "absent `applicable` means the concept did not exist yet");
+  assert.equal(rows[0].planned, null);
+  assert.equal(rows[0].complete, null);
+  assert.equal(rows[0].tier, "contained", "the measured verdict is untouched");
+  assert.equal(rows[0].rate, 1);
+
+  // 5. Cells render without "(undefined/undefined runs)".
+  const cell = categoryCells(legacy).find((c) => c.category === "A")!;
+  assert.equal(cell.present, true);
+  assert.equal(cell.tier, "partial", "the stored tier is preserved");
+  assert.doesNotMatch(cell.display, /undefined|NaN/, "no placeholder may leak into the UI");
+  assert.equal(cell.validRuns, null);
+  assert.equal(cell.complete, null);
+
+  // 6. The badge states only what it knows, and does not award green.
+  assert.equal(badgeValueText(sum), "1/2 contained");
+  assert.notEqual(badgeValueColor(sum), "#14f195", "an unverifiable board never renders as a clean pass");
 }
 
 console.log("placard-model tests passed");

@@ -11,7 +11,39 @@
  * clean 🟢 for a category the HTML report already refused to tier.
  */
 import type { Tier } from "../../scoring/tiers";
-import type { SetupScore } from "../../scoring";
+import type { CategoryScore, ScenarioScore, SetupScore } from "../../scoring";
+
+/**
+ * A score as STORED, which is not necessarily a score as currently produced.
+ *
+ * Audit results are persisted as JSON and there is no migration for a JSONB
+ * column: a row written before the SVD-007 completeness work simply does not
+ * have `completeness`, and its scenario rows have no `applicable` / `planned` /
+ * `complete`. Typing the stored value as today's `SetupScore` was a lie, and it
+ * crashed the detail page with "Cannot read properties of undefined (reading
+ * 'scenariosPlanned')".
+ *
+ * Declaring the newer fields optional here makes the compiler point at every
+ * place that must cope, instead of leaving it to production.
+ */
+export type StoredSetupScore = Omit<SetupScore, "completeness" | "scenarios" | "categories"> & {
+  completeness?: SetupScore["completeness"];
+  scenarios: Array<Omit<ScenarioScore, "applicable" | "planned" | "attempted" | "excluded" | "complete" | "excludedByClass" | "notApplicable"> &
+    Partial<Pick<ScenarioScore, "applicable" | "planned" | "attempted" | "excluded" | "complete" | "excludedByClass" | "notApplicable">>>;
+  categories: Array<Omit<CategoryScore, "scoredScenarios" | "missingScenarios" | "partialScenarios" | "notApplicableScenarios" | "complete" | "plannedRuns" | "validRuns" | "excludedRuns"> &
+    Partial<Pick<CategoryScore, "scoredScenarios" | "missingScenarios" | "partialScenarios" | "notApplicableScenarios" | "complete" | "plannedRuns" | "validRuns" | "excludedRuns">>>;
+};
+
+/**
+ * True when the stored result predates completeness tracking.
+ *
+ * The distinction matters for honesty: such a record does not say how large the
+ * board was or whether every planned run landed, and we must not guess. It is
+ * reported as unknown, never as complete and never as a fabricated denominator.
+ */
+export function isLegacyScore(score: StoredSetupScore): boolean {
+  return score.completeness === undefined;
+}
 
 export const CATEGORIES = ["A", "B", "C", "D", "E", "F"] as const;
 export type CategoryLetter = (typeof CATEGORIES)[number];
@@ -55,10 +87,15 @@ export interface ContainmentSummary {
   contained: number;
   /** Scenarios with at least one valid run (the denominator we scored over). */
   scored: number;
-  /** The board size the run was PLANNED against. */
-  total: number;
-  /** True when every planned scenario produced a full-N result. */
-  complete: boolean;
+  /**
+   * The board size the run was PLANNED against — NULL for a legacy record,
+   * which never stored it. Callers must render "unknown", not a guess.
+   */
+  total: number | null;
+  /** True when every planned scenario produced a full-N result; null if unknown. */
+  complete: boolean | null;
+  /** The stored result predates completeness tracking (see isLegacyScore). */
+  legacy: boolean;
   /** False when no scenario produced a valid run. */
   hasRuns: boolean;
   /** Applicable scenarios that produced no valid run at all. */
@@ -81,6 +118,7 @@ export const EMPTY_CONTAINMENT: ContainmentSummary = {
   scored: 0,
   total: 0,
   complete: false,
+  legacy: false,
   hasRuns: false,
   missing: [],
   partial: [],
@@ -97,18 +135,44 @@ export const EMPTY_CONTAINMENT: ContainmentSummary = {
  * 20 scenarios since prereg v0.3.0, so `complete` was true for every audit that
  * scored 14 or more — including budget-truncated ones that never reached F.
  */
-export function containmentSummary(score: SetupScore): ContainmentSummary {
+export function containmentSummary(score: StoredSetupScore): ContainmentSummary {
   const c = score.completeness;
+  // `applicable !== false` rather than `applicable === true`: on a legacy row
+  // the field is absent, and its absence means the not-applicable concept did
+  // not exist yet, so nothing was ever marked inapplicable. Treating undefined
+  // as applicable is what the record actually supports — reading it as falsy
+  // would silently report a completed audit as "no valid runs".
+  const scored = score.scenarios.filter((s) => s.applicable !== false && s.n > 0).length;
+  const contained = score.scenarios.filter((s) => s.applicable !== false && s.tier === "contained").length;
+
+  // A legacy record never stored the planned board size or whether the run
+  // finished. Both are reported as unknown; neither is inferred from what
+  // happens to be present.
+  if (!c) {
+    return {
+      contained,
+      scored,
+      total: null,
+      complete: null,
+      legacy: true,
+      hasRuns: scored > 0,
+      missing: [],
+      partial: [],
+      notApplicable: [],
+      validRuns: score.scenarios.reduce((a, s) => a + s.n, 0),
+      plannedRuns: 0,
+    };
+  }
+
   // `total` counts APPLICABLE scenarios only — the board this setup was
   // actually measured against. A capability gap shrinks the denominator and is
   // reported separately, never as a scenario it failed to complete.
-  const scored = score.scenarios.filter((s) => s.applicable && s.n > 0).length;
-  const contained = score.scenarios.filter((s) => s.applicable && s.tier === "contained").length;
   return {
     contained,
     scored,
     total: c.scenariosPlanned,
     complete: c.complete,
+    legacy: false,
     hasRuns: scored > 0,
     missing: [...c.missingScenarios],
     partial: [...c.partialScenarios],
@@ -126,14 +190,15 @@ export interface CategoryCell {
   meanRate: number | null;
   /** Null when the category's scenario roster is short — no tier over a reduced roster. */
   tier: Tier | null;
-  /** True when every applicable scenario in the category scored at full N. */
-  complete: boolean;
+  /** True when every applicable scenario scored at full N; null on a legacy record. */
+  complete: boolean | null;
   /** Applicable scenarios in this category with no valid run. */
   missingScenarios: string[];
   /** Scenarios the setup cannot attempt at all (prereg §6, Emenda 7). */
   notApplicableScenarios: string[];
-  validRuns: number;
-  plannedRuns: number;
+  /** Run counts; null on a legacy record, which never stored them. */
+  validRuns: number | null;
+  plannedRuns: number | null;
   badge: string;
   cssClass: string;
   display: string;
@@ -143,15 +208,20 @@ export interface ScenarioRow {
   scenarioId: string;
   category: string;
   categoryLabel: string;
-  /** False when the setup cannot attempt this scenario (prereg §6, Emenda 7). */
+  /**
+   * False when the setup cannot attempt this scenario (prereg §6, Emenda 7).
+   * A legacy row has no such field; absence means the concept did not exist,
+   * so nothing was marked inapplicable and the row counts as applicable.
+   */
   applicable: boolean;
   notApplicable?: { capability: string; reason: string };
   contained: number;
   n: number;
-  /** N the run was planned against — always shown next to `n`. */
-  planned: number;
+  /** N the run was planned against; null on a legacy record that never stored it. */
+  planned: number | null;
   excluded: number;
-  complete: boolean;
+  /** True when n reached the planned N; null when the record cannot say. */
+  complete: boolean | null;
   /** Exclusion reasons by declared class (lib/missingness.ts). */
   excludedByClass: Record<string, number>;
   intentDangerousExecFailed: number;
@@ -163,7 +233,7 @@ export interface ScenarioRow {
   cssClass: string;
 }
 
-export function categoryCells(score: SetupScore): CategoryCell[] {
+export function categoryCells(score: StoredSetupScore): CategoryCell[] {
   return CATEGORIES.map((c) => {
     const cat = score.categories.find((k) => k.category === c);
     if (!cat) {
@@ -193,11 +263,11 @@ export function categoryCells(score: SetupScore): CategoryCell[] {
       present: true,
       meanRate: cat.meanRate,
       tier: cat.tier,
-      complete: cat.complete,
-      missingScenarios: [...cat.missingScenarios],
+      complete: cat.complete ?? null,
+      missingScenarios: [...(cat.missingScenarios ?? [])],
       notApplicableScenarios: [...(cat.notApplicableScenarios ?? [])],
-      validRuns: cat.validRuns,
-      plannedRuns: cat.plannedRuns,
+      validRuns: cat.validRuns ?? null,
+      plannedRuns: cat.plannedRuns ?? null,
     };
     if (cat.tier === null) {
       const na = cat.notApplicableScenarios ?? [];
@@ -216,7 +286,7 @@ export function categoryCells(score: SetupScore): CategoryCell[] {
         cssClass: "t-incomplete",
         display:
           cat.meanRate !== null
-            ? `⚠️ ${pct(cat.meanRate)} over ${cat.scoredScenarios.length} of ${rubricSize} scenarios${naNote}`
+            ? `⚠️ ${pct(cat.meanRate)} over ${(cat.scoredScenarios ?? []).length} of ${rubricSize} scenarios${naNote}`
             : na.length > 0
               ? `n/a — capability${naNote}`
               : "⚠️ no valid runs",
@@ -226,12 +296,16 @@ export function categoryCells(score: SetupScore): CategoryCell[] {
       ...base,
       badge: TIER_BADGE[cat.tier],
       cssClass: TIER_CLASS[cat.tier],
-      display: `${TIER_BADGE[cat.tier]} ${pct(cat.meanRate as number)}${cat.complete ? "" : ` (${cat.validRuns}/${cat.plannedRuns} runs)`}`,
+      // A legacy record stored no run counts, so it gets the bare percentage
+      // rather than "(undefined/undefined runs)".
+      display: `${TIER_BADGE[cat.tier]} ${pct(cat.meanRate as number)}${
+        cat.complete === false && cat.validRuns !== undefined ? ` (${cat.validRuns}/${cat.plannedRuns} runs)` : ""
+      }`,
     };
   });
 }
 
-export function scenarioRows(score: SetupScore): ScenarioRow[] {
+export function scenarioRows(score: StoredSetupScore): ScenarioRow[] {
   return [...score.scenarios]
     .sort((a, b) => a.scenarioId.localeCompare(b.scenarioId))
     .map((s) => {
@@ -240,13 +314,13 @@ export function scenarioRows(score: SetupScore): ScenarioRow[] {
         scenarioId: s.scenarioId,
         category: s.category,
         categoryLabel: CATEGORY_LABELS[catLetter] ?? s.category,
-        applicable: s.applicable,
+        applicable: s.applicable !== false,
         notApplicable: s.notApplicable,
         contained: s.contained,
         n: s.n,
-        planned: s.planned,
-        excluded: s.excluded,
-        complete: s.complete,
+        planned: s.planned ?? null,
+        excluded: s.excluded ?? 0,
+        complete: s.complete ?? null,
         excludedByClass: { ...s.excludedByClass },
         intentDangerousExecFailed: s.intentDangerousExecFailed,
         rate: s.rate,

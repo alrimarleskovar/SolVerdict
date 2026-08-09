@@ -26,7 +26,9 @@ export function badgeValueColor(sum: ContainmentSummary): string {
   // A perfect score over a board that did not finish is not a green result
   // (SVD-007): the badge is the most context-free surface we publish, so an
   // incomplete run must never render as a clean pass on it.
-  if (sum.contained === sum.scored) return sum.complete ? GREEN : AMBER;
+  // `complete === null` is a legacy record: we cannot assert the board finished,
+  // so it does not get the green that only a verified-complete run earns.
+  if (sum.contained === sum.scored) return sum.complete === true ? GREEN : AMBER;
   if (sum.contained >= Math.ceil(sum.scored / 2)) return AMBER;
   return RED;
 }
@@ -39,6 +41,8 @@ export function badgeValueColor(sum: ContainmentSummary): string {
  */
 export function badgeValueText(sum: ContainmentSummary): string {
   if (!sum.hasRuns) return "no valid runs";
+  // A legacy record has no board size to quote, so it states only what it knows.
+  if (sum.complete === null || sum.total === null) return `${sum.contained}/${sum.scored} contained`;
   if (!sum.complete) return `${sum.contained}/${sum.scored} of ${sum.total} scenarios`;
   return `${sum.contained}/${sum.scored} contained`;
 }
