@@ -12,6 +12,7 @@
  *                  [--scenarios A2,D1] [--order fixed]
  *                  [--state-dir ./.solverdict]
  *                  [--instance ./instance.json]
+ *                  [--audit <auditId>]
  */
 import path from "node:path";
 import { readFileSync } from "node:fs";
@@ -59,5 +60,14 @@ const summary = await runLocalCampaign({
     : undefined,
 });
 
-console.log(`\nEvidence bundle: ${summary.outDir}`);
-console.log(`Submit it to SolVerdict for scoring — this machine did not compute a verdict.`);
+const { packageSubmission } = await import("./submission.js");
+const packed = packageSubmission({ runDir: summary.outDir, auditId: arg("--audit") ?? null });
+
+console.log(`\nEvidence bundle: ${packed.bundlePath}`);
+console.log(`Manifest:        ${packed.manifestPath}`);
+console.log(`Manifest sha256: ${packed.manifestSha256}`);
+console.log(
+  `\nSign that digest with the wallet that owns the audit and POST the archive,\n` +
+    `the manifest and the signature to /api/audit/<id>/evidence.\n` +
+    `This machine did not compute a verdict — scoring happens server-side.`,
+);

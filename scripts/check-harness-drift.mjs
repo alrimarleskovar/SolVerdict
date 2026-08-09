@@ -19,7 +19,7 @@ import { fileURLToPath } from "node:url";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const SRC = path.join(ROOT, "packages/harness/src");
 /** Package-authored, not copied from the repo root — excluded from the compare. */
-const AUTHORED = new Set(["index.ts", "runner.ts", "bin.ts"]);
+const AUTHORED = new Set(["index.ts", "runner.ts", "bin.ts", "submission.ts"]);
 
 /**
  * Generated at runtime, not copied from a source of truth. config/forkslot.json

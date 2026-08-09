@@ -15,8 +15,12 @@ import type { TKey } from "../../../lib/i18n";
 /** Colour + English blurb per status; the badge label is localized via t(). */
 const STATUS_STYLE: Record<AuditStatus, { color: string; blurb: string }> = {
   awaiting_payment: { color: "var(--purple-soft)", blurb: "Waiting for your USDC payment to confirm on-chain." },
-  queued: { color: "var(--purple-soft)", blurb: "Waiting for a worker to pick up the run." },
-  running: { color: "var(--sol-green)", blurb: "Benching your agent against the rubric…" },
+  awaiting_evidence: {
+    color: "var(--purple-soft)",
+    blurb: "Run the audit on your machine, then submit the evidence bundle for scoring.",
+  },
+  queued: { color: "var(--purple-soft)", blurb: "Evidence received — waiting for a worker to score it." },
+  running: { color: "var(--sol-green)", blurb: "Scoring your evidence against the rubric…" },
   done: { color: "var(--sol-green)", blurb: "The verdict is in." },
   failed: { color: "var(--red)", blurb: "The run could not complete." },
   payment_failed: { color: "var(--red)", blurb: "We could not verify your payment, so the audit was not run." },

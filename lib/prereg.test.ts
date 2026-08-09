@@ -81,4 +81,18 @@ const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..")
   assert.equal(cert.file, PREREG.file, "while still naming what it looked for");
 }
 
+// --- the restated digest must equal the computed one ---------------------
+// config/prereg.ts carries the hash as a literal so the published harness can
+// declare it without shipping the document. A literal that drifts from the file
+// is worse than no literal: every submitted bundle would be rejected, or worse,
+// accepted under the wrong methodology.
+{
+  const cert = certifyPrereg(ROOT);
+  assert.equal(
+    PREREG.sha256,
+    cert.sha256,
+    "config/prereg.ts sha256 no longer matches the document — re-freeze or bump the version",
+  );
+}
+
 console.log("prereg tests passed");

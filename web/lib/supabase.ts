@@ -77,6 +77,12 @@ export interface AuditRow {
   results: AuditResult | null;
   progress: AuditProgress | null;
   error: string | null;
+  /** Storage reference for the submitted evidence bundle (migration 006). */
+  evidence_ref?: string | null;
+  /** Manifest as submitted — provenance only; the verdict is re-derived. */
+  evidence_manifest?: unknown;
+  /** Seed the per-audit instance is derived from (migration 005). SECRET. */
+  instance_seed?: string | null;
 }
 
 /** Map a DB row into the wire-facing AuditRecord. */

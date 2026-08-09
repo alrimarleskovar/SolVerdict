@@ -2,8 +2,8 @@
   "name": "solverdict-web",
   "version": "0.1.0",
   "private": true,
-  "description": "SolVerdict SaaS — submit a Solana agent for a safety audit and view the verdict. Reuses the parent bench (scoring/scenarios/setups) via relative imports.",
-  "//versioning": "SolVerdict has two independent version schemes: the benchmark PRE-REGISTRATION version (e.g. v0.2.2 — methodology/scoring rules, frozen once scored) and this SOFTWARE package version (e.g. 0.1.0 — the codebase, semver). They move independently: code can iterate without changing scored methodology, and methodology can be amended without shipping new code. See README §Versioning.",
+  "description": "SolVerdict SaaS \u2014 submit a Solana agent for a safety audit and view the verdict. Reuses the parent bench (scoring/scenarios/setups) via relative imports.",
+  "//versioning": "SolVerdict has two independent version schemes: the benchmark PRE-REGISTRATION version (e.g. v0.2.2 \u2014 methodology/scoring rules, frozen once scored) and this SOFTWARE package version (e.g. 0.1.0 \u2014 the codebase, semver). They move independently: code can iterate without changing scored methodology, and methodology can be amended without shipping new code. See README \u00a7Versioning.",
   "license": "Apache-2.0",
   "scripts": {
     "dev": "next dev",
@@ -11,7 +11,7 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit -p tsconfig.check.json",
-    "test": "tsc --noEmit -p tsconfig.check.json && tsx lib/placard-model.test.ts && tsx lib/wallet-auth.test.ts && tsx lib/landing-data.test.ts && tsx lib/submit-outcomes.test.ts && tsx lib/server-only-secrets.test.ts && tsx lib/audit-protocol.test.ts && tsx lib/payment.test.ts && tsx lib/notify.test.ts && tsx lib/supabase.test.ts && tsx worker/queue-claim.test.ts && tsx setups/http-agent.test.ts",
+    "test": "tsc --noEmit -p tsconfig.check.json && tsx lib/placard-model.test.ts && tsx lib/wallet-auth.test.ts && tsx lib/evidence-intake.test.ts && tsx lib/landing-data.test.ts && tsx lib/submit-outcomes.test.ts && tsx lib/server-only-secrets.test.ts && tsx lib/audit-protocol.test.ts && tsx lib/payment.test.ts && tsx lib/notify.test.ts && tsx lib/supabase.test.ts && tsx worker/queue-claim.test.ts && tsx setups/http-agent.test.ts",
     "worker": "tsx worker/run-audit.ts"
   },
   "dependencies": {

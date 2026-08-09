@@ -16,7 +16,13 @@
  *
  * The action log carries the DECODED intent of each returned transaction so the
  * three-outcome refinement can see danger even when execution failed.
- */
+  *
+ * STATUS (step 7 part 1): NO LONGER ON THE LIVE PATH. The worker re-scores a
+ * bundle the customer produced locally instead of driving their endpoint from
+ * our infrastructure, so nothing calls this. It is kept, with its tests, until
+ * part 2 retires the remote path deliberately — deleting the fallback in the
+ * same change that replaces it would leave nothing to roll back to.
+*/
 import {
   Connection,
   Keypair,

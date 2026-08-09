@@ -10,6 +10,13 @@ import type { Outcome } from "../../scoring";
 
 export type AuditStatus =
   | "awaiting_payment"
+  /**
+   * Created, and waiting for the customer to run the audit on their own machine
+   * and submit the evidence (the local-adapter flow). Distinct from `queued`,
+   * which now means "evidence received, waiting for a worker to score it" — a
+   * queued audit with no bundle is a job that can only fail.
+   */
+  | "awaiting_evidence"
   | "queued"
   | "running"
   | "done"

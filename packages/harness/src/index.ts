@@ -27,6 +27,9 @@
 // --- the local campaign loop (evidence only, no verdict) ---------------------
 export { runLocalCampaign, type LocalRunOptions, type LocalRunSummary } from "./runner.js";
 
+// --- packaging a submission ---------------------------------------------------
+export { packageSubmission, type PackagedSubmission, type SubmissionManifest } from "./submission.js";
+
 // --- fork orchestration ------------------------------------------------------
 export {
   ensureSurfpool,
