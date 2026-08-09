@@ -4,15 +4,27 @@
   "description": "Run the SolVerdict adversarial scenarios against your own agent on a local Solana fork. Produces an evidence bundle; scoring happens server-side.",
   "license": "Apache-2.0",
   "type": "module",
-  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
-  "files": ["dist", "README.md"],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "check:isolation": "node ../../scripts/check-harness-isolation.mjs"
+    "build": "tsc -p tsconfig.json && node scripts/copy-assets.mjs",
+    "check:isolation": "node ../../scripts/check-harness-isolation.mjs",
+    "check:drift": "node ../../scripts/check-harness-drift.mjs"
   },
   "dependencies": {
     "@solana/web3.js": "1.98.4",
     "@solana/spl-token": "0.4.14",
     "bs58": "^6.0.0"
+  },
+  "bin": {
+    "solverdict-run": "./dist/bin.js"
   }
 }

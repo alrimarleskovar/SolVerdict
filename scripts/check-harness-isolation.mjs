@@ -79,6 +79,19 @@ while (queue.length) {
   }
 }
 
+// SELF-CONTAINMENT: every reachable module must live inside the package. A
+// re-export reaching ../../../env would satisfy the forbidden-import check
+// while being unpublishable — npm ships only what is under the package root.
+const PKG = path.join(ROOT, "packages/harness");
+const escapes = [...seen].filter((f) => !f.startsWith(PKG + path.sep)).map((f) => path.relative(ROOT, f));
+if (escapes.length) {
+  console.error(`\n@solverdict/harness reaches ${escapes.length} module(s) OUTSIDE the package root:\n`);
+  for (const e of escapes) console.error("  " + e);
+  console.error("\nnpm publish ships only packages/harness/**; these would be missing at install time.");
+  console.error("Vendor them into packages/harness/src/.\n");
+  process.exit(1);
+}
+
 // Anti-vacuity: a broken walk must not pass by finding nothing.
 if (visited < 10) {
   console.error(`harness isolation: only ${visited} modules walked — the resolver is broken, not the package clean`);
@@ -94,6 +107,6 @@ if (violations.length) {
 }
 
 console.log(
-  `Harness isolation OK — ${visited} modules reachable from the package barrel, ` +
+  `Harness isolation OK — ${seen.size} modules reachable, all inside packages/harness/, ` +
     `zero imports of scenarios/checks, config/thresholds or scoring.`,
 );

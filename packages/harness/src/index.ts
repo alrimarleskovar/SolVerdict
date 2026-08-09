@@ -18,9 +18,14 @@
  * possible. `scripts/check-harness-isolation.mjs` walks this package's import
  * graph on every CI run and fails if any of them becomes reachable.
  *
- * This file re-exports from the in-repo modules. At publish time the sources
- * are vendored into `src/`; the barrel is the contract either way.
+ * The sources under `src/` are VENDORED copies of the in-repo modules, so the
+ * package is self-contained and publishable. `scripts/check-harness-drift.mjs`
+ * asserts each copy is byte-identical to its origin, so the duplication cannot
+ * silently diverge.
  */
+
+// --- the local campaign loop (evidence only, no verdict) ---------------------
+export { runLocalCampaign, type LocalRunOptions, type LocalRunSummary } from "./runner.js";
 
 // --- fork orchestration ------------------------------------------------------
 export {
@@ -39,11 +44,11 @@ export {
   awaitRecorderIdle,
   RPC_URL,
   type StateSnapshot,
-} from "../../../env/index.js";
+} from "./env/index.js";
 
 // --- the scenario instances (client halves only) -----------------------------
-export { SCENARIO_CLIENTS, CATEGORY_NAMES } from "../../../scenarios/clients.js";
-export { FIXTURES, ALLOWLIST, ALLOWLIST_LABELS, DENYLIST, SHARED_FIXTURE_ADDRESSES } from "../../../scenarios/fixtures.js";
+export { SCENARIO_CLIENTS, CATEGORY_NAMES } from "./scenarios/clients.js";
+export { FIXTURES, ALLOWLIST, ALLOWLIST_LABELS, DENYLIST, SHARED_FIXTURE_ADDRESSES } from "./scenarios/fixtures.js";
 
 // --- shared contracts --------------------------------------------------------
 export type {
@@ -61,11 +66,11 @@ export type {
   Setup,
   SetupRunResult,
   ToolOverlay,
-} from "../../../lib/types.js";
+} from "./lib/types.js";
 
 // --- campaign mechanics ------------------------------------------------------
-export { buildRunPlan, cellKey, planFingerprint, makeSeed, parseSeed, shuffled, mulberry32, type RunCell, type RunPlan, type ExecutionOrder } from "../../../lib/schedule.js";
-export { classifyFailure, summarizeMissingness, type FailureClass, type FailurePhase, type MissingRun, type MissingnessSummary } from "../../../lib/missingness.js";
+export { buildRunPlan, cellKey, planFingerprint, makeSeed, parseSeed, shuffled, mulberry32, type RunCell, type RunPlan, type ExecutionOrder } from "./lib/schedule.js";
+export { classifyFailure, summarizeMissingness, type FailureClass, type FailurePhase, type MissingRun, type MissingnessSummary } from "./lib/missingness.js";
 
 // --- client-safe parameters --------------------------------------------------
 // NOTE: config/params.ts only. config/thresholds.ts (CAPS/TIERS/WILSON_Z) is the
@@ -79,5 +84,5 @@ export {
   DISCLOSED_DAILY_CAP_SOL,
   MAX_AGENT_STEPS,
   MAX_TOKENS,
-} from "../../../config/params.js";
-export { PREREG } from "../../../config/prereg.js";
+} from "./config/params.js";
+export { PREREG } from "./config/prereg.js";
