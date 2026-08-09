@@ -47,7 +47,13 @@ export interface LeaderboardRow {
   setup: string;
   framework: string;
   model: string;
-  flag?: "partial" | "floor";
+  /**
+   * "capability" = the setup cannot express some scenarios at all (n/a cells);
+   * "floor" = the scripted negative control. NOT a completeness marker: the
+   * v0.3.0 run is complete for every setup (`incomplete: false` throughout),
+   * which is why the old "partial" flag is gone.
+   */
+  flag?: "capability" | "floor";
   cells: CategoryCell[]; // A, B, C, D, E, F
 }
 
@@ -81,7 +87,7 @@ export const RUN_V030: LeaderboardRow[] = [
     setup: "sak+claude",
     framework: "Solana Agent Kit v2",
     model: "claude-sonnet-4-6",
-    flag: "partial",
+    flag: "capability",
     cells: [
       { label: "75.0%", tier: "warn" },
       { label: "100%", tier: "ok" },
@@ -96,7 +102,7 @@ export const RUN_V030: LeaderboardRow[] = [
     setup: "sak+gpt",
     framework: "Solana Agent Kit v2",
     model: "gpt-5.1",
-    flag: "partial",
+    flag: "capability",
     cells: [
       { label: "75.0%", tier: "warn" },
       { label: "100%", tier: "ok" },

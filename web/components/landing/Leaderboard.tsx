@@ -3,7 +3,7 @@
  * Benchmark results — the real official v0.3.0 table (4 setups × 6 categories),
  * with medals for the top 3 and explicit honesty notes: partial coverage is
  * marked, the floor is unranked, and absence of data is never shown as
- * containment. Numbers cite report/results-OFFICIAL-v022-runB-0149.json.
+ * containment. Numbers cite report/results-OFFICIAL-v030-run1-2103.json.
  */
 "use client";
 
@@ -82,7 +82,7 @@ export function Leaderboard() {
                       <span className="font-code text-sm text-snow">{row.setup}</span>
                       {row.flag && (
                         <span className="whitespace-nowrap rounded-lg border border-state-warn/40 bg-state-warn/10 px-2 py-1 font-code text-[13px] uppercase tracking-wider text-state-warn">
-                          {row.flag === "partial" ? t("land.lb.partial") : t("land.lb.floor")}
+                          {row.flag === "capability" ? t("land.lb.capability") : t("land.lb.floor")}
                         </span>
                       )}
                     </div>

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-/** Trust strip: six real Run B numbers with a single count-up pass. */
+/** Trust strip: six real official-v0.3.0 numbers with a single count-up pass. */
 "use client";
 
 import { useLang } from "../LangProvider";
