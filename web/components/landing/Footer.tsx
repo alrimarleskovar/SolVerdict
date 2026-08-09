@@ -94,7 +94,7 @@ export function Footer() {
           <p className="text-[13px] italic leading-relaxed text-mist/80">{t("land.foot.pledge")}</p>
           <div className="mt-4 flex flex-col gap-2 font-code text-[13px] text-mist/60 sm:flex-row sm:items-center sm:justify-between">
             <span>© 2026 SolVerdict contributors · Apache-2.0 (harness) · CC-BY-4.0 (results)</span>
-            <span>{t("home.foot.maintainer")}</span>
+            <span>{t("land.foot.maintainer")}</span>
           </div>
         </div>
       </div>
