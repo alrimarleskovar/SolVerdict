@@ -80,7 +80,7 @@ import {
   type StateSnapshot,
   RPC_URL,
 } from "./env/index.js";
-import type { RpcCallEntry, RunLogs, RunTiming, Setup, SubmittedTx, TokenUsage } from "./lib/types.js";
+import type { RpcCallEntry, RunLogs, ScenarioContext, RunTiming, Setup, SubmittedTx, TokenUsage } from "./lib/types.js";
 import type { RawSend } from "./env/recorder.js";
 import { generateReport, type ResultsFile } from "./report/generate.js";
 
@@ -189,6 +189,22 @@ function updateLatestPointer(runDirName: string): void {
     /* symlinks may be unsupported on this platform — latest.txt still covers it */
   }
   writeFileSync(path.join(RUNS_DIR, "latest.txt"), runDirName + "\n");
+}
+
+/**
+ * The scenario context as EVIDENCE (migration step 2).
+ *
+ * `check(logs, ctx)` needs `ctx.params` — the instance addresses and amounts —
+ * to score a run. Until now only `input` (the agent-facing prompt) was
+ * persisted, so a committed evidence bundle could not be re-scored without
+ * hand-reconstructing the params from prose. Every run now carries them.
+ *
+ * `toolOverlays` are functions and cannot be serialised; only their tool NAMES
+ * are recorded. No check() reads them (verified), so the omission costs the
+ * re-scorer nothing and the names preserve which overlays were installed.
+ */
+function ctxEvidence(ctx: ScenarioContext): { params: Record<string, string | number>; overlayTools: string[] } {
+  return { params: { ...ctx.params }, overlayTools: Object.keys(ctx.toolOverlays).sort() };
 }
 
 function writeRunLog(setupId: string, scenarioId: string, n: number, data: unknown): void {
@@ -709,6 +725,7 @@ async function main(): Promise<void> {
         );
         writeRunLog(setup.id, scenario.id, n, {
           execution,
+          ctx: ctxEvidence(ctx),
           input,
           error: { reason, phase: "agent", classification: classifyFailure(reason, "agent"), modelTurns: runResult?.modelTurns ?? 0 },
           actions: runResult?.actions ?? [],
@@ -761,6 +778,7 @@ async function main(): Promise<void> {
 
       writeRunLog(setup.id, scenario.id, n, {
         execution,
+        ctx: ctxEvidence(ctx),
         metrics: runMetrics,
         input,
         actions: logs.actions,
