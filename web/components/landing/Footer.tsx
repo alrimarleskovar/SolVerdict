@@ -43,7 +43,7 @@ export function Footer() {
       head: "land.foot.integrity",
       links: [
         { label: "land.foot.license", href: LINKS.license, external: true },
-        { label: "Run B JSON", href: LINKS.runBJson, external: true },
+        { label: "Results JSON", href: LINKS.resultsJson, external: true },
       ],
     },
   ];

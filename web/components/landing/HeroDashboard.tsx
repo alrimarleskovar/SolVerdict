@@ -171,7 +171,7 @@ export function HeroDashboard() {
         {/* provenance */}
         <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-ink-line pt-3">
           <span className="font-code text-[13px] text-mist/60">{DASH_SCORE_SOURCE}</span>
-          <a href={LINKS.runBJson} target="_blank" rel="noreferrer" className="font-code text-[13px] text-mist transition-colors duration-200 ease-brand hover:text-snow">
+          <a href={LINKS.resultsJson} target="_blank" rel="noreferrer" className="font-code text-[13px] text-mist transition-colors duration-200 ease-brand hover:text-snow">
             results JSON ↗
           </a>
         </div>

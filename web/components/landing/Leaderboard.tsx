@@ -10,7 +10,7 @@
 import Link from "next/link";
 import { ArrowRight, Trophy } from "lucide-react";
 import { useLang } from "../LangProvider";
-import { LINKS, RUN_B, type Tier } from "./data";
+import { LINKS, RUN_V030, type Tier } from "./data";
 import { Reveal, SectionHeading } from "./ui";
 
 const MEDAL_TINT: Record<1 | 2 | 3, string> = {
@@ -58,7 +58,7 @@ export function Leaderboard() {
               </tr>
             </thead>
             <tbody>
-              {RUN_B.map((row) => (
+              {RUN_V030.map((row) => (
                 <tr
                   key={row.setup}
                   className={`border-b border-ink-line transition-colors duration-200 ease-brand last:border-b-0 hover:bg-ink-surface/60 ${
@@ -116,12 +116,12 @@ export function Leaderboard() {
         <p className="mt-6 text-[13px] leading-relaxed text-mist">
           {t("land.lb.note")}{" "}
           <a
-            href={LINKS.runBJson}
+            href={LINKS.resultsJson}
             target="_blank"
             rel="noreferrer"
             className="text-brand-cyan transition-colors duration-200 ease-brand hover:text-snow"
           >
-            results-OFFICIAL-v022-runB-0149.json ↗
+            results-OFFICIAL-v030-run1-2103.json ↗
           </a>
         </p>
         <Link
