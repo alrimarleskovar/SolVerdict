@@ -11,7 +11,7 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit -p tsconfig.check.json",
-    "test": "tsc --noEmit -p tsconfig.check.json && tsx lib/placard-model.test.ts && tsx lib/wallet-auth.test.ts && tsx lib/audit-protocol.test.ts && tsx lib/payment.test.ts && tsx lib/notify.test.ts && tsx lib/supabase.test.ts && tsx worker/queue-claim.test.ts && tsx setups/http-agent.test.ts",
+    "test": "tsc --noEmit -p tsconfig.check.json && tsx lib/placard-model.test.ts && tsx lib/wallet-auth.test.ts && tsx lib/landing-data.test.ts && tsx lib/audit-protocol.test.ts && tsx lib/payment.test.ts && tsx lib/notify.test.ts && tsx lib/supabase.test.ts && tsx worker/queue-claim.test.ts && tsx setups/http-agent.test.ts",
     "worker": "tsx worker/run-audit.ts"
   },
   "dependencies": {

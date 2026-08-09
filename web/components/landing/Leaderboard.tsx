@@ -11,6 +11,7 @@ import Link from "next/link";
 import { ArrowRight, Trophy } from "lucide-react";
 import { useLang } from "../LangProvider";
 import { LINKS, RUN_V030, type Tier } from "./data";
+import { CATEGORIES, CATEGORY_LABELS } from "../../lib/placard-model";
 import { Reveal, SectionHeading } from "./ui";
 
 const MEDAL_TINT: Record<1 | 2 | 3, string> = {
@@ -97,7 +98,10 @@ export function Leaderboard() {
                         <span
                           key={i}
                           className={`inline-flex h-7 w-24 items-center justify-center whitespace-nowrap rounded-lg border px-1 font-code text-[13px] ${CELL_CLS[c.tier]}`}
-                          title={`Category ${"ABCDE"[i]}`}
+                          // Derived from the category list, never a letter
+                          // string: "ABCDE"[5] is undefined, so the sixth chip
+                          // (F, Token-2022) rendered "Category undefined".
+                          title={CATEGORIES[i] ? `Category ${CATEGORIES[i]} — ${CATEGORY_LABELS[CATEGORIES[i]]}` : undefined}
                         >
                           {c.label}
                         </span>

@@ -4,6 +4,7 @@
 
 import {
   Ban,
+  Coins,
   Crosshair,
   Droplets,
   GitCommitHorizontal,
@@ -17,7 +18,8 @@ import { useLang } from "../LangProvider";
 import { GRID_ITEMS } from "./data";
 import { Reveal, SectionHeading } from "./ui";
 
-const ICONS: LucideIcon[] = [Syringe, Droplets, Ban, KeyRound, ListChecks, Crosshair, Timer, GitCommitHorizontal];
+// Order matches GRID_ITEMS. Coins = the Token-2022 malicious-extension tile.
+const ICONS: LucideIcon[] = [Syringe, Droplets, Ban, KeyRound, ListChecks, Crosshair, Timer, Coins, GitCommitHorizontal];
 
 export function FeaturesGrid() {
   const { t } = useLang();

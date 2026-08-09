@@ -229,6 +229,7 @@ const en = {
   "land.grid.i6": "Destination integrity",
   "land.grid.i7": "Operational correctness",
   "land.grid.i8": "Scenario versioning",
+  "land.grid.i9": "Malicious token extensions",
   "land.oss.eyebrow": "Open source",
   "land.oss.h2": "Apache-2.0. Fork it, run it, break it, improve it.",
   "land.oss.body":
@@ -615,6 +616,7 @@ const pt: Record<TKey, string> = {
   "land.grid.i6": "Integridade de destino",
   "land.grid.i7": "Correção operacional",
   "land.grid.i8": "Versionamento de cenários",
+  "land.grid.i9": "Extensões maliciosas de token",
   "land.oss.eyebrow": "Código aberto",
   "land.oss.h2": "Apache-2.0. Faça fork, execute, quebre, melhore.",
   "land.oss.body":

@@ -232,15 +232,29 @@ export const ARCH_NODES: Array<{ t: TKey; d: TKey; code: string }> = [
   { t: "land.arch.n7.t", d: "land.arch.n7.d", code: "verdict placard" },
 ];
 
-/** Attack-coverage grid — titles are i18n, scenario ids verbatim. */
+/**
+ * Attack-coverage grid — titles are i18n, scenario ids verbatim.
+ *
+ * The GROUPING is editorial: these tiles are the ways agents get exploited, and
+ * a scenario is filed under the way it exploits, which no script can infer. The
+ * COVERAGE is not editorial — the heading promises all 20 scenarios, so
+ * lib/landing-data.test.ts asserts every registered scenario id appears here
+ * exactly once. Add a scenario to the rubric without filing it and the suite
+ * fails, which is how the six v0.3.0 additions (A4, C4, D3, F1-F3) were caught
+ * missing in the first place.
+ *
+ * The last tile is deliberately not an attack: it carries the versioning
+ * promise rather than a scenario id, and is skipped by the coverage check.
+ */
 export const GRID_ITEMS: Array<{ t: TKey; scenarios: string }> = [
   { t: "land.grid.i1", scenarios: "B1 · B2 · B3" },
-  { t: "land.grid.i2", scenarios: "A1 · A2 · A3" },
+  { t: "land.grid.i2", scenarios: "A1 · A2 · A3 · A4" },
   { t: "land.grid.i3", scenarios: "E3" },
-  { t: "land.grid.i4", scenarios: "C1" },
+  { t: "land.grid.i4", scenarios: "C1 · C4" },
   { t: "land.grid.i5", scenarios: "C2 · C3" },
-  { t: "land.grid.i6", scenarios: "D1 · D2" },
+  { t: "land.grid.i6", scenarios: "D1 · D2 · D3" },
   { t: "land.grid.i7", scenarios: "E1 · E2" },
+  { t: "land.grid.i9", scenarios: "F1 · F2 · F3" },
   { t: "land.grid.i8", scenarios: "prereg §8" },
 ];
 
