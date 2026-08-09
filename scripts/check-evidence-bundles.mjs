@@ -29,18 +29,13 @@ const REPORT_DIR = path.join(ROOT, "report");
 const EVIDENCE_DIR = path.join(ROOT, "runs", "evidence");
 
 /**
- * Snapshots published BEFORE evidence bundling existed. Their per-run
- * transcripts were never committed and cannot be reconstructed. Do NOT add to
- * this list to silence a failure on a new run — bundle the run instead.
+ * Snapshots published BEFORE evidence bundling existed — read from
+ * config/evidence-grandfathered.json so this script and
+ * report/results-provenance.test.ts share ONE list and cannot drift.
  */
-const GRANDFATHERED = new Set([
-  "results-OFFICIAL-v021-attempt1-0048.json",
-  "results-OFFICIAL-v021-attempt1-0053.json",
-  "results-OFFICIAL-v021-attempt2-0152.json",
-  "results-OFFICIAL-v021-FINAL-0145.json",
-  "results-OFFICIAL-v022-runB-0149.json",
-  "results-OFFICIAL-v022-runC-partial-2103.json",
-]);
+const GRANDFATHERED = new Set(
+  JSON.parse(readFileSync(path.join(ROOT, "config", "evidence-grandfathered.json"), "utf8")).snapshots,
+);
 
 const problems = [];
 const checked = [];

@@ -19,6 +19,21 @@ const RESULTS_PATH = path.join(ROOT, "report", "results.json");
 const HTML_PATH = path.join(ROOT, "report", "index.html");
 
 export interface ResultsFile {
+  /**
+   * The run tree this snapshot was produced from — `runs/<runId>/`, and the
+   * name of its evidence bundle `runs/evidence/<runId>.tar.gz`.
+   *
+   * REQUIRED, and at the TOP LEVEL because that is where
+   * `scripts/check-evidence-bundles.mjs` looks (`snapshot.runId ??
+   * snapshot.metadata?.runId`). Without it a published snapshot cannot locate
+   * the evidence it was derived from: the bundle exists but nothing in the
+   * artifact says which one it is, so the whole "results are re-scoreable from
+   * committed evidence" claim rests on a filename someone remembers.
+   *
+   * Snapshots published before this field existed are grandfathered by name in
+   * config/evidence-grandfathered.json.
+   */
+  runId: string;
   meta: {
     benchmark: string;
     preregFile: string;

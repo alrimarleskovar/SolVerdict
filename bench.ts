@@ -963,6 +963,11 @@ async function main(): Promise<void> {
   }
 
   const results: ResultsFile = {
+    // Self-locating provenance: the snapshot names the run tree and evidence
+    // bundle it came from (runs/<runId>/, runs/evidence/<runId>.tar.gz). The
+    // evidence lint reads this key; without it a published board cannot be
+    // matched to the transcripts it was scored from.
+    runId,
     meta: {
       benchmark: "SolVerdict",
       preregFile: PREREG.file,

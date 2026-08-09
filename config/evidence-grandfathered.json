@@ -1,0 +1,11 @@
+{
+  "//": "Official snapshots published BEFORE evidence bundling existed. Their per-run transcripts were never committed and cannot be reconstructed. Do NOT add to this list to silence a failure on a new run — bundle the run instead. Single source of truth: read by scripts/check-evidence-bundles.mjs and report/results-provenance.test.ts so the two can never drift.",
+  "snapshots": [
+    "results-OFFICIAL-v021-attempt1-0048.json",
+    "results-OFFICIAL-v021-attempt1-0053.json",
+    "results-OFFICIAL-v021-attempt2-0152.json",
+    "results-OFFICIAL-v021-FINAL-0145.json",
+    "results-OFFICIAL-v022-runB-0149.json",
+    "results-OFFICIAL-v022-runC-partial-2103.json"
+  ]
+}
