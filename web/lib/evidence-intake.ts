@@ -31,8 +31,8 @@
  * refuses everything until part 2 supplies a real gate.
  */
 import { createHash } from "node:crypto";
-import { execFileSync } from "node:child_process";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { extractBundle } from "./bundle-extract";
 import path from "node:path";
 import { verifySignature } from "./wallet-auth";
 import { buildEvidenceMessage } from "./evidence-message";
@@ -205,19 +205,18 @@ export async function acceptEvidence(req: IntakeRequest, ports: IntakePorts): Pr
   }
 
   // 4. INSTANCE — extract and check ctx.params against what we issued.
-  const extractDir = path.join(req.workDir, "extract");
-  mkdirSync(extractDir, { recursive: true });
+  // The archive is hostile until proven otherwise: lib/bundle-extract.ts caps
+  // its uncompressed size, its entry count and its extraction time, and refuses
+  // anything that is not a regular file or a directory.
   const archivePath = path.join(req.workDir, "bundle.tar.gz");
-  try {
-    writeFileSync(archivePath, req.archive);
-    // execFile, not a shell: the filenames are ours, but a shell here would be
-    // one refactor away from interpolating a client-supplied name.
-    execFileSync("tar", ["-xzf", archivePath, "-C", extractDir], { stdio: ["ignore", "ignore", "pipe"] });
-  } catch (err) {
-    return fail("malformed-bundle", `could not extract archive: ${String(err).slice(0, 160)}`);
+  writeFileSync(archivePath, req.archive);
+  const extracted = extractBundle({ archivePath, workDir: req.workDir, runId: manifest.runId });
+  if (!extracted.ok) {
+    // A bad run id is a malformed REQUEST — the client sent a name that cannot
+    // be a path. Everything else is a bad archive.
+    return fail(extracted.reason === "bad-run-id" ? "bad-request" : "malformed-bundle", extracted.detail);
   }
 
-  const runRoot = manifest.runId ? path.join(extractDir, manifest.runId) : extractDir;
   let verified = { cells: 0, comparisons: 0 };
   if (row.instance_seed) {
     const issuance = deriveIssuance({
@@ -227,7 +226,19 @@ export async function acceptEvidence(req: IntakeRequest, ports: IntakePorts): Pr
       n: row.n,
       baseLists: { allowlist: ALLOWLIST_LABELS, denylist: DENYLIST },
     });
-    const result = verifyIssuedParams(runRoot, issuance);
+
+    // Reading the bundle means JSON.parse over attacker-authored files. A throw
+    // here used to escape acceptEvidence entirely and surface as a 500 — and
+    // JSON.parse messages quote the input, so a `ctx.json` symlinked at a
+    // system file could have echoed its first bytes back. Contained, and the
+    // reply says nothing about what was in the file.
+    let result;
+    try {
+      result = verifyIssuedParams(extracted.runRoot, issuance);
+    } catch {
+      return fail("malformed-bundle", "a file in the bundle could not be read as the evidence format");
+    }
+
     // Split the two failures apart: they need different things from the client.
     // A violation means the run used a DIFFERENT instance; an unissued cell
     // means a run this audit never planned — almost always `--n` larger than
@@ -278,7 +289,11 @@ export function localEvidenceStore(rootDir: string): EvidenceStore {
     async put(auditId, filename, bytes) {
       const dir = path.join(rootDir, auditId);
       mkdirSync(dir, { recursive: true });
-      const full = path.join(dir, filename);
+      // basename, because `filename` is built from the client-declared run id.
+      // extractBundle already rejects a run id that is not a plain name; this is
+      // the second lock on the same door, and the door leads to arbitrary paths:
+      // path.join(root, id, "../../../etc/cron.d/x.tar.gz") resolves cleanly.
+      const full = path.join(dir, path.basename(filename));
       writeFileSync(full, bytes);
       return full;
     },

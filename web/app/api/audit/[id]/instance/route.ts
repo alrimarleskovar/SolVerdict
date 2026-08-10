@@ -150,7 +150,13 @@ export async function handleInstanceGet(req: Request, auditId: string, injected:
         ...clientPayload(issuance),
         n: row.n,
         // Everything the client needs to run; nothing it must not hold.
-        usage: `save as instance.json, then: npx solverdict-run --agent ./my-agent.mjs --audit ${auditId} --instance ./instance.json`,
+        // --n is stated explicitly even though the harness now reads it from
+        // this file: a client built before that change defaults to the
+        // pre-registered N=20, and on a free audit (n=1) that runs 400 cells
+        // whose extras fall back to public fixtures and are refused.
+        usage:
+          `save as instance.json, then: npx solverdict-run --agent ./my-agent.mjs ` +
+          `--audit ${auditId} --instance ./instance.json --n ${row.n}`,
       },
       { status: 200, headers: NO_STORE },
     );

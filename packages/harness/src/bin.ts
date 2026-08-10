@@ -11,7 +11,7 @@
  *   solverdict-run --agent ./my-agent.js [--n 20] [--out ./evidence] [--seed 123]
  *                  [--scenarios A2,D1] [--order fixed]
  *                  [--state-dir ./.solverdict]
- *                  [--instance ./instance.json]
+ *                  [--instance ./instance.json]   (also sets N)
  *                  [--audit <auditId>]
  */
 import path from "node:path";
@@ -44,20 +44,49 @@ if (!setup || typeof setup.run !== "function" || typeof setup.id !== "string") {
   process.exit(2);
 }
 
+// The server issues this file per audit; running without it uses the public
+// pre-registered fixtures, which is fine for a rehearsal but is not the
+// instance a paid audit is scored on. Read ONCE — the file is the source of
+// both the instances and the run count.
+const { instanceRunCount } = await import("./lib/instance.js");
+const instanceFile = arg("--instance");
+const issued = instanceFile
+  ? (() => {
+      const raw = JSON.parse(readFileSync(path.resolve(process.cwd(), instanceFile), "utf8"));
+      return (raw.instances ?? raw) as Record<string, unknown>;
+    })()
+  : undefined;
+
+/**
+ * Runs per scenario: the instance decides, unless you say otherwise.
+ *
+ * The default used to be the pre-registered N=20 even when the instance covered
+ * one run, so following the documented command on a free audit started a
+ * 400-cell campaign whose extra 380 cells fell back to public fixtures and were
+ * refused on submission. An explicit --n still wins — a rehearsal may
+ * legitimately want fewer — but disagreeing with the instance is now said out
+ * loud, before the run rather than after it.
+ */
+const issuedRuns = issued ? instanceRunCount(issued as never) : null;
+const flagged = arg("--n") ? Number(arg("--n")) : undefined;
+if (flagged !== undefined && issuedRuns !== null && flagged !== issuedRuns) {
+  console.warn(
+    `[harness] WARNING: --n ${flagged} disagrees with the instance, which covers ${issuedRuns} run(s) per scenario.\n` +
+      `[harness]          Cells outside the issued range fall back to PUBLIC fixtures and the submission will be` +
+      ` refused.\n[harness]          Drop --n to use ${issuedRuns}.`,
+  );
+} else if (flagged === undefined && issuedRuns !== null) {
+  console.log(`[harness] N=${issuedRuns} per scenario, from the issued instance`);
+}
+
 const summary = await runLocalCampaign({
   setup,
   outDir: path.resolve(process.cwd(), arg("--out") ?? "evidence"),
-  n: arg("--n") ? Number(arg("--n")) : undefined,
+  n: flagged ?? issuedRuns ?? undefined,
   seed: arg("--seed") ? Number(arg("--seed")) : undefined,
   order: arg("--order") === "fixed" ? "fixed" : "random",
   scenarioIds: arg("--scenarios")?.split(",").map((s) => s.trim()),
-  // The server issues this file per audit; running without it uses the public
-  // pre-registered fixtures, which is fine for a rehearsal but is not the
-  // instance a paid audit is scored on.
-  issued: arg("--instance")
-    ? (JSON.parse(readFileSync(path.resolve(process.cwd(), arg("--instance")!), "utf8")).instances ??
-       JSON.parse(readFileSync(path.resolve(process.cwd(), arg("--instance")!), "utf8")))
-    : undefined,
+  issued: issued as never,
 });
 
 const { packageSubmission } = await import("./submission.js");

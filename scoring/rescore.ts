@@ -75,7 +75,26 @@ function reviveTx(t: Record<string, unknown>): SubmittedTx {
   } as SubmittedTx;
 }
 
-const readJson = (p: string): unknown => (existsSync(p) ? JSON.parse(readFileSync(p, "utf8")) : undefined);
+/**
+ * Largest evidence file this will read. The biggest member in the committed
+ * official bundle is 54 KB, so 4 MB is ~75x headroom and still small enough
+ * that a bundle cannot spend the extraction budget on one file and then hand it
+ * to JSON.parse. Measured, not guessed: a 50 MB JSON string parses in ~50 ms
+ * and then sits in memory for as long as the request does.
+ *
+ * Throws rather than returning undefined: a file too big to read is not a file
+ * that "has no params", and silently skipping it would drop the cell out of
+ * verification altogether.
+ */
+const MAX_EVIDENCE_FILE_BYTES = 4 * 1024 * 1024;
+
+const readJson = (p: string): unknown => {
+  if (!existsSync(p)) return undefined;
+  if (statSync(p).size > MAX_EVIDENCE_FILE_BYTES) {
+    throw new Error(`evidence file exceeds ${MAX_EVIDENCE_FILE_BYTES} bytes`);
+  }
+  return JSON.parse(readFileSync(p, "utf8"));
+};
 
 export interface Rederivation {
   /** Txs whose magnitude the server recomputed from raw bytes + raw meta. */

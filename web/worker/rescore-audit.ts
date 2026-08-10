@@ -24,8 +24,7 @@
  * the bundle happens to contain. A client that submits its five best runs gets
  * an incomplete scorecard, not a better average.
  */
-import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, readdirSync } from "node:fs";
+import { extractBundle } from "../lib/bundle-extract";
 import path from "node:path";
 import { SCENARIOS } from "../../scenarios";
 import { PREREG } from "../../config/prereg";
@@ -69,14 +68,12 @@ export interface RescoreOutcome {
  */
 export function resolveRunRoot(bundlePath: string, workDir: string): string {
   if (!bundlePath.endsWith(".tar.gz")) return bundlePath;
-  const extractDir = path.join(workDir, "extract");
-  mkdirSync(extractDir, { recursive: true });
-  execFileSync("tar", ["-xzf", bundlePath, "-C", extractDir], { stdio: ["ignore", "ignore", "pipe"] });
-  // The archive contains a single `<runId>/` directory (harness packaging).
-  const entries = readdirSync(extractDir);
-  return entries.length === 1 && existsSync(path.join(extractDir, entries[0]!))
-    ? path.join(extractDir, entries[0]!)
-    : extractDir;
+  // The SAME hardened unpacker intake uses. The worker is not a softer target
+  // just because intake ran first: it re-extracts the stored archive on its own
+  // host, long after the request that carried it is gone.
+  const extracted = extractBundle({ archivePath: bundlePath, workDir });
+  if (!extracted.ok) throw new Error(`bundle could not be unpacked (${extracted.reason}): ${extracted.detail}`);
+  return extracted.runRoot;
 }
 
 /** Representative outcome per scenario, for the status page's progress strip. */

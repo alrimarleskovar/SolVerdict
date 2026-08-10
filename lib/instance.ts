@@ -64,6 +64,34 @@ export type IssuedInstances = Record<string, IssuedRunInstance>;
 /** The key an issuance is filed under: one instance per scenario per run. */
 export const issuedKey = (scenarioId: string, runIndex: number): string => `${scenarioId}#${runIndex}`;
 
+/**
+ * How many runs per scenario an issuance covers, read off the instance itself.
+ *
+ * WHY THIS EXISTS. The harness defaults to the pre-registered N (20), but an
+ * audit's instance is issued for the N THAT AUDIT planned — 1 for the free
+ * tier. Running 20 where 1 was issued means 19 of every 20 cells find no issued
+ * instance and silently fall back to the repository fixtures, which are public.
+ * The server refuses such a bundle (issuance/verify.ts), so the cost is a long
+ * wasted run rather than a bad score — but the run should never have started.
+ * The instance knows its own shape, so nothing needs to be typed twice.
+ *
+ * Derived from the keys rather than from a sibling `n` field so it is correct
+ * for a bare `IssuedInstances` map as well as for the server's response
+ * envelope, and cannot disagree with the instances actually present.
+ *
+ * @returns runs per scenario, or null when the map is empty or unparseable —
+ *          the caller then falls back to its own default rather than guessing.
+ */
+export function instanceRunCount(instances: IssuedInstances): number | null {
+  let highest = -1;
+  for (const key of Object.keys(instances)) {
+    const idx = Number(key.slice(key.lastIndexOf("#") + 1));
+    if (!Number.isInteger(idx) || idx < 0) return null;
+    if (idx > highest) highest = idx;
+  }
+  return highest < 0 ? null : highest + 1;
+}
+
 /** What a scenario's `setup()` receives; `EnvHandle` satisfies it. */
 export interface IssuanceCarrier {
   issued?: IssuedRunInstance;

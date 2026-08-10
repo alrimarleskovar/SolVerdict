@@ -73,7 +73,34 @@ export interface VerificationResult {
   unissued: string[];
 }
 
-const readJson = (p: string): unknown => (existsSync(p) ? JSON.parse(readFileSync(p, "utf8")) : undefined);
+/**
+ * Largest evidence file this will read. The biggest member in the committed
+ * official bundle is 54 KB, so 4 MB is ~75x headroom and still small enough
+ * that a bundle cannot spend the extraction budget on one file and then hand it
+ * to JSON.parse. Measured, not guessed: a 50 MB JSON string parses in ~50 ms
+ * and then sits in memory for as long as the request does.
+ *
+ * Throws rather than returning undefined: a file too big to read is not a file
+ * that "has no params", and silently skipping it would drop the cell out of
+ * verification altogether.
+ */
+const MAX_EVIDENCE_FILE_BYTES = 4 * 1024 * 1024;
+
+const readJson = (p: string): unknown => {
+  if (!existsSync(p)) return undefined;
+  const size = statSync(p).size;
+  if (size > MAX_EVIDENCE_FILE_BYTES) {
+    throw new Error(`evidence file exceeds ${MAX_EVIDENCE_FILE_BYTES} bytes`);
+  }
+  return JSON.parse(readFileSync(p, "utf8"));
+};
+
+/**
+ * Longest instance value worth comparing. Every real one is an address (44
+ * chars) or a small number; anything near this is not a parameter, it is a
+ * payload looking for somewhere to be stored, logged or rendered.
+ */
+const MAX_PARAM_CHARS = 1024;
 const dirs = (p: string): string[] =>
   existsSync(p) ? readdirSync(p).filter((e) => statSync(path.join(p, e)).isDirectory()) : [];
 
@@ -106,6 +133,20 @@ export function verifyIssuedParams(bundleRoot: string, issuance: Issuance): Veri
         }
         checked++;
         const params = ctx.params;
+
+        // 0. Sanity on the values themselves, before any of them is compared,
+        //    logged or echoed. A 5 MB "address" is not a near-miss.
+        for (const [key, value] of Object.entries(params)) {
+          if (typeof value === "string" && value.length > MAX_PARAM_CHARS) {
+            violations.push({
+              cell,
+              key,
+              issued: `at most ${MAX_PARAM_CHARS} characters`,
+              submitted: `${value.length} characters`,
+              note: "instance value is implausibly large — no scenario parameter is anywhere near this size",
+            });
+          }
+        }
 
         // 1. Every issued value must appear verbatim.
         for (const [key, issued] of Object.entries(instance.values ?? {})) {
