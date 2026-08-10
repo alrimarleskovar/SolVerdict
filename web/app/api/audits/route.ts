@@ -2,7 +2,9 @@
 /**
  * POST /api/audits — a wallet's OWN audit history, newest first, 20 per page.
  *
- * Body: { wallet, nonce, signature, page? }
+ * Body:   { wallet, nonce, signature, page? }
+ * Header: x-solverdict-session — a live session replaces the three credential
+ *         fields. Nothing else accepts it; see POST /api/auth/session.
  * 200:  { audits, page, pageSize, total, hasMore }
  * 401:  the signature does not prove ownership of `wallet`
  *
@@ -27,7 +29,7 @@
  */
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "../../../lib/supabase";
-import { verifyWalletOwnership } from "../../../lib/wallet-auth";
+import { verifyWalletAccess, SESSION_HEADER } from "../../../lib/wallet-auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -60,7 +62,15 @@ export async function POST(req: Request) {
   }
   const b = (body ?? {}) as Record<string, unknown>;
 
-  const auth = await verifyWalletOwnership({ wallet: b.wallet, nonce: b.nonce, signature: b.signature });
+  // A live session, or a freshly signed challenge. The session is only ever a
+  // receipt for a signature that already happened (lib/wallet-auth.ts); it
+  // unlocks reading your OWN history and nothing else.
+  const auth = await verifyWalletAccess({
+    sessionToken: req.headers.get(SESSION_HEADER),
+    wallet: b.wallet,
+    nonce: b.nonce,
+    signature: b.signature,
+  });
   if (!auth.ok) {
     // One opaque message for every failure mode. Distinguishing "unknown nonce"
     // from "bad signature" would tell an attacker which half they got right.

@@ -26,6 +26,29 @@ interface AuditRow {
   status: string;
 }
 
+/**
+ * The session lives in a module-scoped map, deliberately — NOT localStorage or
+ * sessionStorage. It is a bearer credential: anything persisted to Web Storage
+ * is readable by every script on the origin and outlives the tab. Held this
+ * way it dies with the page, and the worst case is one extra signature.
+ */
+const sessions = new Map<string, { token: string; expiresAt: number }>();
+/** A minute of slack so a token cannot expire between check and use. */
+const SESSION_SLACK_MS = 60_000;
+
+function sessionFor(wallet: string): string | null {
+  const s = sessions.get(wallet);
+  if (!s) return null;
+  if (s.expiresAt - SESSION_SLACK_MS <= Date.now()) {
+    sessions.delete(wallet);
+    return null;
+  }
+  return s.token;
+}
+const rememberSession = (wallet: string, token: string, expiresAt: number) =>
+  sessions.set(wallet, { token, expiresAt });
+const forgetSession = (wallet: string) => sessions.delete(wallet);
+
 export default function DashboardPage() {
   const { t } = useLang();
   const { publicKey, connected, signMessage } = useWallet();
@@ -53,27 +76,51 @@ export default function DashboardPage() {
       setLoading(true);
       setError(null);
       try {
-        const nonceRes = await fetch("/api/auth/nonce", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ wallet: w }),
-        });
-        const challenge = await nonceRes.json();
-        if (!nonceRes.ok) {
-          setError(challenge?.error ?? `Could not start sign-in (${nonceRes.status})`);
-          return;
-        }
+        // A live session covers this window; only when there is none does the
+        // wallet get asked to sign. The session is a receipt for a signature
+        // that already happened — it proves nothing on its own, and it unlocks
+        // reading your OWN history and nothing else.
+        let token = sessionFor(w);
+        if (!token) {
+          const nonceRes = await fetch("/api/auth/nonce", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ wallet: w }),
+          });
+          const challenge = await nonceRes.json();
+          if (!nonceRes.ok) {
+            setError(challenge?.error ?? `Could not start sign-in (${nonceRes.status})`);
+            return;
+          }
 
-        // Sign the server's message verbatim — it rebuilds and re-derives it
-        // from its own stored nonce, so anything else simply fails to verify.
-        const signature = bs58.encode(await sign(new TextEncoder().encode(challenge.message)));
+          // Sign the server's message verbatim — it rebuilds and re-derives it
+          // from its own stored nonce, so anything else simply fails to verify.
+          const signature = bs58.encode(await sign(new TextEncoder().encode(challenge.message)));
+
+          const sessionRes = await fetch("/api/auth/session", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ wallet: w, nonce: challenge.nonce, signature }),
+          });
+          const issued = await sessionRes.json();
+          if (!sessionRes.ok) {
+            setError(issued?.error ?? `Could not verify this wallet (${sessionRes.status})`);
+            return;
+          }
+          token = issued.token as string;
+          rememberSession(w, token, Date.parse(issued.expiresAt));
+        }
 
         const res = await fetch("/api/audits", {
           method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ wallet: w, nonce: challenge.nonce, signature, page: p }),
+          headers: { "content-type": "application/json", "x-solverdict-session": token },
+          body: JSON.stringify({ wallet: w, page: p }),
           cache: "no-store",
         });
+        if (res.status === 401) {
+          // The session ended mid-window. Drop it and ask for one signature.
+          forgetSession(w);
+        }
         const data = await res.json();
         if (!res.ok) {
           setError(data?.error ?? `Request failed (${res.status})`);

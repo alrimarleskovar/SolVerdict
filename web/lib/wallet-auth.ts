@@ -25,7 +25,7 @@
  *
  * Everything except the two Supabase calls is pure and unit-tested.
  */
-import { createPublicKey, verify as cryptoVerify, randomBytes } from "node:crypto";
+import { createHash, createPublicKey, verify as cryptoVerify, randomBytes } from "node:crypto";
 import bs58 from "bs58";
 import { supabaseAdmin } from "./supabase";
 
@@ -208,4 +208,170 @@ export async function verifyWalletOwnership(input: {
   if (!verifySignature(wallet, message, signature)) return { ok: false, reason: "bad-signature" };
 
   return { ok: true, wallet };
+}
+
+
+// ---------------------------------------------------------------------------
+// Sessions — one signature, then a window
+// ---------------------------------------------------------------------------
+
+/**
+ * WHY. A nonce is single-use by design, so every read of your own history cost
+ * a wallet popup. With the local-adapter flow a single submission already costs
+ * two signatures (the instance challenge, then the manifest digest); making the
+ * dashboard demand a third for every page turn trains people to click through
+ * signature prompts without reading them, which is the opposite of what a
+ * security control should teach.
+ *
+ * WHAT IT DOES NOT CHANGE. The session proves nothing on its own — it is a
+ * RECEIPT for a proof that already happened. It can only be minted by
+ * `verifyWalletOwnership`, which still requires a fresh signature over a
+ * server-issued challenge. Nothing about what the signature establishes moves.
+ *
+ * WHAT IT DELIBERATELY DOES NOT COVER. Only "prove you own this wallet so I can
+ * show you your own data" — i.e. the dashboard. The instance fetch and the
+ * evidence submission keep their own signatures: those sign SPECIFIC payloads
+ * (the challenge at the moment the secret is handed over; the manifest digest,
+ * which commits to every byte of evidence). A bearer token cannot express
+ * either, so it must never stand in for them. `session-substitution.test.ts`
+ * exists to keep that true.
+ *
+ * STORED HASHED. Unlike a nonce — useless to a thief without the matching
+ * signature — a session token IS the credential. Only its SHA-256 is stored, so
+ * a database leak yields nothing usable.
+ */
+
+/** How long one signature buys. Short enough to bound a stolen token. */
+export const SESSION_TTL_MS = 30 * 60 * 1000;
+
+/** Header the browser presents it in. Never a query parameter: URLs are logged. */
+export const SESSION_HEADER = "x-solverdict-session";
+
+const hashToken = (token: string): string => createHash("sha256").update(token).digest("hex");
+
+export interface IssuedSession {
+  token: string;
+  wallet: string;
+  expiresAt: string;
+}
+
+/**
+ * Mints a session for a wallet whose ownership has ALREADY been proven.
+ *
+ * Deliberately takes a verified wallet rather than credentials: a function that
+ * could both verify and mint is a function someone can call with the verify
+ * step skipped.
+ */
+export async function issueSession(verifiedWallet: string): Promise<IssuedSession> {
+  const token = bs58.encode(randomBytes(32));
+  const expiresAt = new Date(Date.now() + SESSION_TTL_MS).toISOString();
+
+  const { error } = await supabaseAdmin()
+    .from("auth_sessions")
+    .insert({ token_sha256: hashToken(token), wallet: verifiedWallet, expires_at: expiresAt });
+  if (error) throw new Error(error.message);
+
+  try {
+    await supabaseAdmin().rpc("prune_expired_sessions");
+  } catch {
+    /* housekeeping only — never fail an issue on it */
+  }
+
+  // The raw token is returned ONCE and never stored; only its hash lives in the
+  // database.
+  return { token, wallet: verifiedWallet, expiresAt };
+}
+
+/**
+ * Resolves a presented token to a wallet, or fails.
+ *
+ * Fails closed and identically for every reason — unknown, expired, revoked,
+ * malformed — so a caller cannot use the error to learn which tokens exist.
+ */
+export async function verifySession(token: unknown): Promise<AuthResult> {
+  if (typeof token !== "string" || token.length < 32 || token.length > 64) {
+    return { ok: false, reason: "bad-request" };
+  }
+
+  let row: { wallet: string; expires_at: string; revoked_at: string | null } | null;
+  try {
+    const { data, error } = await supabaseAdmin()
+      .from("auth_sessions")
+      .select("wallet, expires_at, revoked_at")
+      .eq("token_sha256", hashToken(token))
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    row = (data as typeof row) ?? null;
+  } catch {
+    return { ok: false, reason: "storage" };
+  }
+
+  return sessionDecision(row, Date.now());
+}
+
+/** One stored session row, as the table returns it. */
+export interface SessionRow {
+  wallet: string;
+  expires_at: string;
+  revoked_at: string | null;
+}
+
+/**
+ * Whether a stored session is still good — the whole decision, with no I/O.
+ *
+ * Split out so it can be tested against real rows and a real clock instead of a
+ * reimplementation. A test that re-states this logic in a fake would pass while
+ * the real thing was broken.
+ */
+export function sessionDecision(row: SessionRow | null, nowMs: number): AuthResult {
+  if (!row) return { ok: false, reason: "unknown-nonce" };
+  if (row.revoked_at !== null) return { ok: false, reason: "expired" };
+  if (Date.parse(row.expires_at) <= nowMs) return { ok: false, reason: "expired" };
+  return { ok: true, wallet: row.wallet };
+}
+
+/** Ends a session immediately. Idempotent: revoking an unknown token is a no-op. */
+export async function revokeSession(token: unknown): Promise<void> {
+  if (typeof token !== "string" || token.length < 32 || token.length > 64) return;
+  await supabaseAdmin()
+    .from("auth_sessions")
+    .update({ revoked_at: new Date().toISOString() })
+    .eq("token_sha256", hashToken(token));
+}
+
+/**
+ * The dashboard's credential check: a session if one is presented, otherwise a
+ * freshly signed challenge.
+ *
+ * A token that is present but bad is NOT retried as a signature — presenting a
+ * dead token and a valid signature in one request should not silently succeed,
+ * because the caller needs to know their session ended.
+ */
+export async function verifyWalletAccess(
+  input: {
+    sessionToken?: unknown;
+    wallet: unknown;
+    nonce: unknown;
+    signature: unknown;
+  },
+  /** Injected only by tests, so the BRANCHING below is the code that runs. */
+  deps: {
+    verifySession?: (token: unknown) => Promise<AuthResult>;
+    verifyOwnership?: (i: { wallet: unknown; nonce: unknown; signature: unknown }) => Promise<AuthResult>;
+  } = {},
+): Promise<AuthResult> {
+  const checkSession = deps.verifySession ?? verifySession;
+  const checkOwnership = deps.verifyOwnership ?? verifyWalletOwnership;
+
+  if (input.sessionToken !== undefined && input.sessionToken !== null && input.sessionToken !== "") {
+    const session = await checkSession(input.sessionToken);
+    if (!session.ok) return session;
+    // Bound to the wallet: a token for wallet A can never read wallet B, even
+    // when the body asks for B.
+    if (typeof input.wallet === "string" && input.wallet !== session.wallet) {
+      return { ok: false, reason: "wallet-mismatch" };
+    }
+    return session;
+  }
+  return checkOwnership({ wallet: input.wallet, nonce: input.nonce, signature: input.signature });
 }
