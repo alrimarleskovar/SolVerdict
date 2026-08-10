@@ -2,25 +2,28 @@
 /**
  * The unpacker, against archives built to abuse it.
  *
- * Every case here builds a REAL .tar.gz with the system tar and feeds it to the
- * same function intake and the worker call. Nothing is mocked, because the
- * thing under test is precisely what a real tar will and will not do — and the
- * answers turned out to be version-specific enough that guessing them was not
- * an option (GNU tar blocks `../` and refuses to write through a symlink; it
- * happily CREATES the symlink, which is what mattered).
+ * Every case builds a REAL .tar.gz with the system tar and feeds it to the same
+ * function intake and the worker call. tar is used to PRODUCE the fixtures —
+ * that is what a customer's harness does — while the code under test reads them
+ * with zlib and a ustar parser, no subprocess involved. That asymmetry is the
+ * point: the reader must cope with what real producers emit.
  *
- * The size and entry-count limits are exercised through injected small values.
- * That is deliberate: the real ceilings are 256 MB and 50 000 entries, and
- * building those on every test run would cost more than the coverage is worth.
- * What the tests pin is that a limit is enforced at all — measured separately,
- * a 64 MB upload expands to ~64 GB and a 204 KB archive holds 20 000 entries.
+ * One fixture goes further and is built by the harness's own
+ * `packageSubmission`, so at least one case exercises the exact
+ * producer/consumer pair production uses. Synthetic archives are why the
+ * missing-tar failure reached a customer.
+ *
+ * Size and entry-count limits are exercised through injected small values,
+ * except the decompression bomb, which is now cheap enough to test for real:
+ * zlib abandons it mid-inflate instead of expanding it twice.
  */
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync, linkSync, readdirSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, rmSync, statSync, symlinkSync, writeFileSync, linkSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { extractBundle, RUN_ID_PATTERN } from "./bundle-extract";
+import { packageSubmission } from "../../packages/harness/src/submission";
 
 const scratch: string[] = [];
 const tmp = (p: string) => {
@@ -80,6 +83,44 @@ test("no run id: the single top-level directory is found", () => {
   const r = extractBundle({ archivePath, workDir });
   assert.equal(r.ok, true);
   if (r.ok) assert.equal(path.basename(r.runRoot), "2026-08-10T115124Z");
+});
+
+test("a bundle from the harness's OWN packager extracts", () => {
+  // Generated, not committed: `packageSubmission` is the exact function
+  // `solverdict-run` calls, so this pins the real producer/consumer pair rather
+  // than a hand-rolled approximation of it. The synthetic archives elsewhere in
+  // this file are why a missing `tar` reached a customer — they were all built
+  // the same way, so they all agreed with each other and none of them agreed
+  // with production.
+  const parent = tmp("bx-harness-");
+  const runId = "2026-08-10T150633Z";
+  const runDir = path.join(parent, runId);
+
+  // The shape the local runner writes: run-metadata.json at the top, then
+  // setup / scenario / runIndex, nine json files per cell.
+  mkdirSync(runDir, { recursive: true });
+  writeFileSync(path.join(runDir, "run-metadata.json"), JSON.stringify({ runId, producedBy: "@solverdict/harness" }));
+  for (const scenario of ["A1", "D1", "F1"]) {
+    const cell = path.join(runDir, "my-agent", scenario, "0");
+    mkdirSync(cell, { recursive: true });
+    for (const f of ["ctx", "txs", "actions", "rpc", "input", "wallet", "finalText", "settings", "execution"]) {
+      writeFileSync(path.join(cell, `${f}.json`), f === "ctx" ? JSON.stringify({ params: {} }) : "[]");
+    }
+  }
+
+  const packed = packageSubmission({ runDir, auditId: "032bb0dc-f0ae-4834-8fcc-76380d7c7ebd" });
+
+  // Directories AND regular files, which is the mix production sends and the
+  // mix a type check must not reject.
+  const r = extractBundle({ archivePath: packed.bundlePath, workDir: tmp("bx-work-"), runId });
+  assert.equal(r.ok, true, `a harness-produced bundle must extract: ${JSON.stringify(r)}`);
+  if (!r.ok) return;
+  assert.ok(r.entries >= 28, `expected the full cell tree, got ${r.entries} entries`);
+  assert.ok(existsSync(path.join(r.runRoot, "run-metadata.json")));
+  assert.ok(existsSync(path.join(r.runRoot, "my-agent", "F1", "0", "ctx.json")));
+  // And the manifest the server will check against describes that same archive.
+  assert.equal(packed.manifest.runId, runId);
+  assert.ok(packed.manifest.cells.length >= 3);
 });
 
 // --- gap 1: run id as a path -------------------------------------------------
@@ -173,39 +214,48 @@ test("GAP 4 — too many entries is refused (inode exhaustion)", () => {
   if (!r.ok) assert.equal(r.reason, "too-many-entries");
 });
 
-// --- gap 5: timeout ----------------------------------------------------------
+// --- gap 5: unbounded work ---------------------------------------------------
 
-test("GAP 5 — extraction is bounded by a timeout", () => {
-  // A 1 ms budget cannot survive even a process spawn, so this pins that a
-  // timeout is wired at all — without it, tar runs until it finishes, blocking
-  // the event loop for as long as the archive takes.
-  const { archivePath, workDir } = archive(goodTree);
-  const r = extractBundle({ archivePath, workDir, limits: { timeoutMs: 1 } });
+test("GAP 5 — a REAL decompression bomb is abandoned mid-inflate", () => {
+  // Previously bounded by a 30s subprocess timeout. Now zlib refuses to
+  // materialise more than the cap, so the archive never becomes bytes we hold.
+  // A sparse file makes a genuine ~512 MB-expanding bomb cost nothing to build.
+  const dir = tmp("bx-bomb-");
+  const big = path.join(dir, "big");
+  execFileSync("truncate", ["-s", "512M", big]);
+  const archivePath = path.join(dir, "bundle.tar.gz");
+  execFileSync("tar", ["-czf", archivePath, "-C", dir, "big"]);
+
+  const compressed = statSync(archivePath).size;
+  assert.ok(compressed < 2 * 1024 * 1024, `bomb should be tiny compressed, was ${compressed}`);
+
+  const started = Date.now();
+  const r = extractBundle({ archivePath, workDir: tmp("bx-work-") });
+  const elapsed = Date.now() - started;
+
   assert.equal(r.ok, false);
-  if (!r.ok) {
-    assert.equal(r.reason, "extract-failed");
-    assert.match(r.detail, /timed out/);
-  }
+  if (!r.ok) assert.equal(r.reason, "too-large");
+  // The whole point of moving the cap inside zlib: it stops at the cap rather
+  // than inflating 512 MB and then complaining.
+  assert.ok(elapsed < 20_000, `should abandon quickly, took ${elapsed}ms`);
 });
 
 // --- ours vs theirs ----------------------------------------------------------
 
-test("an unrunnable unpacker is OUR fault, not the customer's", () => {
-  // The production symptom: a perfectly good bundle refused with "the archive
-  // could not be opened. Upload the .tar.gz exactly as the runner wrote it",
-  // because `tar` could not be started. Blaming the upload sent the customer
-  // chasing a fault they could not fix. A spawn failure is a server fault.
-  const { archivePath, workDir } = archive(goodTree);
+test("THE PRODUCTION FAILURE — unpacking needs no system binary at all", () => {
+  // A good bundle was refused in production as "the archive could not be
+  // opened. Upload the .tar.gz exactly as the runner wrote it" because the
+  // serverless runtime has no `tar` and execFileSync failed with ENOENT:
+  //   server-fault (phase=listing code=ENOENT errno=-2 syscall=spawnSync tar)
+  // Railway HAS tar, so the worker would have hidden this indefinitely. The
+  // reader is now zlib + a ustar parser, so an empty PATH changes nothing.
+  const { archivePath, workDir } = archive(goodTree, "2026-08-10T150633Z");
   const realPath = process.env.PATH;
   try {
-    process.env.PATH = "/nonexistent"; // a runtime with no tar
-    const r = extractBundle({ archivePath, workDir });
-    assert.equal(r.ok, false);
-    if (!r.ok) {
-      assert.equal(r.reason, "server-fault", "a missing unpacker must not be reported as a bad archive");
-      assert.match(r.detail, /ENOENT/, "the actual errno must reach the operator");
-      assert.match(r.detail, /fault on our side/);
-    }
+    process.env.PATH = "/nonexistent";
+    const r = extractBundle({ archivePath, workDir, runId: "2026-08-10T150633Z" });
+    assert.equal(r.ok, true, `must extract with no binaries available: ${JSON.stringify(r)}`);
+    if (r.ok) assert.ok(existsSync(path.join(r.runRoot, "agent", "A1", "0", "ctx.json")));
   } finally {
     process.env.PATH = realPath;
   }
@@ -219,18 +269,28 @@ test("a genuinely unreadable archive stays THEIR fault, with tar's own reason", 
   assert.equal(r.ok, false);
   if (!r.ok) {
     assert.equal(r.reason, "extract-failed");
-    assert.match(r.detail, /status=/, "tar's exit status is diagnostic and must be reported");
-    assert.match(r.detail, /not in gzip format/, "tar's own explanation is the useful part");
+    assert.match(r.detail, /phase=inflate/, "the failing phase must reach the operator");
+    assert.match(r.detail, /code=|message=/, "zlib's own reason is the useful part");
   }
 });
 
-test("a timeout is classified as the archive's doing, not the host's", () => {
-  // It arrives with `syscall=spawnSync tar` just like a missing binary does, so
-  // the ordering of the classifier is load-bearing. This pins it.
-  const { archivePath, workDir } = archive(goodTree);
-  const r = extractBundle({ archivePath, workDir, limits: { timeoutMs: 1 } });
-  assert.equal(r.ok, false);
-  if (!r.ok) assert.equal(r.reason, "extract-failed", "a timeout must not be blamed on the server");
+test("a host that refuses to write is OUR fault", () => {
+  // What is left to fail after the subprocess is gone: the disk. A read-only
+  // work directory stands in for ENOSPC/EROFS on the function's /tmp. It must
+  // not be reported as a bad bundle.
+  const { archivePath } = archive(goodTree);
+  const locked = tmp("bx-ro-");
+  chmodSync(locked, 0o500); // r-x: cannot create `extract/`
+  try {
+    const r = extractBundle({ archivePath, workDir: locked });
+    assert.equal(r.ok, false);
+    if (!r.ok) {
+      assert.equal(r.reason, "server-fault", "a host write failure must not be blamed on the upload");
+      assert.match(r.detail, /fault on our side/);
+    }
+  } finally {
+    chmodSync(locked, 0o700);
+  }
 });
 
 // --- error hygiene -----------------------------------------------------------
@@ -247,7 +307,7 @@ test("refusals never echo file contents", () => {
   if (!r.ok) assert.ok(!r.detail.includes(secret), "detail must not carry file content");
 });
 
-test("a non-archive is refused without leaking tar's stderr verbatim", () => {
+test("a non-archive is refused without leaking raw error text verbatim", () => {
   const dir = tmp("bx-junk-");
   const archivePath = path.join(dir, "bundle.tar.gz");
   writeFileSync(archivePath, "definitely not gzip");

@@ -12,7 +12,7 @@
 import assert from "node:assert/strict";
 import { createHash, randomUUID, sign as edSign } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync, existsSync } from "node:fs";
+import { chmodSync, mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { Keypair } from "@solana/web3.js";
@@ -145,7 +145,7 @@ const run = async (
   auditId: string,
   sub: ReturnType<typeof validSubmission>,
   row: IntakeAuditRow | null,
-  o: { allowUnpaid?: boolean; ports?: Partial<IntakePorts> } = {},
+  o: { allowUnpaid?: boolean; ports?: Partial<IntakePorts>; workDir?: string } = {},
 ) => {
   const { ports, enqueued } = makePorts(row, o.ports);
   const result = await acceptEvidence(
@@ -155,7 +155,7 @@ const run = async (
       archive: sub.archive,
       signature: sub.signature,
       allowUnpaid: o.allowUnpaid ?? true,
-      workDir: tmp("work-"),
+      workDir: o.workDir ?? tmp("work-"),
     },
     ports,
   );
@@ -411,24 +411,29 @@ test("a bundle in an unknown format is refused", async () => {
   assert.equal(result.reason, "unsupported-format");
 });
 
-test("a server-side unpacker fault answers 502, not a bad-bundle 422", async () => {
+test("a server-side unpack fault answers 502, not a bad-bundle 422", async () => {
   // The whole point of the split: the customer must not be told to re-upload a
-  // good bundle because our unpacker would not start. 502 also means their
-  // retry is worth something, where a 422 tells them to change a file they
-  // cannot fix.
+  // good bundle because the fault is ours. 502 also means their retry is worth
+  // something, where a 422 tells them to change a file they cannot fix.
+  //
+  // The original production trigger — no `tar` binary — cannot happen any more,
+  // because unpacking is zlib plus a ustar parser. What remains is the host
+  // refusing to write, which a read-only work directory reproduces.
   const auditId = randomUUID();
   const wallet = Keypair.generate();
   const sub = validSubmission(auditId, wallet);
-  const realPath = process.env.PATH;
+  const locked = tmp("locked-");
+  chmodSync(locked, 0o500);
   try {
-    process.env.PATH = "/nonexistent";
-    const { result, enqueued } = await run(auditId, sub, baseRow(auditId, wallet.publicKey.toBase58()));
+    const { result, enqueued } = await run(auditId, sub, baseRow(auditId, wallet.publicKey.toBase58()), {
+      workDir: locked,
+    });
     assert.equal(result.ok, false);
     assert.equal(result.reason, "storage", "a fault on our side must not be reported as malformed-bundle");
     assert.match(result.detail!, /fault on our side/);
     assert.equal(enqueued.length, 0);
   } finally {
-    process.env.PATH = realPath;
+    chmodSync(locked, 0o700);
   }
 });
 

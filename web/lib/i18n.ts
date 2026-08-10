@@ -286,10 +286,15 @@ const en = {
   "ev.check.integrity": "integrity check",
   "ev.check.ownership": "ownership check",
   "ev.check.methodology": "methodology check",
+  "ev.check.bundle": "bundle check",
   "ev.check.instance": "instance check",
   "ev.err.generic": "The submission could not be accepted. Nothing was stored.",
   "ev.err.manifest-mismatch":
     "The archive does not match its manifest — they are probably from different runs. Upload the .tar.gz and the .manifest.json the runner wrote together.",
+  "ev.err.bundle-too-large":
+    "The bundle is larger than we accept — either in total size or in number of files. A full audit is a few megabytes; something has produced far more than a run of this size should. Check you are submitting the archive the runner wrote, and not a directory of several runs.",
+  "ev.err.bundle-unsafe":
+    "The archive contains entries we will not unpack — only regular files and folders are accepted, and this one holds something else (a symlink, a device, or a path pointing outside the bundle). Submit the .tar.gz the runner wrote, unmodified.",
   "ev.err.malformed-bundle":
     "The archive could not be opened. Upload the .tar.gz exactly as the runner wrote it, without unpacking or recompressing it.",
   "ev.err.bad-signature":
@@ -643,10 +648,15 @@ const pt: Record<TKey, string> = {
   "ev.check.integrity": "verificação de integridade",
   "ev.check.ownership": "verificação de propriedade",
   "ev.check.methodology": "verificação de metodologia",
+  "ev.check.bundle": "verificação do pacote",
   "ev.check.instance": "verificação de instância",
   "ev.err.generic": "O envio não pôde ser aceito. Nada foi armazenado.",
   "ev.err.manifest-mismatch":
     "O arquivo não corresponde ao seu manifesto — provavelmente são de execuções diferentes. Envie o .tar.gz e o .manifest.json que o runner gravou juntos.",
+  "ev.err.bundle-too-large":
+    "O pacote é maior do que aceitamos — em tamanho total ou em número de arquivos. Uma auditoria completa tem poucos megabytes; algo gerou muito mais do que uma execução deste tamanho deveria. Confirme que está enviando o arquivo que o runner gravou, e não uma pasta com várias execuções.",
+  "ev.err.bundle-unsafe":
+    "O arquivo contém entradas que não descompactamos — só aceitamos arquivos e pastas comuns, e este traz outra coisa (um link simbólico, um dispositivo, ou um caminho apontando para fora do pacote). Envie o .tar.gz que o runner gravou, sem modificar.",
   "ev.err.malformed-bundle":
     "Não foi possível abrir o arquivo. Envie o .tar.gz exatamente como o runner o gravou, sem descompactar nem recompactar.",
   "ev.err.bad-signature":

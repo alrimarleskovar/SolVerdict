@@ -25,9 +25,14 @@ export const REFUSAL: Record<string, Refusal> = {
   // 0/3 — format and methodology: the harness is out of date.
   "unsupported-format": { check: "ev.check.methodology", body: "ev.err.unsupported-format" },
   "prereg-mismatch": { check: "ev.check.methodology", body: "ev.err.prereg-mismatch" },
-  // 1 — integrity: these bytes are not the bytes the manifest describes.
+  // 1 — integrity: these bytes are not the bytes the manifest describes, or
+  //     they are not a readable archive at all.
   "manifest-mismatch": { check: "ev.check.integrity", body: "ev.err.manifest-mismatch" },
   "malformed-bundle": { check: "ev.check.integrity", body: "ev.err.malformed-bundle" },
+  // 1b — the archive reads fine but we will not unpack it as it stands. Not an
+  //      integrity problem, and telling them not to recompress would mislead.
+  "bundle-too-large": { check: "ev.check.bundle", body: "ev.err.bundle-too-large" },
+  "bundle-unsafe": { check: "ev.check.bundle", body: "ev.err.bundle-unsafe" },
   // 2 — ownership: wrong signer, wrong audit, or the wrong moment.
   "bad-signature": { check: "ev.check.ownership", body: "ev.err.bad-signature" },
   "audit-mismatch": { check: "ev.check.ownership", body: "ev.err.audit-mismatch" },

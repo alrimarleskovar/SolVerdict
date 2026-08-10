@@ -56,7 +56,12 @@ export type IntakeFailure =
   | "prereg-mismatch"
   | "instance-mismatch"
   | "unissued-cells"
+  /** Unreadable: not a gzip, corrupt headers, truncated. */
   | "malformed-bundle"
+  /** Readable, but past the size or entry ceiling. */
+  | "bundle-too-large"
+  /** Readable, but carries entries we refuse to unpack. */
+  | "bundle-unsafe"
   | "storage";
 
 export interface IntakeResult {
@@ -219,23 +224,34 @@ export async function acceptEvidence(req: IntakeRequest, ports: IntakePorts): Pr
   // its uncompressed size, its entry count and its extraction time, and refuses
   // anything that is not a regular file or a directory.
   const archivePath = path.join(req.workDir, "bundle.tar.gz");
-  writeFileSync(archivePath, req.archive);
+  try {
+    writeFileSync(archivePath, req.archive);
+  } catch (err) {
+    // Staging the upload is OUR side of the exchange. Left unguarded this threw
+    // out of acceptEvidence and surfaced as a 500 — the same "fault reported as
+    // the customer's" shape, one line earlier than the one that reached
+    // production.
+    const code = (err as { code?: string })?.code ?? "unknown";
+    console.error(`[intake] could not stage the upload for ${req.auditId} — code=${code}`);
+    return fail("storage", `the server could not store the upload (code=${code}) — this is a fault on our side, not with your bundle`);
+  }
   const extracted = extractBundle({ archivePath, workDir: req.workDir, runId: manifest.runId });
   if (!extracted.ok) {
-    // Three different things, three different answers:
-    //   bad-run-id    the client sent a name that cannot be a path  -> 400
-    //   server-fault  WE could not run the unpacker                 -> 502
-    //   everything else                    the archive is bad       -> 422
-    // The middle case used to be folded into the last one, which told a
-    // customer to re-upload a perfectly good bundle because our own unpacker
-    // would not start.
-    const reason =
-      extracted.reason === "bad-run-id"
-        ? "bad-request"
-        : extracted.reason === "server-fault"
-          ? "storage"
-          : "malformed-bundle";
-    return fail(reason, extracted.detail);
+    // Every distinguishable cause gets its own answer, because the advice
+    // differs: a name that cannot be a path is a bad request, a bundle over the
+    // ceiling needs a smaller run, an entry we refuse needs a different
+    // archive, and a fault on OUR side must never be reported as any of those.
+    // These were once all "malformed-bundle", whose wording tells the customer
+    // to re-upload without recompressing — actively wrong for three of them.
+    const REASON: Record<typeof extracted.reason, IntakeFailure> = {
+      "bad-run-id": "bad-request",
+      "server-fault": "storage",
+      "too-large": "bundle-too-large",
+      "too-many-entries": "bundle-too-large",
+      "unsafe-entry": "bundle-unsafe",
+      "extract-failed": "malformed-bundle",
+    };
+    return fail(REASON[extracted.reason], extracted.detail);
   }
 
   let verified = { cells: 0, comparisons: 0 };
@@ -301,6 +317,8 @@ export const INTAKE_STATUS: Record<IntakeFailure, number> = {
   "instance-mismatch": 422,
   "unissued-cells": 422,
   "malformed-bundle": 422,
+  "bundle-too-large": 422,
+  "bundle-unsafe": 422,
   storage: 502,
 };
 
