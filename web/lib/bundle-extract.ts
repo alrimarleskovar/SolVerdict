@@ -61,7 +61,14 @@ export type ExtractFailure =
   | "too-large"
   | "too-many-entries"
   | "unsafe-entry"
-  | "extract-failed";
+  /** The archive is unreadable — a client problem. */
+  | "extract-failed"
+  /**
+   * WE could not run the unpacker: the binary is missing, unrunnable, or the
+   * host refused. Nothing is wrong with the customer's file, and telling them
+   * to re-upload it would send them chasing a fault they cannot fix.
+   */
+  | "server-fault";
 
 export type ExtractResult =
   | { ok: true; runRoot: string; entries: number; uncompressedBytes: number }
@@ -119,8 +126,9 @@ export function extractBundle(args: ExtractArgs): ExtractResult {
     });
   } catch (err) {
     // Includes the bomb case: an archive too large to finish listing inside the
-    // timeout never reaches extraction.
-    return fail("extract-failed", `archive could not be read: ${describeExecError(err)}`);
+    // timeout never reaches extraction. Also the case where `tar` itself cannot
+    // be run, which must NOT be reported as a bad upload.
+    return reportExecFailure(err, "listing");
   }
 
   let entries = 0;
@@ -166,7 +174,7 @@ export function extractBundle(args: ExtractArgs): ExtractResult {
       { timeout: limits.timeoutMs, maxBuffer: 1 << 20, stdio: ["ignore", "ignore", "pipe"] },
     );
   } catch (err) {
-    return fail("extract-failed", `could not extract archive: ${describeExecError(err)}`);
+    return reportExecFailure(err, "extraction");
   }
 
   // --- 3. second line of defence -------------------------------------------
@@ -225,10 +233,79 @@ function describeType(type: string): string {
   );
 }
 
-/** tar's stderr can quote member names; never let raw output through verbatim. */
-function describeExecError(err: unknown): string {
-  const e = err as { killed?: boolean; code?: string; signal?: string };
-  if (e?.killed || e?.signal === "SIGTERM") return "timed out";
-  if (e?.code === "ENOBUFS") return "listing too large";
-  return "not a readable gzip archive";
+/**
+ * Spawn-level errnos: the process never ran. These are the host's problem, not
+ * the archive's — a missing or unrunnable `tar` looks identical to a corrupt
+ * upload if you only report "could not be opened", which is exactly how a
+ * server-side fault got reported to a customer as "don't recompress it".
+ */
+const SPAWN_ERRNOS = new Set(["ENOENT", "EACCES", "EPERM", "ENOEXEC", "ENOMEM", "EMFILE", "ENFILE", "EAGAIN"]);
+
+interface ExecFault {
+  /** True when the unpacker could not be run at all. */
+  serverFault: boolean;
+  /** Short, safe, and specific enough to act on. */
+  detail: string;
+}
+
+/**
+ * Turns an execFileSync throw into something diagnosable.
+ *
+ * Reports code/errno/status/signal and a truncated stderr. tar's stderr quotes
+ * member NAMES, never member CONTENT, and it is sanitised to printable ASCII
+ * and capped — so this cannot become a channel for reading files back out of a
+ * bundle, which a naive `String(err)` would risk.
+ */
+function classifyExecError(err: unknown, phase: "listing" | "extraction"): ExecFault {
+  const e = err as {
+    code?: string | number;
+    errno?: number;
+    status?: number | null;
+    signal?: string | null;
+    killed?: boolean;
+    syscall?: string;
+    stderr?: Buffer | string;
+  };
+
+  const bits: string[] = [`phase=${phase}`];
+  if (e?.code !== undefined) bits.push(`code=${safeName(String(e.code))}`);
+  if (typeof e?.errno === "number") bits.push(`errno=${e.errno}`);
+  if (typeof e?.status === "number") bits.push(`status=${e.status}`);
+  if (e?.signal) bits.push(`signal=${safeName(String(e.signal))}`);
+  if (e?.syscall) bits.push(`syscall=${safeName(String(e.syscall))}`);
+  const stderr = safeName(String(e?.stderr ?? "").replace(/\s+/g, " ").trim()).slice(0, 240);
+  if (stderr) bits.push(`stderr="${stderr}"`);
+
+  // ORDER MATTERS. A timeout also arrives with `syscall=spawnSync tar`, so the
+  // spawn-failure test below would claim it as ours — when a slow unpack is
+  // almost always the archive's doing (a bomb). Timeouts are classified first.
+  if (e?.killed || e?.signal === "SIGTERM" || e?.code === "ETIMEDOUT") {
+    return { serverFault: false, detail: `archive timed out while being read (${bits.join(" ")})` };
+  }
+  if (e?.code === "ENOBUFS") {
+    return { serverFault: false, detail: `archive listing is too large to read (${bits.join(" ")})` };
+  }
+
+  const spawnFailed =
+    (typeof e?.code === "string" && SPAWN_ERRNOS.has(e.code)) ||
+    (typeof e?.syscall === "string" && e.syscall.startsWith("spawnSync"));
+
+  if (spawnFailed) {
+    return {
+      serverFault: true,
+      detail: `the server could not run its unpacker (${bits.join(" ")}) — this is a fault on our side, not with your bundle`,
+    };
+  }
+  return { serverFault: false, detail: `not a readable gzip archive (${bits.join(" ")})` };
+}
+
+/**
+ * Every unpacker failure goes to the log as well as to the caller. The response
+ * is seen by one customer; the log is how a systematic fault — the binary
+ * missing on a whole deploy, say — becomes visible at all.
+ */
+function reportExecFailure(err: unknown, phase: "listing" | "extraction"): ExtractResult {
+  const fault = classifyExecError(err, phase);
+  console.error(`[bundle-extract] tar ${phase} failed — ${fault.detail}`);
+  return fail(fault.serverFault ? "server-fault" : "extract-failed", fault.detail);
 }

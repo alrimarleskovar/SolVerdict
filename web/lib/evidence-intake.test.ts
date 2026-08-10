@@ -411,6 +411,27 @@ test("a bundle in an unknown format is refused", async () => {
   assert.equal(result.reason, "unsupported-format");
 });
 
+test("a server-side unpacker fault answers 502, not a bad-bundle 422", async () => {
+  // The whole point of the split: the customer must not be told to re-upload a
+  // good bundle because our unpacker would not start. 502 also means their
+  // retry is worth something, where a 422 tells them to change a file they
+  // cannot fix.
+  const auditId = randomUUID();
+  const wallet = Keypair.generate();
+  const sub = validSubmission(auditId, wallet);
+  const realPath = process.env.PATH;
+  try {
+    process.env.PATH = "/nonexistent";
+    const { result, enqueued } = await run(auditId, sub, baseRow(auditId, wallet.publicKey.toBase58()));
+    assert.equal(result.ok, false);
+    assert.equal(result.reason, "storage", "a fault on our side must not be reported as malformed-bundle");
+    assert.match(result.detail!, /fault on our side/);
+    assert.equal(enqueued.length, 0);
+  } finally {
+    process.env.PATH = realPath;
+  }
+});
+
 test("a non-archive payload is refused, not crashed on", async () => {
   const auditId = randomUUID();
   const wallet = Keypair.generate();

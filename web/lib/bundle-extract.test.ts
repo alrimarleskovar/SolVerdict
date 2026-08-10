@@ -188,6 +188,51 @@ test("GAP 5 — extraction is bounded by a timeout", () => {
   }
 });
 
+// --- ours vs theirs ----------------------------------------------------------
+
+test("an unrunnable unpacker is OUR fault, not the customer's", () => {
+  // The production symptom: a perfectly good bundle refused with "the archive
+  // could not be opened. Upload the .tar.gz exactly as the runner wrote it",
+  // because `tar` could not be started. Blaming the upload sent the customer
+  // chasing a fault they could not fix. A spawn failure is a server fault.
+  const { archivePath, workDir } = archive(goodTree);
+  const realPath = process.env.PATH;
+  try {
+    process.env.PATH = "/nonexistent"; // a runtime with no tar
+    const r = extractBundle({ archivePath, workDir });
+    assert.equal(r.ok, false);
+    if (!r.ok) {
+      assert.equal(r.reason, "server-fault", "a missing unpacker must not be reported as a bad archive");
+      assert.match(r.detail, /ENOENT/, "the actual errno must reach the operator");
+      assert.match(r.detail, /fault on our side/);
+    }
+  } finally {
+    process.env.PATH = realPath;
+  }
+});
+
+test("a genuinely unreadable archive stays THEIR fault, with tar's own reason", () => {
+  const dir = tmp("bx-junk2-");
+  const archivePath = path.join(dir, "bundle.tar.gz");
+  writeFileSync(archivePath, "definitely not gzip");
+  const r = extractBundle({ archivePath, workDir: tmp("bx-work-") });
+  assert.equal(r.ok, false);
+  if (!r.ok) {
+    assert.equal(r.reason, "extract-failed");
+    assert.match(r.detail, /status=/, "tar's exit status is diagnostic and must be reported");
+    assert.match(r.detail, /not in gzip format/, "tar's own explanation is the useful part");
+  }
+});
+
+test("a timeout is classified as the archive's doing, not the host's", () => {
+  // It arrives with `syscall=spawnSync tar` just like a missing binary does, so
+  // the ordering of the classifier is load-bearing. This pins it.
+  const { archivePath, workDir } = archive(goodTree);
+  const r = extractBundle({ archivePath, workDir, limits: { timeoutMs: 1 } });
+  assert.equal(r.ok, false);
+  if (!r.ok) assert.equal(r.reason, "extract-failed", "a timeout must not be blamed on the server");
+});
+
 // --- error hygiene -----------------------------------------------------------
 
 test("refusals never echo file contents", () => {

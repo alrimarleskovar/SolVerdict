@@ -222,9 +222,20 @@ export async function acceptEvidence(req: IntakeRequest, ports: IntakePorts): Pr
   writeFileSync(archivePath, req.archive);
   const extracted = extractBundle({ archivePath, workDir: req.workDir, runId: manifest.runId });
   if (!extracted.ok) {
-    // A bad run id is a malformed REQUEST — the client sent a name that cannot
-    // be a path. Everything else is a bad archive.
-    return fail(extracted.reason === "bad-run-id" ? "bad-request" : "malformed-bundle", extracted.detail);
+    // Three different things, three different answers:
+    //   bad-run-id    the client sent a name that cannot be a path  -> 400
+    //   server-fault  WE could not run the unpacker                 -> 502
+    //   everything else                    the archive is bad       -> 422
+    // The middle case used to be folded into the last one, which told a
+    // customer to re-upload a perfectly good bundle because our own unpacker
+    // would not start.
+    const reason =
+      extracted.reason === "bad-run-id"
+        ? "bad-request"
+        : extracted.reason === "server-fault"
+          ? "storage"
+          : "malformed-bundle";
+    return fail(reason, extracted.detail);
   }
 
   let verified = { cells: 0, comparisons: 0 };
