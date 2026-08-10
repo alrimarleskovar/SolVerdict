@@ -19,13 +19,13 @@ import { supabaseAdmin } from "../../../../../lib/supabase";
 import {
   acceptEvidence,
   cleanupWorkDir,
-  localEvidenceStore,
   INTAKE_STATUS,
   type IntakeAuditRow,
   type IntakePorts,
   type SubmittedManifest,
 } from "../../../../../lib/evidence-intake";
 import { MAX_BUNDLE_BYTES } from "../../../../../lib/audit-protocol";
+import { supabaseEvidenceStore } from "../../../../../lib/evidence-storage";
 import { PREREG } from "../../../../../../config/prereg";
 
 export const runtime = "nodejs";
@@ -34,8 +34,6 @@ export const revalidate = 0;
 export const fetchCache = "force-no-store";
 
 const NO_STORE = { "cache-control": "no-store, no-cache, must-revalidate", "cdn-cache-control": "no-store" } as const;
-
-const EVIDENCE_DIR = process.env.SOLVERDICT_EVIDENCE_DIR ?? path.join(tmpdir(), "solverdict-evidence");
 
 function ports(): IntakePorts {
   return {
@@ -48,7 +46,10 @@ function ports(): IntakePorts {
       if (error) throw new Error(error.message);
       return (data as IntakeAuditRow | null) ?? null;
     },
-    store: localEvidenceStore(EVIDENCE_DIR),
+    // Shared storage, NOT this host's disk. The worker runs elsewhere and picks
+    // the job up later; a path from a serverless /tmp is meaningless to it and
+    // gone by then anyway.
+    store: supabaseEvidenceStore(),
     async enqueue(auditId: string, bundleRef: string, manifest: SubmittedManifest) {
       const { error } = await supabaseAdmin()
         .from("audits")

@@ -31,7 +31,6 @@
  *
  * Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY (required);
  *      SOLVERDICT_PAYMENT_WALLET, SOLANA_RPC_URL, RESEND_API_KEY (payment/email);
- *      SOLVERDICT_EVIDENCE_DIR (where intake stored bundles);
  *      WORKER_POLL_MS, WORKER_ID (optional).
  */
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
@@ -44,6 +43,7 @@ import { sendAuditNotification, type NotifyStatus } from "../lib/notify";
 import { SCENARIOS } from "../../scenarios";
 import { PREREG } from "../../config/prereg";
 import { rescoreSubmission } from "./rescore-audit";
+import { supabaseEvidenceStore } from "../lib/evidence-storage";
 
 /**
  * Methodology version, DERIVED — never restated here.
@@ -111,16 +111,19 @@ async function notify(row: AuditRow, status: NotifyStatus, summary?: string): Pr
 // The job: re-score one claimed audit's submitted evidence
 // ---------------------------------------------------------------------------
 
-const EVIDENCE_DIR = process.env.SOLVERDICT_EVIDENCE_DIR ?? path.join(tmpdir(), "solverdict-evidence");
-
 /**
- * Resolves the reference intake stored against the audit.
+ * Fetches the bundle intake stored and drops it in this worker's scratch.
  *
- * Kept indirect because the backing store changes between local testing and
- * production object storage, and the worker should need no edit when it does.
+ * The reference is opaque: it is a key in shared storage, not a path. The
+ * previous version treated it as a path and opened it directly, which worked in
+ * the single-process proof and failed the moment intake (Vercel) and the worker
+ * (Railway) turned out to be different machines.
  */
-function resolveBundle(ref: string): string {
-  return path.isAbsolute(ref) ? ref : path.join(EVIDENCE_DIR, ref);
+async function fetchBundle(ref: string, workDir: string): Promise<string> {
+  const bytes = await supabaseEvidenceStore().get(ref);
+  const local = path.join(workDir, "bundle.tar.gz");
+  writeFileSync(local, bytes);
+  return local;
 }
 
 async function rescoreAudit(id: string): Promise<void> {
@@ -144,8 +147,9 @@ async function rescoreAudit(id: string): Promise<void> {
     await emitEvent(id, "started", { worker: WORKER_ID, n: row.n, mode: "rescore" });
     onLog(`re-scoring ${row.evidence_ref} (N=${row.n}, tier=${row.tier})`);
 
+    const bundlePath = await fetchBundle(row.evidence_ref, workDir);
     const { result, progress, rederivation, mismatches, summary } = rescoreSubmission({
-      bundlePath: resolveBundle(row.evidence_ref),
+      bundlePath,
       workDir,
       n: row.n,
       endpoint: row.endpoint,

@@ -31,7 +31,7 @@
  * refuses everything until part 2 supplies a real gate.
  */
 import { createHash } from "node:crypto";
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { extractBundle } from "./bundle-extract";
 import path from "node:path";
 import { verifySignature } from "./wallet-auth";
@@ -95,10 +95,24 @@ export interface IntakeAuditRow {
   evidence_ref?: string | null;
 }
 
-/** Where verified bundles land. Filesystem locally, object storage in prod. */
+/**
+ * Where verified bundles live between intake and the worker.
+ *
+ * THE TWO SIDES MUST NOT ASSUME A SHARED MACHINE. Intake runs on Vercel and the
+ * worker runs on Railway; they share a Postgres and nothing else. The first
+ * implementation returned an absolute path from Vercel's /tmp, which the worker
+ * then tried to open on a different host — the same mistake as the original
+ * `localhost:8899` contract, one layer down. A serverless /tmp would not have
+ * survived the invocation even on one host.
+ *
+ * So `put` returns an opaque REFERENCE, not a path, and `get` is the only way
+ * to turn one back into bytes. Neither side may interpret the reference.
+ */
 export interface EvidenceStore {
-  /** Persist the archive; returns an opaque reference the worker can resolve. */
+  /** Persist the archive; returns an opaque reference, meaningful only to `get`. */
   put(auditId: string, filename: string, bytes: Buffer): Promise<string>;
+  /** Retrieve what `put` stored, from any host. */
+  get(ref: string): Promise<Buffer>;
 }
 
 export interface IntakePorts {
@@ -322,7 +336,14 @@ export const INTAKE_STATUS: Record<IntakeFailure, number> = {
   storage: 502,
 };
 
-/** Local filesystem store — the part-1 default; object storage replaces it in part 2. */
+/**
+ * Filesystem store — TESTS AND SINGLE-PROCESS DEV ONLY.
+ *
+ * Correct exactly when the writer and the reader are the same process, which is
+ * true of the local proofs and of nothing in production. It is kept because
+ * those proofs are worth running without a network, and it is named so that
+ * wiring it into a deployed path reads as the mistake it is.
+ */
 export function localEvidenceStore(rootDir: string): EvidenceStore {
   return {
     async put(auditId, filename, bytes) {
@@ -335,6 +356,9 @@ export function localEvidenceStore(rootDir: string): EvidenceStore {
       const full = path.join(dir, path.basename(filename));
       writeFileSync(full, bytes);
       return full;
+    },
+    async get(ref) {
+      return readFileSync(ref);
     },
   };
 }
