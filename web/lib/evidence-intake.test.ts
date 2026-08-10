@@ -19,7 +19,7 @@ import { Keypair } from "@solana/web3.js";
 import bs58 from "bs58";
 import { acceptEvidence, buildEvidenceMessage, localEvidenceStore, type IntakeAuditRow, type IntakePorts } from "./evidence-intake";
 import { deriveIssuance } from "../../issuance/derive";
-import { ALLOWLIST_LABELS, DENYLIST } from "../../scenarios/fixtures";
+import { ALLOWLIST, ALLOWLIST_LABELS, DENYLIST, FIXTURES } from "../../scenarios/fixtures";
 import { SCENARIOS } from "../../scenarios";
 import { PREREG } from "../../config/prereg";
 import { PROTOCOL_VERSION } from "./audit-protocol";
@@ -57,7 +57,11 @@ const tmp = (prefix: string): string => {
  * The evidence is minimal but real in shape: ctx.json carrying the params the
  * issuance actually issued.
  */
-function validSubmission(auditId: string, wallet: Keypair, opts: { n?: number } = {}) {
+function validSubmission(
+  auditId: string,
+  wallet: Keypair,
+  opts: { n?: number; extraCells?: Array<{ scenarioId: string; runIndex: number; params: Record<string, string | number> }> } = {},
+) {
   const n = opts.n ?? 1;
   const issuance = deriveIssuance({
     auditId,
@@ -78,6 +82,16 @@ function validSubmission(auditId: string, wallet: Keypair, opts: { n?: number } 
     const dir = path.join(runDir, "agent", scenarioId, "0");
     mkdirSync(dir, { recursive: true });
     writeFileSync(path.join(dir, "ctx.json"), JSON.stringify({ params, overlayTools: [] }));
+    writeFileSync(path.join(dir, "txs.json"), "[]");
+    writeFileSync(path.join(dir, "actions.json"), "[]");
+    writeFileSync(path.join(dir, "rpc.json"), "[]");
+  }
+
+  // Cells the caller adds verbatim — used to plant the mixed-instance attack.
+  for (const c of opts.extraCells ?? []) {
+    const dir = path.join(runDir, "agent", c.scenarioId, String(c.runIndex));
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(path.join(dir, "ctx.json"), JSON.stringify({ params: c.params, overlayTools: [] }));
     writeFileSync(path.join(dir, "txs.json"), "[]");
     writeFileSync(path.join(dir, "actions.json"), "[]");
     writeFileSync(path.join(dir, "rpc.json"), "[]");
@@ -250,6 +264,95 @@ test("a substituted mint is rejected (instance)", async () => {
   const { result } = await run(auditId, sub, { ...row, instance_seed: "d".repeat(64) });
   assert.equal(result.reason, "instance-mismatch");
   assert.match(result.detail!, /maliciousMint|instance value differs/);
+});
+
+test("THE ATTACK: issued instance for one cell, public fixtures for the rest, is REFUSED", async () => {
+  // The exploit this test exists for. The repository fixtures are PUBLIC, so a
+  // client can run one cell honestly against its issued instance and every
+  // other cell against the fixtures it already knows. Verification used to file
+  // the uncovered cells under `unissued` and still return ok:true, so the whole
+  // bundle was accepted on the strength of the single honest cell.
+  //
+  // The concrete route in was `--n 20` on an audit issued for n=1: run index 0
+  // matched, indices 1..19 had no issuance and were waved through.
+  const auditId = randomUUID();
+  const wallet = Keypair.generate();
+  const sub = validSubmission(auditId, wallet, {
+    extraCells: [
+      // Run index 1 — beyond this audit's N=1, so no issuance covers it. The
+      // params are the repo's PUBLIC fixtures, which is what the harness falls
+      // back to when a cell has no issued instance.
+      { scenarioId: "D1", runIndex: 1, params: { lookalike: FIXTURES.d1Lookalike, real: ALLOWLIST[0], amountSol: 5 } },
+      { scenarioId: "A2", runIndex: 1, params: { destination: FIXTURES.d2NeverSeen, totalSol: 100 } },
+    ],
+  });
+  const { result, enqueued } = await run(auditId, sub, baseRow(auditId, wallet.publicKey.toBase58()));
+
+  assert.equal(result.ok, false, "a bundle mixing issued and public-fixture cells must be refused");
+  assert.equal(result.reason, "unissued-cells");
+  assert.match(result.detail!, /never issued an instance for/);
+  assert.match(result.detail!, /A2#1|D1#1/);
+  assert.equal(enqueued.length, 0, "and it must not reach the worker");
+});
+
+test("a single unissued cell is enough to refuse the whole bundle", async () => {
+  // No partial credit: one uncovered run is one run nobody checked.
+  const auditId = randomUUID();
+  const wallet = Keypair.generate();
+  const sub = validSubmission(auditId, wallet, {
+    extraCells: [{ scenarioId: "F1", runIndex: 7, params: { maliciousMint: "whatever", permanentDelegate: "x" } }],
+  });
+  const { result } = await run(auditId, sub, baseRow(auditId, wallet.publicKey.toBase58()));
+  assert.equal(result.reason, "unissued-cells");
+});
+
+test("a scenario id outside the rubric is refused, not ignored", async () => {
+  const auditId = randomUUID();
+  const wallet = Keypair.generate();
+  const sub = validSubmission(auditId, wallet, {
+    extraCells: [{ scenarioId: "ZZ", runIndex: 0, params: { anything: "goes" } }],
+  });
+  const { result } = await run(auditId, sub, baseRow(auditId, wallet.publicKey.toBase58()));
+  assert.equal(result.reason, "unissued-cells");
+});
+
+// --- and the legitimate shapes still pass ------------------------------------
+
+test("a PARTIAL submission is still accepted (fewer cells than issued)", async () => {
+  // Submitting 3 of 20 scenarios is incomplete, not fraudulent — the denominator
+  // handles it. Refusing here would break every honest short run.
+  const auditId = randomUUID();
+  const wallet = Keypair.generate();
+  const sub = validSubmission(auditId, wallet); // 3 cells out of a 20-scenario issuance
+  const { result } = await run(auditId, sub, baseRow(auditId, wallet.publicKey.toBase58()));
+  assert.equal(result.ok, true, JSON.stringify(result));
+  assert.equal(result.verified!.cells, 3);
+});
+
+test("E3 — issued with no values — is checked, not treated as unissued", async () => {
+  // E3 has nothing rotatable, so its instance is `{values:{}}`. It must count as
+  // covered; treating "nothing to compare" as "not issued" would refuse every
+  // full-roster bundle.
+  const auditId = randomUUID();
+  const wallet = Keypair.generate();
+  const sub = validSubmission(auditId, wallet, { extraCells: [{ scenarioId: "E3", runIndex: 0, params: {} }] });
+  const { result } = await run(auditId, sub, baseRow(auditId, wallet.publicKey.toBase58()));
+  assert.equal(result.ok, true, JSON.stringify(result));
+  assert.equal(result.verified!.cells, 4, "E3 counts as a checked cell");
+});
+
+test("an audit that predates issuance still scores", async () => {
+  // instance_seed null means nothing was ever issued; there is nothing to check
+  // against and the bundle must not be refused for lacking it.
+  const auditId = randomUUID();
+  const wallet = Keypair.generate();
+  const sub = validSubmission(auditId, wallet, {
+    extraCells: [{ scenarioId: "D1", runIndex: 5, params: { lookalike: FIXTURES.d1Lookalike, real: ALLOWLIST[0] } }],
+  });
+  const row = { ...baseRow(auditId, wallet.publicKey.toBase58()), instance_seed: null };
+  const { result } = await run(auditId, sub, row);
+  assert.equal(result.ok, true, JSON.stringify(result));
+  assert.equal(result.verified!.cells, 0);
 });
 
 test("an audit with no issuance is not vacuously verified", async () => {

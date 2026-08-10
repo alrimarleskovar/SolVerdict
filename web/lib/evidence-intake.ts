@@ -12,9 +12,12 @@
  *                  audit — not merely by "a" wallet.
  *   3. METHODOLOGY the harness declares the prereg digest it implements, and it
  *                  matches the document this server holds.
- *   4. INSTANCE    ctx.params in every run matches the instance the server
+ *   4. INSTANCE    ctx.params in EVERY run matches the instance the server
  *                  issued for this audit (step 6). This is what makes the
- *                  category-F mints non-forgeable.
+ *                  category-F mints non-forgeable — and it only holds if every
+ *                  cell is covered, so a bundle carrying runs the audit never
+ *                  issued an instance for is refused rather than partly
+ *                  checked (see issuance/verify.ts).
  *
  * FAILS CLOSED. Every check is a hard reject with a machine-readable reason.
  * There is no "accept and flag": a bundle we cannot fully validate is a bundle
@@ -52,6 +55,7 @@ export type IntakeFailure =
   | "bad-signature"
   | "prereg-mismatch"
   | "instance-mismatch"
+  | "unissued-cells"
   | "malformed-bundle"
   | "storage";
 
@@ -224,7 +228,17 @@ export async function acceptEvidence(req: IntakeRequest, ports: IntakePorts): Pr
       baseLists: { allowlist: ALLOWLIST_LABELS, denylist: DENYLIST },
     });
     const result = verifyIssuedParams(runRoot, issuance);
-    if (!result.ok) return fail("instance-mismatch", describeViolations(result));
+    // Split the two failures apart: they need different things from the client.
+    // A violation means the run used a DIFFERENT instance; an unissued cell
+    // means a run this audit never planned — almost always `--n` larger than
+    // the audit's N, which silently falls back to the public fixtures.
+    if (result.violations.length > 0) return fail("instance-mismatch", describeViolations(result));
+    if (result.unissued.length > 0) {
+      return fail(
+        "unissued-cells",
+        `${describeViolations(result)}\n      This audit planned N=${row.n} run(s) per scenario.`,
+      );
+    }
     if (result.checked === 0) return fail("instance-mismatch", "no run in the bundle carried a verifiable instance");
     verified = { cells: result.checked, comparisons: result.comparisons };
   }
@@ -253,6 +267,7 @@ export const INTAKE_STATUS: Record<IntakeFailure, number> = {
   "bad-signature": 401,
   "prereg-mismatch": 422,
   "instance-mismatch": 422,
+  "unissued-cells": 422,
   "malformed-bundle": 422,
   storage: 502,
 };

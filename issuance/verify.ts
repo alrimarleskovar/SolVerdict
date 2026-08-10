@@ -17,6 +17,22 @@
  * with a reference value, and a bundle whose claim disagrees is rejected before
  * it is scored.
  *
+ * EVERY CELL MUST BE COVERED, NOT JUST ONE. This originally reported cells with
+ * no issuance in `unissued` and still returned `ok: true`. That defeated the
+ * whole mechanism: the repository fixtures are public, so a client could run
+ * ONE cell against its issued instance and every other cell against the public
+ * fixtures, and the bundle would be accepted because the one cell matched. The
+ * concrete route in was `--n 20` against an audit issued for `n = 1` — run
+ * index 0 matched, indices 1..19 had no issuance and were waved through. A cell
+ * nobody checked is not a cell that passed, so `ok` is now false whenever
+ * anything went unchecked.
+ *
+ * Two things deliberately do NOT trip it. A run whose `ctx.json` is absent (an
+ * excluded/crashed run) is skipped entirely rather than counted — it carries no
+ * claim, and scoring drops it too. And E3, whose instance is `{values:{}}`
+ * because it has nothing rotatable, is ISSUED with nothing to compare: it
+ * counts as checked and never appears here.
+ *
  * WHAT IT DOES NOT CLOSE, STATED PLAINLY. Verification proves the client used
  * the instance it was given. It does not prove the client ran an unmodified
  * harness: someone executing the audit on their own machine can always edit the
@@ -46,7 +62,14 @@ export interface VerificationResult {
   /** Individual param values compared. Zero means the check was vacuous. */
   comparisons: number;
   violations: ParamViolation[];
-  /** Cells in the bundle with no matching issuance (never issued, or renamed). */
+  /**
+   * Cells present in the bundle that no issuance covers — a run index beyond
+   * the audit's N, or a scenario id that is not in the rubric.
+   *
+   * NOT a footnote: an unissued cell is a run whose instance nobody checked,
+   * and the fixtures it could have used instead are public. `ok` is false when
+   * this is non-empty (see the header).
+   */
   unissued: string[];
 }
 
@@ -135,7 +158,16 @@ export function verifyIssuedParams(bundleRoot: string, issuance: Issuance): Veri
     }
   }
 
-  return { ok: violations.length === 0, checked, comparisons, violations, unissued };
+  // `ok` requires BOTH: every compared value matched, and every cell present
+  // was compared. Violations alone were the original condition, and that is the
+  // hole described in the header.
+  return {
+    ok: violations.length === 0 && unissued.length === 0,
+    checked,
+    comparisons,
+    violations,
+    unissued,
+  };
 }
 
 /** Renders a rejection a human can act on. */
@@ -143,8 +175,20 @@ export function describeViolations(result: VerificationResult): string {
   if (result.ok) {
     return `instance verified — ${result.checked} cell(s), ${result.comparisons} value(s) matched the issuance`;
   }
-  const lines = result.violations.map(
-    (v) => `  ${v.cell} ${v.key}: issued ${String(v.issued)}, submitted ${String(v.submitted)}\n      ${v.note}`,
-  );
-  return `instance verification FAILED — ${result.violations.length} violation(s):\n${lines.join("\n")}`;
+  const parts: string[] = [];
+  if (result.violations.length > 0) {
+    const lines = result.violations.map(
+      (v) => `  ${v.cell} ${v.key}: issued ${String(v.issued)}, submitted ${String(v.submitted)}\n      ${v.note}`,
+    );
+    parts.push(`${result.violations.length} violation(s):\n${lines.join("\n")}`);
+  }
+  if (result.unissued.length > 0) {
+    const shown = result.unissued.slice(0, 8).join(", ");
+    const more = result.unissued.length > 8 ? `, +${result.unissued.length - 8} more` : "";
+    parts.push(
+      `${result.unissued.length} cell(s) this audit never issued an instance for: ${shown}${more}\n` +
+        `      Those runs were not measured against this audit's instance, so the bundle is not scoreable.`,
+    );
+  }
+  return `instance verification FAILED — ${parts.join("\n  ")}`;
 }

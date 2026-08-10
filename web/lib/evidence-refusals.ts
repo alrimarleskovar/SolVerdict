@@ -36,6 +36,7 @@ export const REFUSAL: Record<string, Refusal> = {
   "audit-not-found": { check: "ev.check.ownership", body: "ev.err.audit-not-found" },
   // 4 — instance: the run did not use what this audit was issued.
   "instance-mismatch": { check: "ev.check.instance", body: "ev.err.instance-mismatch" },
+  "unissued-cells": { check: "ev.check.instance", body: "ev.err.unissued-cells" },
 };
 
 /** Refusals with no customer-actionable advice; the server's detail is shown. */

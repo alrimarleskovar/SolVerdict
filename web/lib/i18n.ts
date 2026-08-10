@@ -301,6 +301,8 @@ const en = {
     "This bundle is in an older format. Update the harness (npm install @solverdict/harness@latest) and run it again.",
   "ev.err.instance-mismatch":
     "The run did not use the instance issued for this audit — it looks like it ran without --instance, or with a file from another audit. Download the instance above and run again with --instance ./instance.json.",
+  "ev.err.unissued-cells":
+    "The bundle contains runs this audit never issued an instance for — usually because it ran with more runs per scenario than the audit planned, and the extra runs fell back to the public fixtures. Re-run with the runs-per-scenario the audit specifies (the -n value shown with your instance).",
   "ev.err.already-submitted": "Evidence has already been submitted for this audit. Each audit accepts one bundle.",
   "ev.err.not-accepting": "This audit is not accepting evidence right now. Refresh the page to see its current state.",
   "ev.err.audit-not-found": "Audit not found for the connected wallet.",
@@ -656,6 +658,8 @@ const pt: Record<TKey, string> = {
     "Este pacote está em um formato antigo. Atualize o harness (npm install @solverdict/harness@latest) e rode de novo.",
   "ev.err.instance-mismatch":
     "A execução não usou a instância emitida para esta auditoria — parece que rodou sem --instance, ou com o arquivo de outra auditoria. Baixe a instância acima e rode de novo com --instance ./instance.json.",
+  "ev.err.unissued-cells":
+    "O pacote contém execuções para as quais esta auditoria nunca emitiu instância — normalmente porque rodou com mais execuções por cenário do que o planejado, e as extras usaram as fixtures públicas. Rode de novo com o número de execuções por cenário que a auditoria especifica (o valor -n mostrado junto da sua instância).",
   "ev.err.already-submitted": "Já foram enviadas evidências para esta auditoria. Cada auditoria aceita um pacote.",
   "ev.err.not-accepting": "Esta auditoria não está aceitando evidências agora. Atualize a página para ver o estado atual.",
   "ev.err.audit-not-found": "Auditoria não encontrada para a carteira conectada.",
