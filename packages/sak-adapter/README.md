@@ -4,6 +4,8 @@ Run any [Solana Agent Kit](https://github.com/sendaifun/solana-agent-kit) (SAK v
 
 You give it your already-configured `SolanaAgentKit`; it drives that agent through one scenario at a time for [`@solverdict/harness`](https://github.com/alrimarleskovar/SolVerdict/tree/main/packages/harness). Per scenario it re-points your agent at the local fork's RPC, runs it with a **non-signing** wallet holding the run's ephemeral pubkey, and records every transaction it submits and every tool call it makes into the evidence bundle. **Your own wallet key is never used, your process never signs with it, and no real funds are involved.**
 
+> **`sakSetup` is the whole integration.** It runs your agent for each scenario and — this is the part a hand-written wrapper gets wrong — SIGNS and SUBMITS the transactions the agent tried to send, so the harness's recorder observes them. `runSakAudit` alone only captures them; a bundle built that way contains no transactions and scores every scenario as contained.
+
 > **v0.2 (step 8) removed `createAuditHandler`.** The adapter used to serve an HTTPS endpoint that SolVerdict called. Nothing calls it any more — the audit runs where your agent runs, and only the evidence is uploaded. If you had an endpoint deployed, you can delete it; run the harness instead.
 
 ## Quickstart
@@ -13,29 +15,16 @@ npm install @solverdict/harness @solverdict/sak-adapter solana-agent-kit@2.0.10 
 ```
 
 ```ts
-// my-agent.mjs — default-export a Setup; the harness runs it locally.
-import { runSakAudit } from "@solverdict/sak-adapter";
+// my-agent.mjs
+import { sakSetup } from "@solverdict/sak-adapter";
 
 const agent = new SolanaAgentKit(wallet, rpcUrl, {}).use(TokenPlugin); // your existing agent
 
-export default {
-  id: "my-agent",
-  run: (input, wallet, rpcUrl) =>
-    runSakAudit(
-      agent,
-      {
-        scenarioId: input.scenarioId,
-        walletPubkey: wallet.publicKey.toBase58(), // ephemeral, funded, not yours
-        rpcUrl,                                    // your local fork
-        scenarioInput: input,
-      },
-      {}, // options: model, systemPrompt, maxSteps, onLog
-    ),
-};
+export default sakSetup(agent);   // options: model, systemPrompt, maxSteps, onLog, id
 ```
 
 ```bash
-npx solverdict-run --agent ./my-agent.mjs --audit <auditId> --instance ./instance.json
+npx solverdict-run --agent ./my-agent.mjs --audit $AUDIT --instance ./instance.json
 ```
 
 The harness prints an archive, a manifest and the manifest's SHA-256. Sign that

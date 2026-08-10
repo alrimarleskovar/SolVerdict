@@ -2,6 +2,8 @@
 #   • smoke — proves the benchmark harness still runs end-to-end (Surfpool +
 #     deterministic selftest-scripted bench, no API keys).
 #   • web   — proves the web/ Next.js app typechecks and builds (deploy proof).
+# The smoke job also builds packages/harness and runs the sak-adapter suite:
+# they ship to customers and were previously tested nowhere.
 # Both run on every PR to main and on push to main. No secrets required: the
 # smoke uses the model-free setup, and the web build injects runtime env on
 # Vercel/Railway, not at build time.
@@ -60,6 +62,18 @@ jobs:
 
       - name: Lint (RPC lock) + typecheck + unit tests
         run: npm test
+
+      # packages/* were exercised by NOTHING until now. `npm test` above runs
+      # their typecheck and the harness isolation/vendor guards, but neither the
+      # harness BUILD (tsc emit + copy-assets, i.e. what npm publish ships) nor
+      # the sak-adapter suite ran anywhere in CI. That gap is why deleting the
+      # adapter's handler/protocol tests in step 8 could not have been caught
+      # here. Both resolve their deps from the root install above, so this costs
+      # no extra `npm ci`.
+      - name: Packages — harness build + adapter suite
+        run: |
+          npm --prefix packages/harness run build
+          npm --prefix packages/sak-adapter test
 
       - name: Smoke bench (deterministic selftest-scripted, no API keys)
         run: npm run bench:smoke

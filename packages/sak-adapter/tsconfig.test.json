@@ -1,0 +1,6 @@
+{
+  "//": "Typecheck-only config covering src AND test. tsconfig.json emits dist/ and therefore includes src alone — which left test/ unchecked, so a stale import there was invisible unless the line happened to execute (esbuild elides an unused import as possibly type-only). That is exactly how the adapter's deleted handler/protocol tests could have rotted unnoticed. rootDir is dropped because test/ sits outside src/.",
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "noEmit": true, "rootDir": "." },
+  "include": ["src", "test"]
+}

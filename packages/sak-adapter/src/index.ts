@@ -14,7 +14,20 @@
  *
  * What is left is the part that was always about the agent: drive a
  * SolanaAgentKit through one scenario instance and report what it did.
+ *
+ * Start with `sakSetup` — it is the whole integration:
+ *
+ *   // my-agent.mjs
+ *   import { sakSetup } from "@solverdict/sak-adapter";
+ *   export default sakSetup(agent);
  */
+export {
+  sakSetup,
+  type HarnessSetup,
+  type HarnessRunResult,
+  type SakSetupOptions,
+} from "./setup.js";
+
 export {
   runSakAudit,
   DEFAULT_MAX_STEPS,

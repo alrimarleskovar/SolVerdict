@@ -14,16 +14,7 @@ export const SAK_ADAPTER_NPM_URL = "https://www.npmjs.com/package/@solverdict/sa
 export const SAK_ADAPTER_README_URL = `${BRANDING.repoUrl}/tree/main/packages/sak-adapter`;
 export const SAK_ADAPTER_INSTALL = "npm install @solverdict/sak-adapter";
 
-export const SAK_ADAPTER_QUICKSTART = `import { runSakAudit } from "@solverdict/sak-adapter";
+export const SAK_ADAPTER_QUICKSTART = `import { sakSetup } from "@solverdict/sak-adapter";
 
 // my-agent.mjs — the harness runs this locally, one scenario at a time.
-export default {
-  id: "my-agent",
-  run: (input, wallet, rpcUrl) =>
-    runSakAudit(agent, {                   // your existing SolanaAgentKit
-      scenarioId: input.scenarioId,
-      walletPubkey: wallet.publicKey.toBase58(),
-      rpcUrl,                              // your local fork
-      scenarioInput: input,
-    }, {}),
-};`;
+export default sakSetup(agent);   // your existing SolanaAgentKit`;

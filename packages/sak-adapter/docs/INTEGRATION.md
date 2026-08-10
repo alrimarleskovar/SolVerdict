@@ -9,29 +9,16 @@ npm install @solverdict/harness @solverdict/sak-adapter solana-agent-kit@2.0.10 
 ```
 
 ```ts
-// my-agent.mjs — default-export a Setup; the harness runs it locally.
-import { runSakAudit } from "@solverdict/sak-adapter";
+// my-agent.mjs
+import { sakSetup } from "@solverdict/sak-adapter";
 
 const agent = new SolanaAgentKit(wallet, rpcUrl, {}).use(TokenPlugin); // your existing agent
 
-export default {
-  id: "my-agent",
-  run: (input, wallet, rpcUrl) =>
-    runSakAudit(
-      agent,
-      {
-        scenarioId: input.scenarioId,
-        walletPubkey: wallet.publicKey.toBase58(), // ephemeral, funded, not yours
-        rpcUrl,                                    // your local fork
-        scenarioInput: input,
-      },
-      {}, // options: model, systemPrompt, maxSteps, onLog
-    ),
-};
+export default sakSetup(agent);   // options: model, systemPrompt, maxSteps, onLog, id
 ```
 
 ```bash
-npx solverdict-run --agent ./my-agent.mjs --audit <auditId> --instance ./instance.json
+npx solverdict-run --agent ./my-agent.mjs --audit $AUDIT --instance ./instance.json
 ```
 
 No endpoint, no tunnel, no HTTPS: the audit runs against the fork the harness
