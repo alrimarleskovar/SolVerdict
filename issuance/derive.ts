@@ -13,8 +13,9 @@
  * a blob is not the same as being able to recompute it — a stored blob can be
  * edited, and a re-derivation cannot. So the audit stores a 32-byte seed and
  * everything else is a pure function of (seed, auditId, scenarioId, runIndex).
- * The stored `issued_instance` is then a convenience cache, and
- * `assertMatchesSeed` proves the cache still equals the derivation.
+ * The stored `issued_instance` is then a convenience cache — nothing reads it
+ * to serve or to score, both of which re-derive from the seed — and
+ * `matchesSeed` reports whether it is still in step.
  *
  * WHAT UNPREDICTABILITY MEANS HERE. Values are HMAC-SHA256 under the server
  * seed. Seeing one audit's instance tells you nothing about another's, and
@@ -230,16 +231,54 @@ export function deriveIssuance(req: IssuanceRequest): Issuance {
 }
 
 /**
- * Proves a stored issuance is still the one the seed derives.
+ * Serialises a value with object keys sorted, at every depth.
  *
- * The stored copy is a cache for serving the client quickly; the seed is the
- * source of truth. If they ever disagree, someone edited the row, and scoring
- * against an edited instance is scoring against an unknown benchmark.
+ * WHY THIS IS NOT `JSON.stringify`. The stored issuance round-trips through a
+ * Postgres `jsonb` column, and jsonb does not preserve key order — it re-emits
+ * object keys sorted by (length, then bytewise). `JSON.stringify` is order
+ * sensitive, so comparing a freshly derived object against the same data read
+ * back from jsonb compares two spellings of identical content and reports a
+ * difference. That is not hypothetical: it rejected every audit, because five
+ * cells of the standard roster (A4, C2, D1, D3 carry `lists`; E2 has two
+ * scalars) come back with their keys in a different order than they were
+ * written in.
+ *
+ * Arrays keep their order — order is meaningful in a list and incidental in an
+ * object, which is exactly the distinction jsonb makes too.
  */
-export function assertMatchesSeed(stored: Issuance, req: IssuanceRequest): void {
+export function canonicalJson(value: unknown): string {
+  return JSON.stringify(value, (_key, v) => {
+    if (v && typeof v === "object" && !Array.isArray(v)) {
+      const sorted: Record<string, unknown> = {};
+      for (const k of Object.keys(v as Record<string, unknown>).sort()) {
+        sorted[k] = (v as Record<string, unknown>)[k];
+      }
+      return sorted;
+    }
+    return v;
+  });
+}
+
+/**
+ * Does a stored issuance still equal the one the seed derives?
+ *
+ * Compares CONTENT, not spelling (see `canonicalJson`). Non-throwing, because
+ * the answer is advisory: nothing is ever served or scored from the stored
+ * copy — both `issueInstance` and `verifySubmission` derive from the seed — so
+ * a stale cache is a bookkeeping problem, not a correctness one, and must not
+ * be allowed to strand an audit.
+ */
+export function matchesSeed(stored: Issuance, req: IssuanceRequest): boolean {
   const fresh = deriveIssuance(req);
-  const canon = (v: unknown) => JSON.stringify(v);
-  if (canon(fresh.instances) !== canon(stored.instances) || canon(fresh.expectedMints) !== canon(stored.expectedMints)) {
+  return (
+    canonicalJson(fresh.instances) === canonicalJson(stored.instances) &&
+    canonicalJson(fresh.expectedMints) === canonicalJson(stored.expectedMints)
+  );
+}
+
+/** `matchesSeed`, as an assertion. For tests and offline checks. */
+export function assertMatchesSeed(stored: Issuance, req: IssuanceRequest): void {
+  if (!matchesSeed(stored, req)) {
     throw new Error(`stored issuance for audit ${req.auditId} does not match its seed`);
   }
 }

@@ -17,7 +17,7 @@
  * stranding an audit with no instance to run against.
  */
 import { randomBytes } from "node:crypto";
-import { deriveIssuance, assertMatchesSeed, type Issuance } from "../../issuance/derive.js";
+import { deriveIssuance, matchesSeed, type Issuance } from "../../issuance/derive.js";
 import { verifyIssuedParams, describeViolations, type VerificationResult } from "../../issuance/verify.js";
 import { ALLOWLIST_LABELS, DENYLIST } from "../../scenarios/fixtures.js";
 import { SCENARIOS } from "../../scenarios/index.js";
@@ -48,6 +48,12 @@ export interface IssuanceStore {
    * back what the winner stored.
    */
   claimSeed(auditId: string, seed: string, issuance: Issuance): Promise<boolean>;
+  /**
+   * Overwrites the cached copy. Only ever called to bring a stale cache back
+   * into step with the seed — never to change what an audit is measured on,
+   * which is fixed by the seed and cannot be rewritten.
+   */
+  writeCache(auditId: string, issuance: Issuance): Promise<void>;
 }
 
 /** A fresh 32-byte seed. One per audit, generated once, never regenerated. */
@@ -76,10 +82,26 @@ export async function issueInstance(auditId: string, store: IssuanceStore): Prom
   if (row.instance_seed) {
     const req = requestFor(auditId, row.instance_seed, row.n);
     const issuance = deriveIssuance(req);
-    // The cache is convenience; the seed is authority. If they disagree the row
-    // was edited, and scoring against an edited instance is scoring against an
-    // unknown benchmark.
-    if (row.issued_instance) assertMatchesSeed(row.issued_instance as Issuance, req);
+
+    // The cache is convenience; the seed is authority — and the authority is
+    // what gets returned, on every path, whatever the cache says.
+    //
+    // This used to THROW when the two disagreed, which stranded the audit. Two
+    // things were wrong with that. The comparison was order-sensitive over a
+    // jsonb column that reorders keys, so it fired on data that was correct
+    // (see canonicalJson). And the consequence did not match the stake: nothing
+    // is served or scored from this column, so a divergence cannot corrupt a
+    // verdict — refusing to serve only cost the customer their audit. Now it is
+    // logged and repaired, and the instance goes out either way.
+    if (row.issued_instance && !matchesSeed(row.issued_instance as Issuance, req)) {
+      console.warn(
+        `[issuance] cached instance for ${auditId} is out of step with its seed — ` +
+          `serving the seed-derived instance and rewriting the cache`,
+      );
+      await store.writeCache(auditId, issuance).catch((err) => {
+        console.warn(`[issuance] cache rewrite for ${auditId} failed: ${String(err).slice(0, 160)}`);
+      });
+    }
     return issuance;
   }
 
@@ -156,6 +178,15 @@ export function supabaseIssuanceStore(): IssuanceStore {
         .select("id");
       if (error) throw new Error(error.message);
       return Array.isArray(data) && data.length > 0;
+    },
+    async writeCache(auditId, issuance) {
+      // Deliberately does NOT touch instance_seed: the seed is written once,
+      // by claimSeed, and nothing may overwrite it.
+      const { error } = await supabaseAdmin()
+        .from("audits")
+        .update({ issued_instance: issuance, updated_at: new Date().toISOString() })
+        .eq("id", auditId);
+      if (error) throw new Error(error.message);
     },
   };
 }

@@ -80,6 +80,9 @@ function makeStore(row: IssuanceRow): { store: IssuanceStore; row: IssuanceRow; 
       state.claims++;
       return true;
     },
+    writeCache: async (_id, issuance) => {
+      state.row.issued_instance = issuance;
+    },
   };
   return Object.defineProperties({ store } as never, {
     row: { get: () => state.row },
@@ -268,6 +271,9 @@ test("a lost seed-claim race adopts the winner's instance", async () => {
       // Somebody else won between our load and our write.
       state.instance_seed = winnerSeed;
       return false;
+    },
+    writeCache: async (_id, issuance) => {
+      state.issued_instance = issuance;
     },
   };
   const auth = makeAuth();
