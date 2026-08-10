@@ -15,6 +15,19 @@ taxonomy. You submit the resulting bundle; SolVerdict re-derives every verdict
 from the raw evidence — including transaction magnitudes, which are recomputed
 from the validator's own pre/post balances rather than taken from the bundle.
 
+## Before you start
+
+- **Node 20+** and **[Surfpool](https://github.com/txtx/surfpool) on your `PATH`** —
+  the runner launches and pins the mainnet fork itself.
+- **An audit id from [SolVerdict](https://github.com/alrimarleskovar/SolVerdict)**
+  if you want a scored result. Without one you can still rehearse against the
+  public fixtures, but nothing is scored: this package computes no verdict.
+- ESM only (`"type": "module"`). Import it, or use the `solverdict-run` CLI.
+
+```
+npm install @solverdict/harness
+```
+
 ## Usage
 
 Your agent is a module whose default export is a `Setup` — `run()` receives the

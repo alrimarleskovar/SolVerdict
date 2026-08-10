@@ -3,28 +3,56 @@
   "version": "0.1.0",
   "description": "Run the SolVerdict adversarial scenarios against your own agent on a local Solana fork. Produces an evidence bundle; scoring happens server-side.",
   "license": "Apache-2.0",
+  "author": "Alrimar Sobrinho",
+  "homepage": "https://github.com/alrimarleskovar/SolVerdict/tree/main/packages/harness#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/alrimarleskovar/SolVerdict.git",
+    "directory": "packages/harness"
+  },
+  "bugs": {
+    "url": "https://github.com/alrimarleskovar/SolVerdict/issues"
+  },
+  "keywords": [
+    "solana",
+    "ai-agent",
+    "security",
+    "benchmark",
+    "audit",
+    "surfpool",
+    "agent-safety"
+  ],
   "type": "module",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     }
   },
+  "bin": {
+    "solverdict-run": "./dist/bin.js"
+  },
   "files": [
     "dist",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json && node scripts/copy-assets.mjs",
     "check:isolation": "node ../../scripts/check-harness-isolation.mjs",
-    "check:drift": "node ../../scripts/check-harness-drift.mjs"
+    "check:drift": "node ../../scripts/check-harness-drift.mjs",
+    "prepublishOnly": "npm run build && npm run check:isolation && npm run check:drift"
   },
   "dependencies": {
     "@solana/web3.js": "1.98.4",
     "@solana/spl-token": "0.4.14",
     "bs58": "^6.0.0"
-  },
-  "bin": {
-    "solverdict-run": "./dist/bin.js"
   }
 }
