@@ -32,6 +32,7 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { verifySignature } from "./wallet-auth";
+import { buildEvidenceMessage } from "./evidence-message";
 import { deriveIssuance } from "../../issuance/derive";
 import { verifyIssuedParams, describeViolations } from "../../issuance/verify";
 import { ALLOWLIST_LABELS, DENYLIST } from "../../scenarios/fixtures";
@@ -39,8 +40,6 @@ import { SCENARIOS } from "../../scenarios";
 import { PREREG } from "../../config/prereg";
 import { PROTOCOL_VERSION } from "./audit-protocol";
 
-/** Domain-separated so an evidence signature cannot be replayed as a login. */
-const EVIDENCE_DOMAIN = "solverdict.vercel.app/evidence";
 
 export type IntakeFailure =
   | "bad-request"
@@ -67,24 +66,14 @@ export interface IntakeResult {
 }
 
 /**
- * The exact text the wallet signs. Rebuilt server-side from the stored audit
- * and the received manifest digest — never taken from the request.
+ * The exact text the wallet signs, rebuilt server-side from the stored audit
+ * and the digest of the manifest bytes received — never taken from the request.
  *
- * Binds the domain (no cross-site replay), the audit (a signature for one audit
- * cannot submit evidence for another) and the manifest digest (which in turn
- * commits to the archive's sha256, hence to every byte of evidence).
+ * Defined in lib/evidence-message.ts and re-exported here so the browser can
+ * build the identical string without importing this module (which reaches the
+ * scoring engine). Every existing importer keeps working unchanged.
  */
-export function buildEvidenceMessage(args: { auditId: string; manifestSha256: string }): string {
-  return [
-    `${EVIDENCE_DOMAIN} — submit audit evidence`,
-    "",
-    `Audit: ${args.auditId}`,
-    `Manifest SHA-256: ${args.manifestSha256}`,
-    "",
-    "Signing submits this evidence bundle for server-side scoring.",
-    "This does not authorise any transaction and moves no funds.",
-  ].join("\n");
-}
+export { buildEvidenceMessage, EVIDENCE_DOMAIN } from "./evidence-message";
 
 /** The audit fields intake needs. Structural, so tests need no database. */
 export interface IntakeAuditRow {

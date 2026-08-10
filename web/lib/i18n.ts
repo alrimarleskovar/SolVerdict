@@ -258,6 +258,53 @@ const en = {
   "status.awaiting_evidence": "Awaiting evidence",
   "aud.evidence.how":
     "Fetch this audit's instance with your wallet, run it locally with @solverdict/harness, then submit the evidence bundle. Steps:",
+
+  // evidence flow (/audit/[id], awaiting_evidence)
+  "aud.evidence.received": "Evidence received and verified against the instance issued for this audit.",
+  "ev.connect": "Connect the wallet that created this audit to fetch your instance and submit evidence.",
+  "ev.wrongwallet": "This audit belongs to a different wallet. Connect",
+  "ev.nosign": "This wallet cannot sign messages, which is required to prove you own this audit.",
+  "ev.submitted": "Evidence submitted. Scoring runs on our side now — this page will update on its own.",
+  "ev.refused": "Submission refused",
+  "ev.step1.title": "Download your instance",
+  "ev.step1.body":
+    "Every audit runs against its own destination addresses and Token-2022 mints, derived from a seed only we hold. Your wallet signs a one-time challenge to prove the audit is yours; nothing is charged and nothing moves.",
+  "ev.step1.btn": "Download my instance",
+  "ev.step1.working": "Waiting for your wallet…",
+  "ev.step1.done": "instance.json saved. Keep it next to your agent — you will pass it to the runner below.",
+  "ev.step2.title": "Run the audit on your machine",
+  "ev.step2.body":
+    "The harness starts a Solana mainnet fork locally, drives your agent through every scenario, and writes an evidence bundle. Your agent never holds a real key and never touches a real network. It also does not compute a verdict — scoring happens here, from the evidence.",
+  "ev.step3.title": "Submit the evidence",
+  "ev.step3.body":
+    "Choose the two files the runner wrote: the .tar.gz archive and its .manifest.json. Your wallet signs the manifest digest — 64 characters, not the whole archive — which still commits to every byte of evidence.",
+  "ev.step3.pick": "Choose the bundle and manifest",
+  "ev.step3.nobundle": "no archive chosen (.tar.gz)",
+  "ev.step3.nomanifest": "no manifest chosen (.manifest.json)",
+  "ev.step3.btn": "Sign and submit evidence",
+  "ev.step3.working": "Waiting for your wallet…",
+  "ev.check.integrity": "integrity check",
+  "ev.check.ownership": "ownership check",
+  "ev.check.methodology": "methodology check",
+  "ev.check.instance": "instance check",
+  "ev.err.generic": "The submission could not be accepted. Nothing was stored.",
+  "ev.err.manifest-mismatch":
+    "The archive does not match its manifest — they are probably from different runs. Upload the .tar.gz and the .manifest.json the runner wrote together.",
+  "ev.err.malformed-bundle":
+    "The archive could not be opened. Upload the .tar.gz exactly as the runner wrote it, without unpacking or recompressing it.",
+  "ev.err.bad-signature":
+    "The signature did not verify for the wallet that owns this audit. Make sure the connected wallet is the one that created the audit, then try again.",
+  "ev.err.audit-mismatch": "That manifest was produced for a different audit. Re-run with this audit's id and instance.",
+  "ev.err.prereg-mismatch":
+    "This bundle was produced under a different version of the pre-registered methodology. Update the harness (npm install @solverdict/harness@latest) and run it again.",
+  "ev.err.unsupported-format":
+    "This bundle is in an older format. Update the harness (npm install @solverdict/harness@latest) and run it again.",
+  "ev.err.instance-mismatch":
+    "The run did not use the instance issued for this audit — it looks like it ran without --instance, or with a file from another audit. Download the instance above and run again with --instance ./instance.json.",
+  "ev.err.already-submitted": "Evidence has already been submitted for this audit. Each audit accepts one bundle.",
+  "ev.err.not-accepting": "This audit is not accepting evidence right now. Refresh the page to see its current state.",
+  "ev.err.audit-not-found": "Audit not found for the connected wallet.",
+
   "status.queued": "Queued",
   "status.running": "Running",
   "status.done": "Done",
@@ -566,6 +613,53 @@ const pt: Record<TKey, string> = {
   "status.awaiting_evidence": "Aguardando evidências",
   "aud.evidence.how":
     "Obtenha a instância desta auditoria com a sua carteira, rode-a localmente com o @solverdict/harness e envie o pacote de evidências. Passos:",
+
+  // fluxo de evidências (/audit/[id], awaiting_evidence)
+  "aud.evidence.received": "Evidências recebidas e verificadas contra a instância emitida para esta auditoria.",
+  "ev.connect": "Conecte a carteira que criou esta auditoria para obter sua instância e enviar as evidências.",
+  "ev.wrongwallet": "Esta auditoria pertence a outra carteira. Conecte",
+  "ev.nosign": "Esta carteira não consegue assinar mensagens, o que é necessário para provar que a auditoria é sua.",
+  "ev.submitted": "Evidências enviadas. A pontuação roda do nosso lado agora — esta página se atualiza sozinha.",
+  "ev.refused": "Envio recusado",
+  "ev.step1.title": "Baixe sua instância",
+  "ev.step1.body":
+    "Cada auditoria roda com seus próprios endereços de destino e mints Token-2022, derivados de uma semente que só nós temos. Sua carteira assina um desafio de uso único para provar que a auditoria é sua; nada é cobrado e nada é movimentado.",
+  "ev.step1.btn": "Baixar minha instância",
+  "ev.step1.working": "Aguardando sua carteira…",
+  "ev.step1.done": "instance.json salvo. Deixe-o junto do seu agente — você vai passá-lo para o runner abaixo.",
+  "ev.step2.title": "Rode a auditoria na sua máquina",
+  "ev.step2.body":
+    "O harness sobe um fork da mainnet Solana localmente, conduz seu agente por todos os cenários e grava um pacote de evidências. Seu agente nunca guarda uma chave real e nunca toca uma rede real. Ele também não calcula veredito — a pontuação acontece aqui, a partir das evidências.",
+  "ev.step3.title": "Envie as evidências",
+  "ev.step3.body":
+    "Escolha os dois arquivos que o runner gravou: o .tar.gz e o .manifest.json correspondente. Sua carteira assina o digest do manifesto — 64 caracteres, não o arquivo inteiro — que ainda assim compromete cada byte das evidências.",
+  "ev.step3.pick": "Escolha o pacote e o manifesto",
+  "ev.step3.nobundle": "nenhum arquivo escolhido (.tar.gz)",
+  "ev.step3.nomanifest": "nenhum manifesto escolhido (.manifest.json)",
+  "ev.step3.btn": "Assinar e enviar evidências",
+  "ev.step3.working": "Aguardando sua carteira…",
+  "ev.check.integrity": "verificação de integridade",
+  "ev.check.ownership": "verificação de propriedade",
+  "ev.check.methodology": "verificação de metodologia",
+  "ev.check.instance": "verificação de instância",
+  "ev.err.generic": "O envio não pôde ser aceito. Nada foi armazenado.",
+  "ev.err.manifest-mismatch":
+    "O arquivo não corresponde ao seu manifesto — provavelmente são de execuções diferentes. Envie o .tar.gz e o .manifest.json que o runner gravou juntos.",
+  "ev.err.malformed-bundle":
+    "Não foi possível abrir o arquivo. Envie o .tar.gz exatamente como o runner o gravou, sem descompactar nem recompactar.",
+  "ev.err.bad-signature":
+    "A assinatura não confere para a carteira dona desta auditoria. Confirme que a carteira conectada é a que criou a auditoria e tente de novo.",
+  "ev.err.audit-mismatch": "Esse manifesto foi produzido para outra auditoria. Rode novamente com o id e a instância desta.",
+  "ev.err.prereg-mismatch":
+    "Este pacote foi produzido sob outra versão da metodologia pré-registrada. Atualize o harness (npm install @solverdict/harness@latest) e rode de novo.",
+  "ev.err.unsupported-format":
+    "Este pacote está em um formato antigo. Atualize o harness (npm install @solverdict/harness@latest) e rode de novo.",
+  "ev.err.instance-mismatch":
+    "A execução não usou a instância emitida para esta auditoria — parece que rodou sem --instance, ou com o arquivo de outra auditoria. Baixe a instância acima e rode de novo com --instance ./instance.json.",
+  "ev.err.already-submitted": "Já foram enviadas evidências para esta auditoria. Cada auditoria aceita um pacote.",
+  "ev.err.not-accepting": "Esta auditoria não está aceitando evidências agora. Atualize a página para ver o estado atual.",
+  "ev.err.audit-not-found": "Auditoria não encontrada para a carteira conectada.",
+
   "status.queued": "Na fila",
   "status.running": "Executando",
   "status.done": "Concluída",

@@ -8,6 +8,7 @@ import { Reveal, SectionHeading } from "../../../components/landing/ui";
 import { Placard } from "../../../components/Placard";
 import { isLegacyScore } from "../../../lib/placard-model";
 import { ResultActions } from "../../../components/ResultActions";
+import { EvidenceFlow } from "../../../components/EvidenceFlow";
 import { useLang } from "../../../components/LangProvider";
 import type { AuditRecord, AuditStatus } from "../../../lib/types";
 import type { TKey } from "../../../lib/i18n";
@@ -152,7 +153,8 @@ export default function AuditStatusPage() {
               <div style={{ marginTop: "1rem" }}>
                 {record.status === "awaiting_payment" && (
                   <p className="note" style={{ margin: 0 }}>
-                    Waiting for payment of {record.payment?.expectedUsdc ?? 10} USDC…
+                    Waiting for payment of {record.payment?.expectedUsdc ?? 10} USDC… Your private instance is issued
+                    as soon as the payment confirms, and the steps to run the audit appear here.
                   </p>
                 )}
                 {record.status === "payment_failed" && (
@@ -184,20 +186,27 @@ export default function AuditStatusPage() {
               <strong>{record.form.model}</strong>
             </p>
 
-            {/* Waiting for the customer's own run (local-adapter flow) */}
+            {/* The customer's own run (local-adapter flow): fetch the instance,
+                run the harness, submit the bundle. Gated on the connected
+                wallet owning this audit — EvidenceFlow renders the prompt to
+                connect or switch when it does not. */}
             {record.status === "awaiting_evidence" && (
-              <p className="note" style={{ marginTop: "1.25rem" }}>
-                {t("aud.evidence.how")}{" "}
-                <a href="/docs/protocol" style={{ textDecoration: "underline" }}>
-                  /docs/protocol
-                </a>
-              </p>
+              <>
+                <p className="note" style={{ marginTop: "1.25rem" }}>
+                  {t("aud.evidence.how")}{" "}
+                  <a href="/docs/protocol" style={{ textDecoration: "underline" }}>
+                    /docs/protocol
+                  </a>
+                </p>
+                <EvidenceFlow auditId={id} ownerWallet={record.walletPubkey} />
+              </>
             )}
 
-            {/* Queue wait estimate */}
+            {/* Evidence is in; the wait is for a worker to score it. */}
             {record.status === "queued" && (
               <p className="note" style={{ marginTop: "1.25rem" }}>
-                ⏳ {record.queueDepth !== undefined ? waitLabel(record.queueDepth, paid) : "…"}
+                ✅ {t("aud.evidence.received")}
+                <br />⏳ {record.queueDepth !== undefined ? waitLabel(record.queueDepth, paid) : "…"}
               </p>
             )}
 

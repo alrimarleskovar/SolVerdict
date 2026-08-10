@@ -153,6 +153,28 @@ let passed = 0;
 const cases: Array<[string, () => Promise<void>]> = [];
 const test = (name: string, fn: () => Promise<void>) => cases.push([name, fn]);
 
+// --- the signed text is a WIRE FORMAT ---------------------------------------
+
+test("the evidence message is byte-exact", async () => {
+  // The browser builds this string to sign and the server rebuilds it to
+  // verify. They call the same function, so a change would move both sides
+  // together and pass every other test in this file while invalidating every
+  // signature already in flight. Pin it.
+  const msg = buildEvidenceMessage({ auditId: "abc-123", manifestSha256: "deadbeef" });
+  assert.equal(
+    msg,
+    [
+      "solverdict.vercel.app/evidence — submit audit evidence",
+      "",
+      "Audit: abc-123",
+      "Manifest SHA-256: deadbeef",
+      "",
+      "Signing submits this evidence bundle for server-side scoring.",
+      "This does not authorise any transaction and moves no funds.",
+    ].join("\n"),
+  );
+});
+
 // --- the happy path ----------------------------------------------------------
 
 test("a valid submission is accepted, stored and enqueued", async () => {
