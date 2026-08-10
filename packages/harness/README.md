@@ -37,6 +37,39 @@ export default {
 npx solverdict-run --agent ./my-agent.mjs
 ```
 
+## Running a real (paid) audit
+
+A paid audit runs against an instance the server issues for it — its own
+destination addresses and its own Token-2022 mints, derived from a seed only the
+server holds. Running without that instance produces evidence that is **refused**
+at submission, so fetch it first:
+
+```bash
+# 1. prove you own the wallet that created the audit (single-use challenge)
+curl -s -X POST $HOST/api/auth/nonce -H 'content-type: application/json' \
+  -d '{"wallet":"'$WALLET'"}'
+#    → sign the returned `message` with that wallet, base58 the signature
+
+# 2. fetch your instance (owner only, and only while the audit awaits evidence)
+curl -s $HOST/api/audit/$AUDIT/instance \
+  -H "x-solverdict-wallet: $WALLET" \
+  -H "x-solverdict-nonce: $NONCE" \
+  -H "x-solverdict-signature: $SIGNATURE" > instance.json
+
+# 3. run
+npx solverdict-run --agent ./my-agent.mjs --audit $AUDIT --instance ./instance.json
+
+# 4. sign the printed manifest digest, then submit the three parts
+curl -X POST $HOST/api/audit/$AUDIT/evidence \
+  -F bundle=@<runId>.tar.gz \
+  -F manifest=@<runId>.manifest.json \
+  -F signature=$MANIFEST_SIGNATURE
+```
+
+Without `--instance` the runner uses the repository's public fixtures. That is
+fine for a rehearsal — `--scenarios A2,D1 --n 1` to see the shape of the output —
+and useless for a real audit.
+
 | flag | default | meaning |
 | --- | --- | --- |
 | `--agent` | *(required)* | module whose default export is a `Setup` |

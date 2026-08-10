@@ -5,6 +5,7 @@ import { PublicKey } from "@solana/web3.js";
 import { supabaseAdmin } from "../../../../lib/supabase";
 import { validateSubmission } from "../../../../lib/submission";
 import { assertPublicHttpsUrl, SsrfError } from "../../../../lib/ssrf";
+import { ensureInstanceIssued } from "../../../../lib/instance-issuance";
 import { PAID_AMOUNT_USDC, USDC_MINT } from "../../../../lib/payment";
 import { paymentWallet } from "../../../../lib/payment-flow";
 import type { AuditTier } from "../../../../lib/types";
@@ -67,7 +68,8 @@ export async function POST(req: Request) {
   const n = tier === "paid" ? 20 : 1;
 
   // submit_audit inserts the audit and — for the free tier — atomically enforces
-  // the 24h-per-wallet cooldown and enqueues, all in one transaction.
+  // the 24h-per-wallet cooldown, in one transaction. It no longer enqueues:
+  // since step 7 the queue row is created by evidence intake (migration 007).
   let outcome: string;
   try {
     const { data, error } = await supabaseAdmin().rpc("submit_audit", {
@@ -120,7 +122,20 @@ export async function POST(req: Request) {
   }
 
   if (tier === "free") {
-    return NextResponse.json({ auditId: id, tier, status: "queued" }, { status: 201 });
+    // The audit is created waiting for the customer's local run, so its private
+    // instance has to exist before they can start. Best-effort: the serving
+    // route issues idempotently, so a failure here costs a round trip, not the
+    // audit (lib/instance-issuance.ts).
+    await ensureInstanceIssued(id);
+    return NextResponse.json(
+      {
+        auditId: id,
+        tier,
+        status: "awaiting_evidence",
+        next: `GET /api/audit/${id}/instance (wallet-signed) → run @solverdict/harness → POST /api/audit/${id}/evidence`,
+      },
+      { status: 201 },
+    );
   }
 
   // Paid: created as awaiting_payment; the client pays then calls /paid.

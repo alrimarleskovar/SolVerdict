@@ -4,13 +4,19 @@
  * shared by the `/paid` and `/verify-payment` API routes and the worker so the
  * logic lives in one place.
  *
- *   awaiting_payment --(valid tx)--> queued (row enqueued via enqueue_paid RPC)
+ *   awaiting_payment --(valid tx)--> awaiting_evidence (enqueue_paid RPC)
+ *
+ * A verified payment unlocks the RUN, not the queue: since step 7 the customer
+ * runs the audit on their own machine and the queue row is created when their
+ * evidence bundle passes intake. Reaching awaiting_evidence is also what
+ * triggers issuance of the audit's private instance.
  *   awaiting_payment --(stuck >5m, no/invalid tx)--> payment_failed (+ email)
  *
  * Env: SOLVERDICT_PAYMENT_WALLET (server) / NEXT_PUBLIC_SOLVERDICT_PAYMENT_WALLET,
  *      SOLANA_RPC_URL (default mainnet-beta public).
  */
 import { supabaseAdmin, type AuditRow } from "./supabase";
+import { ensureInstanceIssued } from "./instance-issuance";
 import {
   verifyPayment,
   PAYMENT_STUCK_MS,
@@ -99,7 +105,12 @@ export async function verifyAndQueue(
   const row = await fetchRow(db, id);
   if (!row) return { ok: false, status: "failed", reason: "audit not found" };
   if (row.tier !== "paid") return { ok: false, status: row.status, reason: "not a paid audit" };
-  if (row.status === "queued" || row.status === "running" || row.status === "done") {
+  if (
+    row.status === "awaiting_evidence" ||
+    row.status === "queued" ||
+    row.status === "running" ||
+    row.status === "done"
+  ) {
     return { ok: true, status: row.status };
   }
 
@@ -142,7 +153,15 @@ export async function verifyAndQueue(
     }
     throw new Error(error.message);
   }
-  return { ok: true, status: (data as AuditRecord["status"]) ?? "queued" };
+  const status = (data as AuditRecord["status"]) ?? "awaiting_evidence";
+
+  // Payment verified — the audit can now be run, so it needs its instance.
+  // Best-effort for the same reason as the free path: losing a PAID audit
+  // because issuance hiccuped would be the worse failure, and the serving route
+  // issues idempotently on first fetch.
+  if (status === "awaiting_evidence") await ensureInstanceIssued(id);
+
+  return { ok: true, status };
 }
 
 /**

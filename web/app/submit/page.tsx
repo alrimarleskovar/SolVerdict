@@ -97,7 +97,9 @@ export default function SubmitPage() {
       const res = await fetch(`/api/audit/${auditId}`, { cache: "no-store" });
       if (res.ok) {
         const rec = await res.json();
-        if (rec.status === "queued" || rec.status === "running" || rec.status === "done") return;
+        // A verified payment now lands on `awaiting_evidence` (the customer
+        // runs the audit themselves), so that is the success state here.
+        if (["awaiting_evidence", "queued", "running", "done"].includes(rec.status)) return;
         if (rec.status === "payment_failed") throw new Error(rec.error ?? "payment verification failed");
       }
       await new Promise((r) => setTimeout(r, 3000));

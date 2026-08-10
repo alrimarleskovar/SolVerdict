@@ -36,13 +36,26 @@ export const metadata: Metadata = {
   description: "How a Solana agent is audited locally and how the evidence bundle is submitted for scoring.",
 };
 
-const RUN_EXAMPLE = `# 1. install the harness (it brings the scenarios and the fork tooling)
-npm install @solverdict/harness
+const RUN_EXAMPLE = `npm install @solverdict/harness`;
 
-# 2. run YOUR agent against the instance issued for YOUR audit
-npx solverdict-run \\
+const FETCH_EXAMPLE = `# Prove you own the wallet that created the audit, then fetch YOUR instance.
+# Only the owner can, and only while the audit is awaiting evidence.
+
+NONCE=$(curl -s -X POST /api/auth/nonce \\
+  -H 'content-type: application/json' -d '{"wallet":"'$WALLET'"}')
+
+# sign the returned \`message\` with your wallet (e.g. Phantom signMessage),
+# base58-encode the signature, then:
+
+curl -s /api/audit/$AUDIT/instance \\
+  -H "x-solverdict-wallet: $WALLET" \\
+  -H "x-solverdict-nonce: $(echo $NONCE | jq -r .nonce)" \\
+  -H "x-solverdict-signature: $SIGNATURE" \\
+  > instance.json`;
+
+const RUN_WITH_INSTANCE = `npx solverdict-run \\
   --agent ./my-agent.mjs \\
-  --audit <auditId> \\
+  --audit $AUDIT \\
   --instance ./instance.json`;
 
 const AGENT_EXAMPLE = `// my-agent.mjs — default-export a Setup. No SolVerdict types required.
@@ -198,24 +211,48 @@ export default function ProtocolDocs() {
             </ul>
           </DocCard>
 
-          <DocCard title="1 · Run the audit" index={2}>
+          <DocCard title="1 · Install the harness" index={2}>
             <Code>{RUN_EXAMPLE}</Code>
+            <p className="mt-3 text-[13px] leading-relaxed text-mist">
+              It brings the scenarios and the fork tooling.{" "}
+              <a
+                href="https://github.com/txtx/surfpool"
+                target="_blank"
+                rel="noreferrer"
+                className="font-code text-accent-cyan transition-colors duration-200 ease-brand hover:text-snow"
+              >
+                Surfpool
+              </a>{" "}
+              must be on your <code>PATH</code>; the runner starts and pins the fork itself.
+            </p>
           </DocCard>
 
           <DocCard title="2 · Your agent is one function" index={3}>
             <Code>{AGENT_EXAMPLE}</Code>
           </DocCard>
 
+          <DocCard title="3 · Fetch your instance" index={4}>
+            <p className="mb-4 text-sm leading-relaxed text-mist">
+              Every audit runs against addresses and Token-2022 mints derived from a seed only the server holds. You
+              cannot run without them — evidence built on the repo&apos;s public fixtures is refused at submission.
+            </p>
+            <Code>{FETCH_EXAMPLE}</Code>
+          </DocCard>
+
+          <DocCard title="4 · Run it" index={5}>
+            <Code>{RUN_WITH_INSTANCE}</Code>
+          </DocCard>
+
           <div className="grid gap-6 lg:grid-cols-2">
-            <DocCard title="3 · The manifest" index={4}>
+            <DocCard title="5 · The manifest" index={6}>
               <Code>{MANIFEST_EXAMPLE}</Code>
             </DocCard>
-            <DocCard title="4 · Submit it" index={5}>
+            <DocCard title="6 · Submit it" index={7}>
               <Code>{SUBMIT_EXAMPLE}</Code>
             </DocCard>
           </div>
 
-          <DocCard title="What the server checks before it scores" index={6}>
+          <DocCard title="What the server checks before it scores" index={8}>
             <ul className="w-full max-w-none space-y-3 text-sm leading-relaxed text-mist">
               <li>
                 <strong className="text-snow">Integrity</strong> — the archive&apos;s SHA-256 matches the manifest.
@@ -246,7 +283,7 @@ export default function ProtocolDocs() {
           </DocCard>
 
           <div className="grid gap-6 lg:grid-cols-2">
-            <DocCard title="What this does not prove" index={7}>
+            <DocCard title="What this does not prove" index={9}>
               <p className="text-sm leading-relaxed text-mist">
                 Verification proves you used the instance you were issued and that the evidence was not altered after
                 signing. It does <strong className="text-snow">not</strong> prove you ran an unmodified harness —
@@ -264,7 +301,7 @@ export default function ProtocolDocs() {
               </p>
             </DocCard>
 
-            <DocCard title="Abuse" index={8}>
+            <DocCard title="Abuse" index={10}>
               <p className="text-sm leading-relaxed text-mist">
                 If the harness misbehaves on your machine, or you want to report a flaw in the submission protocol:{" "}
                 <a

@@ -37,6 +37,18 @@ npx solverdict-run --agent ./my-agent.mjs --audit <auditId> --instance ./instanc
 No endpoint, no tunnel, no HTTPS: the audit runs against the fork the harness
 starts on your machine, and only the evidence bundle is uploaded.
 
+For a real audit, fetch its instance first — the addresses and mints are issued
+per audit and evidence built on the public fixtures is refused:
+
+```bash
+# owner-only, single-use challenge; see /docs/protocol for the signing step
+curl -s $HOST/api/audit/$AUDIT/instance \
+  -H "x-solverdict-wallet: $WALLET" -H "x-solverdict-nonce: $NONCE" \
+  -H "x-solverdict-signature: $SIGNATURE" > instance.json
+
+npx solverdict-run --agent ./my-agent.mjs --audit $AUDIT --instance ./instance.json
+```
+
 ## What happens during an audit
 
 For each scenario the harness hands the adapter a task plus untrusted context. The adapter then:

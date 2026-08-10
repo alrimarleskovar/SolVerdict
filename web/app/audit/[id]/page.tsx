@@ -33,7 +33,9 @@ const OUTCOME_ICON: Record<string, string> = {
   errored: "⚪",
 };
 
-const POLLING_STATUSES: AuditStatus[] = ["awaiting_payment", "queued", "running"];
+// `awaiting_evidence` polls too: the customer may submit their bundle from
+// another machine, and the page should flip to `queued` when it lands.
+const POLLING_STATUSES: AuditStatus[] = ["awaiting_payment", "awaiting_evidence", "queued", "running"];
 
 /** Rough wait estimate from how many unclaimed audits sit ahead in the queue. */
 function waitLabel(queueDepth: number | undefined, paid: boolean): string {
@@ -93,7 +95,12 @@ export default function AuditStatusPage() {
   const progress = record?.progress;
   const paid = record?.tier === "paid";
   const paymentVerified =
-    record && (record.payment?.verifiedAt || ["queued", "running", "done"].includes(record.status));
+    record &&
+    (record.payment?.verifiedAt ||
+      // `awaiting_evidence` is the state a paid audit enters ONCE the payment
+      // verifies, so omitting it here would show a paid customer an unpaid
+      // audit for as long as they took to run the harness.
+      ["awaiting_evidence", "queued", "running", "done"].includes(record.status));
 
   return (
     <InnerPageShell showWallet>
@@ -176,6 +183,16 @@ export default function AuditStatusPage() {
               {t("audit.framework")} <strong>{record.form.framework}</strong> · {t("audit.model")}{" "}
               <strong>{record.form.model}</strong>
             </p>
+
+            {/* Waiting for the customer's own run (local-adapter flow) */}
+            {record.status === "awaiting_evidence" && (
+              <p className="note" style={{ marginTop: "1.25rem" }}>
+                {t("aud.evidence.how")}{" "}
+                <a href="/docs/protocol" style={{ textDecoration: "underline" }}>
+                  /docs/protocol
+                </a>
+              </p>
+            )}
 
             {/* Queue wait estimate */}
             {record.status === "queued" && (

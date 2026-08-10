@@ -1,18 +1,20 @@
 // SPDX-License-Identifier: Apache-2.0
 /**
- * SERVER-ONLY: issue an audit its private instance, and verify what comes back.
+ * SERVER-ONLY: issue an audit its private instance, serve it, and verify what
+ * comes back.
  *
  * This module reads `audits.instance_seed`, which is a secret of the same
  * standing as the scoring thresholds — anyone holding it can predict every
  * address an audit is about to be issued. It must never be imported from a
  * client module; `lib/server-only-secrets.test.ts` enforces that by walking the
- * import graph of everything marked "use client".
+ * import graph of everything marked "use client". The seed never leaves the
+ * server: `clientPayload` returns the derived instance and nothing else.
  *
- * WHAT IS NOT HERE. There is no HTTP route yet. Issuing an instance is only
- * meaningful once an audit is paid for and about to run, so the endpoint and
- * its gate belong with the payment/worker wiring (step 7). Exposing an
- * ungated `GET /api/audits/:id/instance` now would hand out private instances
- * to anyone who can name an audit id, which is the opposite of the point.
+ * WHEN AN INSTANCE IS ISSUED. At the moment an audit reaches
+ * `awaiting_evidence` — free tier at submit, paid tier when the payment
+ * verifies. That hook is best-effort by design; `issueInstance` is idempotent,
+ * so the serving route calls it too and a missed hook self-heals rather than
+ * stranding an audit with no instance to run against.
  */
 import { randomBytes } from "node:crypto";
 import { deriveIssuance, assertMatchesSeed, type Issuance } from "../../issuance/derive.js";
@@ -20,6 +22,7 @@ import { verifyIssuedParams, describeViolations, type VerificationResult } from 
 import { ALLOWLIST_LABELS, DENYLIST } from "../../scenarios/fixtures.js";
 import { SCENARIOS } from "../../scenarios/index.js";
 import type { IssuedInstances } from "../../lib/instance.js";
+import { supabaseAdmin } from "./supabase";
 
 const baseLists = { allowlist: ALLOWLIST_LABELS, denylist: DENYLIST };
 
@@ -33,38 +36,62 @@ export interface IssuanceRow {
 
 export interface IssuanceStore {
   load(auditId: string): Promise<IssuanceRow | null>;
-  save(auditId: string, seed: string, issuance: Issuance): Promise<void>;
+  /**
+   * Writes the seed ONLY if the audit does not already have one, and reports
+   * whether the write applied.
+   *
+   * Conditional on purpose. The submit hook and the client's first fetch can
+   * overlap; an unconditional write would let the second one replace a seed the
+   * first had already derived an instance from, and a client that had fetched
+   * the first instance would then fail verification with no way to tell why.
+   * A conditional update makes the database pick a winner, and the loser reads
+   * back what the winner stored.
+   */
+  claimSeed(auditId: string, seed: string, issuance: Issuance): Promise<boolean>;
 }
 
 /** A fresh 32-byte seed. One per audit, generated once, never regenerated. */
 export const newInstanceSeed = (): string => randomBytes(32).toString("hex");
 
+const requestFor = (auditId: string, seed: string, n: number) => ({
+  auditId,
+  serverSeed: seed,
+  scenarioIds: SCENARIOS.map((s) => s.id),
+  n,
+  baseLists,
+});
+
 /**
  * Returns the audit's instance, creating it on first call.
  *
- * Idempotent by construction: the seed is stored the first time and the
- * instance is a pure function of it, so a client that asks twice — or a worker
- * that retries — gets the same instance rather than a fresh one. Re-issuing
- * mid-audit would mean scoring runs against instances that no longer exist.
+ * Idempotent by construction: the seed is stored once and the instance is a
+ * pure function of it, so a client that asks twice — or a worker that retries —
+ * gets the same instance. Re-issuing mid-audit would mean scoring runs against
+ * instances that no longer exist.
  */
 export async function issueInstance(auditId: string, store: IssuanceStore): Promise<Issuance> {
   const row = await store.load(auditId);
   if (!row) throw new Error(`audit ${auditId} not found`);
 
-  const scenarioIds = SCENARIOS.map((s) => s.id);
-  const seed = row.instance_seed ?? newInstanceSeed();
-  const req = { auditId, serverSeed: seed, scenarioIds, n: row.n, baseLists };
-  const issuance = deriveIssuance(req);
-
-  if (!row.instance_seed) {
-    await store.save(auditId, seed, issuance);
-  } else if (row.issued_instance) {
+  if (row.instance_seed) {
+    const req = requestFor(auditId, row.instance_seed, row.n);
+    const issuance = deriveIssuance(req);
     // The cache is convenience; the seed is authority. If they disagree the row
     // was edited, and scoring against an edited instance is scoring against an
     // unknown benchmark.
-    assertMatchesSeed(row.issued_instance as Issuance, req);
+    if (row.issued_instance) assertMatchesSeed(row.issued_instance as Issuance, req);
+    return issuance;
   }
-  return issuance;
+
+  const seed = newInstanceSeed();
+  const issuance = deriveIssuance(requestFor(auditId, seed, row.n));
+  const applied = await store.claimSeed(auditId, seed, issuance);
+  if (applied) return issuance;
+
+  // Someone else issued first. Theirs is the instance of record.
+  const winner = await store.load(auditId);
+  if (!winner?.instance_seed) throw new Error(`audit ${auditId}: seed claim lost but no seed present`);
+  return deriveIssuance(requestFor(auditId, winner.instance_seed, winner.n));
 }
 
 /** What the client is given: the instances, and nothing that is not theirs. */
@@ -98,13 +125,57 @@ export async function verifySubmission(
       summary: "no instance was issued for this audit — scored against the pre-registered fixtures",
     };
   }
-  const issuance = deriveIssuance({
-    auditId,
-    serverSeed: row.instance_seed,
-    scenarioIds: SCENARIOS.map((s) => s.id),
-    n: row.n,
-    baseLists,
-  });
-  const result = verifyIssuedParams(bundleRoot, issuance);
+  const result = verifyIssuedParams(bundleRoot, deriveIssuance(requestFor(auditId, row.instance_seed, row.n)));
   return { ...result, summary: describeViolations(result) };
+}
+
+// ---------------------------------------------------------------------------
+// The production store
+// ---------------------------------------------------------------------------
+
+export function supabaseIssuanceStore(): IssuanceStore {
+  return {
+    async load(auditId) {
+      const { data, error } = await supabaseAdmin()
+        .from("audits")
+        .select("id, n, instance_seed, issued_instance")
+        .eq("id", auditId)
+        .maybeSingle();
+      if (error) throw new Error(error.message);
+      return (data as IssuanceRow | null) ?? null;
+    },
+    async claimSeed(auditId, seed, issuance) {
+      // `.is("instance_seed", null)` is what makes this a claim rather than an
+      // overwrite: Postgres serialises the two updates and the second matches
+      // no rows.
+      const { data, error } = await supabaseAdmin()
+        .from("audits")
+        .update({ instance_seed: seed, issued_instance: issuance, updated_at: new Date().toISOString() })
+        .eq("id", auditId)
+        .is("instance_seed", null)
+        .select("id");
+      if (error) throw new Error(error.message);
+      return Array.isArray(data) && data.length > 0;
+    },
+  };
+}
+
+/**
+ * The hook: issue an instance for an audit that has just reached
+ * `awaiting_evidence`.
+ *
+ * Deliberately does NOT throw. An audit that exists without an instance is
+ * recoverable — the serving route issues idempotently on first fetch — whereas
+ * failing the submit or the payment verification over it would lose a paid
+ * audit for a reason the customer cannot act on. The failure is logged so a
+ * systematic problem is visible rather than silently absorbed.
+ */
+export async function ensureInstanceIssued(auditId: string): Promise<boolean> {
+  try {
+    await issueInstance(auditId, supabaseIssuanceStore());
+    return true;
+  } catch (err) {
+    console.warn(`[issuance] could not issue an instance for ${auditId}: ${String(err).slice(0, 200)}`);
+    return false;
+  }
 }

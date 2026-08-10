@@ -256,6 +256,8 @@ const en = {
   "audit.pdf": "Download PDF",
   "status.awaiting_payment": "Awaiting payment",
   "status.awaiting_evidence": "Awaiting evidence",
+  "aud.evidence.how":
+    "Fetch this audit's instance with your wallet, run it locally with @solverdict/harness, then submit the evidence bundle. Steps:",
   "status.queued": "Queued",
   "status.running": "Running",
   "status.done": "Done",
@@ -562,6 +564,8 @@ const pt: Record<TKey, string> = {
   "audit.pdf": "Baixar PDF",
   "status.awaiting_payment": "Aguardando pagamento",
   "status.awaiting_evidence": "Aguardando evidências",
+  "aud.evidence.how":
+    "Obtenha a instância desta auditoria com a sua carteira, rode-a localmente com o @solverdict/harness e envie o pacote de evidências. Passos:",
   "status.queued": "Na fila",
   "status.running": "Executando",
   "status.done": "Concluída",
