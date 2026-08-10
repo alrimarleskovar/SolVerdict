@@ -125,8 +125,7 @@ function makePorts(row: IntakeAuditRow | null, overrides: Partial<IntakePorts> =
     enqueue: async (auditId, ref) => {
       enqueued.push({ auditId, ref });
     },
-    repoRoot: path.resolve(process.cwd(), ".."),
-    preregSha256: () => SERVER_PREREG,
+    preregSha256: SERVER_PREREG,
     ...overrides,
   };
   return { ports, enqueued };
@@ -249,7 +248,7 @@ test("a bundle produced under a different prereg is rejected (methodology)", asy
   const wallet = Keypair.generate();
   const sub = validSubmission(auditId, wallet);
   const { result } = await run(auditId, sub, baseRow(auditId, wallet.publicKey.toBase58()), {
-    ports: { preregSha256: () => "sha256:" + "0".repeat(64) },
+    ports: { preregSha256: "sha256:" + "0".repeat(64) },
   });
   assert.equal(result.reason, "prereg-mismatch");
 });

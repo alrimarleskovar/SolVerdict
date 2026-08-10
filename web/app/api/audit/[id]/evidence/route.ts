@@ -25,8 +25,8 @@ import {
   type IntakePorts,
   type SubmittedManifest,
 } from "../../../../../lib/evidence-intake";
-import { certifyPrereg } from "../../../../../../lib/prereg";
 import { MAX_BUNDLE_BYTES } from "../../../../../lib/audit-protocol";
+import { PREREG } from "../../../../../../config/prereg";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -35,7 +35,6 @@ export const fetchCache = "force-no-store";
 
 const NO_STORE = { "cache-control": "no-store, no-cache, must-revalidate", "cdn-cache-control": "no-store" } as const;
 
-const REPO_ROOT = path.resolve(process.cwd(), "..");
 const EVIDENCE_DIR = process.env.SOLVERDICT_EVIDENCE_DIR ?? path.join(tmpdir(), "solverdict-evidence");
 
 function ports(): IntakePorts {
@@ -68,10 +67,17 @@ function ports(): IntakePorts {
         .upsert({ audit_id: auditId, enqueued_at: new Date().toISOString() }, { onConflict: "audit_id" });
       if (qErr) throw new Error(qErr.message);
     },
-    repoRoot: REPO_ROOT,
-    preregSha256: (root) => certifyPrereg(root).sha256,
+    // The pinned literal from config/prereg.ts — see IntakePorts. Nothing in
+    // the request path may touch the repository: the serverless bundle has none.
+    preregSha256: PREREG.sha256,
   };
 }
+
+/**
+ * The production ports, exported so a test can assert they work with no
+ * repository on disk — the condition Vercel actually runs under.
+ */
+export const productionPorts = ports;
 
 /**
  * The handler proper, with its ports injected.

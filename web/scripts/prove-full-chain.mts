@@ -156,8 +156,7 @@ const intakePorts: IntakePorts = {
     void manifest;
     queue.push(id);
   },
-  repoRoot: REPO_ROOT,
-  preregSha256: (root) => certifyPrereg(root).sha256,
+  preregSha256: certifyPrereg(REPO_ROOT).sha256 ?? "",
 };
 
 // ---------------------------------------------------------------------------

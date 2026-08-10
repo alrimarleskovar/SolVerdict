@@ -18,6 +18,15 @@
  * moment the web build reaches a root dependency /web does not declare, instead
  * of that surfacing as a red deploy twenty minutes later.
  *
+ * WHY THE FILESYSTEM CHECK IS HERE. The same assumption broke production a
+ * second time, at runtime: the intake route hashed the pre-registration
+ * document off the repo root, which a serverless bundle does not contain, so
+ * every submission answered "server cannot read its own prereg document". A
+ * module reachable from the web build may only read paths it was HANDED at
+ * runtime (an extracted bundle in a temp dir), never a file that happens to sit
+ * in the repository. Each fs-reading module above /web must be listed below
+ * with the reason it is safe.
+ *
  * WHY THE NUL CHECK IS HERE. issuance/derive.ts contained a literal NUL byte in
  * a template literal. file(1) called it `data`, and grep silently skipped it —
  * a dependency audit of the very file that was breaking the build came back
@@ -31,6 +40,28 @@ import path from "node:path";
 const WEB = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
 const ROOT = path.resolve(WEB, "..");
 const APP = path.join(WEB, "app");
+
+/**
+ * Modules ABOVE /web that touch the filesystem and are allowed to, because the
+ * paths they read are handed to them at runtime rather than assumed to exist in
+ * a repository.
+ */
+const FS_READERS_ALLOWED: Record<string, string> = {
+  "issuance/verify.ts": "reads the extracted bundle under a per-request temp dir",
+  "scoring/rescore.ts": "reads the extracted bundle under a per-request temp dir",
+};
+
+/**
+ * Modules that read a REPOSITORY file. Reachable from the web build means
+ * broken on Vercel, where the bundle ships no repository.
+ */
+const REPO_FILE_READERS: Record<string, string> = {
+  "lib/prereg.ts":
+    "hashes tripwire-prereg-*.md off disk — the request path must use the PREREG.sha256 literal instead",
+  "lib/evidence.ts": "packages evidence from runs/ — bench-side only",
+};
+
+const FS_READ = /\b(readFileSync|readdirSync|statSync|lstatSync|existsSync|createReadStream|opendirSync)\s*\(/;
 
 const deps = new Set(
   Object.keys(
@@ -96,6 +127,8 @@ for (const f of queue) seen.add(f);
 const rootDeps = new Map<string, string[]>(); // package → root files needing it
 const rootModules: string[] = [];
 const nulFiles: string[] = [];
+const repoReaders: string[] = [];
+const unlistedFsReaders: string[] = [];
 
 while (queue.length) {
   const file = queue.shift()!;
@@ -105,7 +138,12 @@ while (queue.length) {
   const src = bytes.toString("utf8");
 
   const outsideWeb = !file.startsWith(WEB + path.sep);
-  if (outsideWeb) rootModules.push(path.relative(ROOT, file));
+  if (outsideWeb) {
+    const rel = path.relative(ROOT, file);
+    rootModules.push(rel);
+    if (rel in REPO_FILE_READERS) repoReaders.push(rel);
+    else if (FS_READ.test(stripComments(src)) && !(rel in FS_READERS_ALLOWED)) unlistedFsReaders.push(rel);
+  }
 
   for (const { spec, typeOnly } of specifiers(src)) {
     if (spec.startsWith(".")) {
@@ -147,6 +185,22 @@ assert.deepEqual(
     "\nAdd them to web/package.json (they must be installed where Vercel installs).",
 );
 
+// --- nothing in the request path may assume a repository ---------------------
+assert.deepEqual(
+  repoReaders,
+  [],
+  "the web build reaches module(s) that read a REPOSITORY file at runtime:\n" +
+    repoReaders.map((m) => `  ${m} — ${REPO_FILE_READERS[m]}`).join("\n") +
+    "\nVercel ships no repository; this fails at request time, not build time.",
+);
+assert.deepEqual(
+  unlistedFsReaders,
+  [],
+  "module(s) above /web touch the filesystem and are not listed as safe:\n" +
+    unlistedFsReaders.map((m) => `  ${m}`).join("\n") +
+    "\nAdd to FS_READERS_ALLOWED with the reason the path is runtime-supplied, or stop reading files.",
+);
+
 // --- sources must be readable by every tool ---------------------------------
 assert.deepEqual(
   nulFiles,
@@ -156,5 +210,6 @@ assert.deepEqual(
 
 console.log(
   `root-imports guard passed (${seen.size} modules in the web build, ${rootModules.length} above /web, ` +
-    `${rootDeps.size} root dependency/ies: ${[...rootDeps.keys()].sort().join(", ") || "none"})`,
+    `${rootDeps.size} root dependency/ies: ${[...rootDeps.keys()].sort().join(", ") || "none"}, ` +
+    `no repo-file readers)`,
 );

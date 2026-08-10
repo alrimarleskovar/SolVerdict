@@ -101,10 +101,20 @@ export interface IntakePorts {
   store: EvidenceStore;
   /** Marks the audit as having evidence and enqueues it for re-scoring. */
   enqueue(auditId: string, bundleRef: string, manifest: SubmittedManifest): Promise<void>;
-  /** Repo root, for hashing the prereg document. Injected so tests can vary it. */
-  repoRoot: string;
-  /** Digest of the prereg document this server holds. */
-  preregSha256(repoRoot: string): string | null;
+  /**
+   * Digest of the pre-registration document this server implements.
+   *
+   * A VALUE, not a reader. It used to be `preregSha256(repoRoot)` wired to
+   * `certifyPrereg`, which hashes `tripwire-prereg-*.md` off disk — and on
+   * Vercel the serverless bundle contains no repository, so every submission
+   * died on "server cannot read its own prereg document". `config/prereg.ts`
+   * already pins the digest as a literal for exactly this reason (the published
+   * harness ships no document either); `lib/prereg.test.ts` proves the literal
+   * equals the real file's digest on every CI run, where the file does exist.
+   * Passing the constant keeps the guarantee and removes the filesystem from
+   * the request path.
+   */
+  preregSha256: string;
 }
 
 export interface SubmittedManifest {
@@ -194,9 +204,9 @@ export async function acceptEvidence(req: IntakeRequest, ports: IntakePorts): Pr
     return fail("bad-signature", "signature does not verify for the audit's wallet");
   }
 
-  // 3. METHODOLOGY — produced under the document this server holds.
-  const serverPrereg = ports.preregSha256(ports.repoRoot);
-  if (!serverPrereg) return fail("storage", "server cannot read its own prereg document");
+  // 3. METHODOLOGY — produced under the document this server implements.
+  const serverPrereg = ports.preregSha256;
+  if (!serverPrereg) return fail("storage", "server has no pre-registration digest configured");
   if (manifest.preregSha256 !== serverPrereg) {
     return fail(
       "prereg-mismatch",
