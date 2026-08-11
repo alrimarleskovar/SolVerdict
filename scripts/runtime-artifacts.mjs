@@ -22,6 +22,11 @@ export const SHIPPED_ASSETS = new Set([
   "env/fork-config.json", // datasource RPC + slot time; read, never written
   "config/allowlist.json",
   "config/denylist.json",
+  // The pinned account set customer forks serve from, and its provenance.
+  // Read-only at runtime and REQUIRED in the tarball: without it an offline
+  // client cannot start a fork at all.
+  "env/fixtures.snapshot.json",
+  "env/fixtures.snapshot.meta.json",
 ]);
 
 /**

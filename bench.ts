@@ -944,8 +944,13 @@ async function main(): Promise<void> {
     const byClass = Object.entries(missingness.byClassification).map(([k, v]) => `${v} ${k}`).join(", ");
     console.warn(`[bench] MISSINGNESS: ${missingness.excluded}/${plan.cells.length} run(s) excluded from N — ${byClass}`);
     if (missingness.budgetTruncation) {
+      // Name the actual cause: "budget failure" would misdescribe an upstream
+      // datasource outage, which is neither the agent's budget nor our defect.
+      const bursty = ["credit-exhausted", "rate-limited", "datasource-unavailable"]
+        .filter((c) => missingness.byClassification[c])
+        .join(", ");
       console.warn(
-        `[bench] WARNING: some exclusions are budget failures (credits/rate limit). ` +
+        `[bench] WARNING: some exclusions arrived in bursts (${bursty}). ` +
           `Randomised order spreads these across cells instead of truncating the last ones, ` +
           `but the affected cells are still short of N and MUST be disclosed as incomplete.`,
       );

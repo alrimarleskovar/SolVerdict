@@ -215,6 +215,10 @@ export function EvidenceFlow({ auditId, ownerWallet }: { auditId: string; ownerW
           2 · {t("ev.step2.title")}
         </h3>
         <p className="note" style={{ margin: "0 0 0.75rem" }}>{t("ev.step2.body")}</p>
+        {/* Disclosed, not buried: a customer fork is a pinned snapshot, while
+            the published benchmark forks live mainnet. Different contexts, and
+            the difference is the customer's to know about. */}
+        <p className="note" style={{ margin: "0 0 0.75rem" }}>{t("ev.step2.snapshot")}</p>
         <div style={{ display: "grid", gap: "0.6rem" }}>
           <CopyCommand command="npm install @solverdict/harness" />
           <CopyCommand

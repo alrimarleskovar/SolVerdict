@@ -47,6 +47,42 @@ interface ForkConfig {
   slotTimeMs: number;
 }
 
+/** The pinned account snapshot, shipped with the package, and its provenance. */
+const SNAPSHOT_PATH = path.join(ROOT, "env", "fixtures.snapshot.json");
+const SNAPSHOT_META_PATH = path.join(ROOT, "env", "fixtures.snapshot.meta.json");
+
+/**
+ * OFFLINE MODE — customer audits only, and opt-in.
+ *
+ * Surfpool 1.3.1 serves no account read locally: every one passes through to
+ * the datasource, and writing an account first changes nothing (measured — five
+ * identical probes cost five upstream calls). A single run therefore makes ~10
+ * calls to the datasource and a 400-run audit makes ~4,000, against which a
+ * public endpoint eventually says no: the first N=20 customer-shaped campaign
+ * lost 13 of 400 runs that way, twelve of them consecutively.
+ *
+ * Almost all of that traffic is pointless. Of the 150 distinct accounts one
+ * campaign asked mainnet about, exactly ONE exists there (the USDC mint); the
+ * rest are ephemeral wallets, derived mints and ATAs that can only ever come
+ * back null. So the fork is asking a public RPC, thousands of times, about
+ * accounts it will never find.
+ *
+ * `--offline --snapshot` replaces that with a pinned set of real accounts and
+ * removes the network from the campaign entirely (measured: 35 upstream calls
+ * -> 0, with identical verdicts).
+ *
+ * WHY THIS IS OPT-IN AND NOT THE DEFAULT. Prereg §3 declares the fork's
+ * datasource, and the official campaign is run once at maximum fidelity against
+ * live mainnet. Customer audits are run repeatedly and need clean results more
+ * than they need this morning's mainnet. So bench.ts keeps the declared
+ * datasource untouched and §3 stands unamended, while the client runner opts
+ * in. The switch is CONFIGURATION, not a second code path: this file is
+ * byte-identical between the repo and the published package (enforced by
+ * check-harness-drift.mjs), and a fork of it would be a far worse trade than
+ * one environment variable.
+ */
+const OFFLINE = process.env.SOLVERDICT_FORK_OFFLINE === "1";
+
 async function rpc(method: string, params: unknown[] = []): Promise<unknown> {
   const res = await fetch(SURFPOOL_INTERNAL_URL, {
     method: "POST",
@@ -127,6 +163,12 @@ export async function ensureSurfpool(): Promise<number> {
   const cfg = JSON.parse(readFileSync(FORK_CONFIG_PATH, "utf8")) as ForkConfig;
   mkdirSync(path.dirname(LOG_PATH), { recursive: true });
   console.log(`[surfpool] launching surfnet on :${SURFPOOL_INTERNAL_PORT} (datasource: fork-config.json)`);
+  if (OFFLINE && !existsSync(SNAPSHOT_PATH)) {
+    throw new Error(
+      `SOLVERDICT_FORK_OFFLINE=1 but no account snapshot at ${SNAPSHOT_PATH}. ` +
+        "Regenerate it with scripts/build-fork-snapshot.ts, or unset the variable to fork from the live datasource.",
+    );
+  }
   const child = spawn(
     "surfpool",
     [
@@ -135,7 +177,11 @@ export async function ensureSurfpool(): Promise<number> {
       "--no-deploy",
       "--airdrop-amount", "0", // funding happens ONLY via cheatcodes per wallet
       "--port", String(SURFPOOL_INTERNAL_PORT),
-      "--rpc-url", cfg.datasourceRpcUrl, // datasource for fork sourcing ONLY
+      // Offline serves accounts from the pinned snapshot and never opens a
+      // socket to mainnet; --rpc-url and --offline are mutually exclusive.
+      ...(OFFLINE
+        ? ["--offline", "--snapshot", SNAPSHOT_PATH]
+        : ["--rpc-url", cfg.datasourceRpcUrl]), // datasource for fork sourcing ONLY
       "--slot-time", String(cfg.slotTimeMs),
     ],
     { detached: true, stdio: ["ignore", "ignore", "ignore"], cwd: ROOT },
@@ -146,6 +192,7 @@ export async function ensureSurfpool(): Promise<number> {
   const deadline = Date.now() + 60_000;
   while (Date.now() < deadline) {
     if (await surfpoolIsUp()) {
+      if (OFFLINE) await alignOfflineClock();
       return persistForkSlotIfFirstLaunch();
     }
     await new Promise((r) => setTimeout(r, 500));
@@ -155,6 +202,46 @@ export async function ensureSurfpool(): Promise<number> {
       "  curl -sL -o /tmp/sp.tgz https://github.com/solana-foundation/surfpool/releases/download/v1.3.1/surfpool-linux-x64.tar.gz\n" +
       "  tar xzf /tmp/sp.tgz -C ~/.local/bin && surfpool --version",
   );
+}
+
+/**
+ * Moves an offline surfnet's clock to the snapshot's slot.
+ *
+ * An offline surfnet boots at slot ~0, and absolute slot numbers are evidence.
+ * E2 reads state deliberately stale by 5000 slots; on a fork starting at zero
+ * that renders as `asOfSlot=-4941, current=59` — a NEGATIVE slot in a customer's
+ * evidence bundle. The verdict survives (the check compares the 5000-slot delta
+ * against the policy, not the absolute values) which is precisely why this is
+ * worth doing deliberately: it would have gone unnoticed while quietly printing
+ * nonsense. The fork slot the bundle DECLARES would have been ~0 as well.
+ *
+ * After the jump, E2 reads `asOfSlot=438608020, current=438613020` — the same
+ * shape as an online run.
+ */
+async function alignOfflineClock(): Promise<void> {
+  const snapshotSlot = readSnapshotSlot();
+  if (snapshotSlot === null) return; // pre-slot snapshot: leave the clock alone
+  const current = (await rpc("getSlot", [{ commitment: "finalized" }])) as number;
+  if (current >= snapshotSlot) return; // already ahead; never move a clock backwards
+  await rpc("surfnet_timeTravel", [{ absoluteSlot: snapshotSlot }]);
+  console.log(`[surfpool] offline fork aligned to snapshot slot ${snapshotSlot}`);
+}
+
+/**
+ * The slot the snapshot was captured at.
+ *
+ * In a SIDECAR, not the snapshot: surfpool parses the snapshot as a bare
+ * pubkey→account map, so an extra `_capturedAtSlot` key would fail to
+ * deserialise as an account and the fork would refuse to start. The sidecar
+ * also carries the provenance the customer-facing disclosure quotes.
+ */
+function readSnapshotSlot(): number | null {
+  try {
+    const meta = JSON.parse(readFileSync(SNAPSHOT_META_PATH, "utf8")) as { capturedAtSlot?: number };
+    return typeof meta.capturedAtSlot === "number" ? meta.capturedAtSlot : null;
+  } catch {
+    return null;
+  }
 }
 
 /**

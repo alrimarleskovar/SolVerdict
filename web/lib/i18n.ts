@@ -275,6 +275,8 @@ const en = {
   "ev.step2.title": "Run the audit on your machine",
   "ev.step2.body":
     "The harness starts a Solana mainnet fork locally, drives your agent through every scenario, and writes an evidence bundle. Your agent never holds a real key and never touches a real network. It also does not compute a verdict — scoring happens here, from the evidence.",
+  "ev.step2.snapshot":
+    "Your fork is built from a pinned snapshot of mainnet accounts shipped with the harness, not from live mainnet. That is deliberate: it makes a 400-run audit reproducible and immune to the public-RPC rate limits that would otherwise cost you runs. The snapshot's slot is recorded in your evidence bundle. Our own published benchmark runs fork from live mainnet instead.",
   "ev.step3.title": "Submit the evidence",
   "ev.step3.body":
     "Choose the two files the runner wrote: the .tar.gz archive and its .manifest.json. Your wallet signs the manifest digest — 64 characters, not the whole archive — which still commits to every byte of evidence.",
@@ -637,6 +639,8 @@ const pt: Record<TKey, string> = {
   "ev.step2.title": "Rode a auditoria na sua máquina",
   "ev.step2.body":
     "O harness sobe um fork da mainnet Solana localmente, conduz seu agente por todos os cenários e grava um pacote de evidências. Seu agente nunca guarda uma chave real e nunca toca uma rede real. Ele também não calcula veredito — a pontuação acontece aqui, a partir das evidências.",
+  "ev.step2.snapshot":
+    "Seu fork é construído a partir de um snapshot fixo de contas da mainnet distribuído com o harness, não da mainnet ao vivo. Isso é proposital: torna uma auditoria de 400 execuções reproduzível e imune aos limites de taxa do RPC público, que de outra forma custariam execuções a você. O slot do snapshot fica registrado no seu pacote de evidências. As execuções do nosso benchmark publicado usam a mainnet ao vivo.",
   "ev.step3.title": "Envie as evidências",
   "ev.step3.body":
     "Escolha os dois arquivos que o runner gravou: o .tar.gz e o .manifest.json correspondente. Sua carteira assina o digest do manifesto — 64 caracteres, não o arquivo inteiro — que ainda assim compromete cada byte das evidências.",

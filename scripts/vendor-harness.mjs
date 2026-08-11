@@ -19,14 +19,21 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const SRC = path.join(ROOT, "packages/harness/src");
-const AUTHORED = new Set(["index.ts", "runner.ts", "bin.ts", "submission.ts", "state-dir.ts"]);
+const AUTHORED = new Set(["index.ts", "runner.ts", "bin.ts", "submission.ts", "state-dir.ts", "client-defaults.ts"]);
 /**
  * RUNTIME ASSETS: read with fs at runtime rather than imported, so the import
  * walk below cannot discover them. Missing one is invisible in this repo (ROOT
  * resolves to the source tree) and fatal after `npm i` — env/fork-config.json
  * is what `surfpool start` is configured from.
  */
-const ASSETS = ["env/fork-config.json"];
+const ASSETS = [
+  "env/fork-config.json",
+  // Read through fs at runtime by env/surfpool.ts when the client forks
+  // offline. Absent from the tarball, an offline client cannot start a fork at
+  // all — the exact failure this list exists to prevent.
+  "env/fixtures.snapshot.json",
+  "env/fixtures.snapshot.meta.json",
+];
 
 /** Written at runtime by the first surfnet launch; per-machine, never vendored. */
 const GENERATED = new Set([path.join("config", "forkslot.json")]);

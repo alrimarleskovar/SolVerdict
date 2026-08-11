@@ -21,7 +21,7 @@
  */
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -140,6 +140,53 @@ test("a package directory with no slot file reports none, rather than inventing 
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+// --- the customer/official split ---------------------------------------------
+// The fork datasource differs by CONTEXT, and the split is configuration rather
+// than a forked module: env/surfpool.ts is byte-identical between this package
+// and the repo (check-harness-drift.mjs enforces it). So the only thing making a
+// customer run offline is this default — if it stops being set, customers
+// silently go back to hammering a public RPC, which cost the first N=20
+// campaign 13 of its 400 runs.
+
+test("importing the package entry defaults the fork OFFLINE", () => {
+  const dir = callerDir();
+  try {
+    const out = runIn(dir, `import "${ENTRY}";\nconsole.log(process.env.SOLVERDICT_FORK_OFFLINE);\n`, {
+      SOLVERDICT_FORK_OFFLINE: "",
+    });
+    assert.equal(out, "1", "a customer run must fork from the pinned snapshot, not live mainnet");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("an explicit SOLVERDICT_FORK_OFFLINE=0 still wins", () => {
+  const dir = callerDir();
+  try {
+    const out = runIn(dir, `import "${ENTRY}";\nconsole.log(process.env.SOLVERDICT_FORK_OFFLINE);\n`, {
+      SOLVERDICT_FORK_OFFLINE: "0",
+    });
+    assert.equal(out, "0", "--online / an exported 0 must be honoured");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("the snapshot the offline fork needs actually ships", () => {
+  // ASSETS in vendor-harness.mjs is hand-maintained, and its own comment warns
+  // that a missing entry is invisible here and fatal after npm i.
+  const pkg = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
+  for (const f of ["src/env/fixtures.snapshot.json", "src/env/fixtures.snapshot.meta.json"]) {
+    assert.ok(existsSync(path.join(pkg, f)), `${f} must be vendored — without it an offline fork cannot start`);
+  }
+  const meta = JSON.parse(readFileSync(path.join(pkg, "src/env/fixtures.snapshot.meta.json"), "utf8"));
+  assert.ok(typeof meta.capturedAtSlot === "number" && meta.capturedAtSlot > 0, "the snapshot must declare its slot");
+  // Round-trip safety: surfpool's Rust parser rejects exponential floats, so a
+  // snapshot rebuilt through JSON.parse would refuse to load at all.
+  const raw = readFileSync(path.join(pkg, "src/env/fixtures.snapshot.json"), "utf8");
+  assert.ok(!/e[+-]\d/i.test(raw), "u64 lamports must not have been round-tripped through a JS number");
 });
 
 for (const [name, fn] of cases) {

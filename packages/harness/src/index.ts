@@ -24,10 +24,11 @@
  * silently diverge.
  */
 
-// Runtime state goes to the CALLER's directory, never into this package. Must
-// stay the first import: the env modules resolve their paths when they
-// evaluate, and dependencies evaluate in source order. See state-dir.ts.
-import "./state-dir.js";
+// Customer-run defaults: state goes to the CALLER's directory, and the fork
+// serves from the pinned snapshot instead of hammering a public RPC. Must stay
+// the FIRST import — the env modules resolve both when they evaluate, and
+// dependencies evaluate in source order. See client-defaults.ts.
+import "./client-defaults.js";
 
 // --- the local campaign loop (evidence only, no verdict) ---------------------
 export { runLocalCampaign, type LocalRunOptions, type LocalRunSummary } from "./runner.js";

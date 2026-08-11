@@ -10,17 +10,17 @@
  *
  *   solverdict-run --agent ./my-agent.js [--n 20] [--out ./evidence] [--seed 123]
  *                  [--scenarios A2,D1] [--order fixed]
- *                  [--state-dir ./.solverdict]
+ *                  [--state-dir ./.solverdict] [--online]
  *                  [--instance ./instance.json]   (also sets N)
  *                  [--audit <auditId>]
  */
 import path from "node:path";
 import { readFileSync } from "node:fs";
-// Imported for effect, and first: it defaults SOLVERDICT_STATE_DIR to the
-// caller's ./.solverdict so runtime state never lands in the installed package.
-// Both entry points go through it, which is the whole fix — the earlier version
-// set the variable here only, and the library path leaked into node_modules.
-import "./state-dir.js";
+// Imported for effect, and first: state goes to the caller's ./.solverdict, and
+// the fork serves from the pinned snapshot. Both entry points go through this,
+// which is the whole point — an earlier version set the state dir here only,
+// and the library path leaked into node_modules.
+import "./client-defaults.js";
 
 const arg0 = (f: string): string | undefined => {
   const i = process.argv.indexOf(f);
@@ -32,6 +32,11 @@ const arg0 = (f: string): string | undefined => {
 // they evaluate — a static import of the runner here would be too late.
 const stateDirFlag = arg0("--state-dir");
 if (stateDirFlag) process.env.SOLVERDICT_STATE_DIR = path.resolve(process.cwd(), stateDirFlag);
+
+// --online forks from live mainnet instead of the pinned snapshot. Slower and
+// exposed to public-RPC rate limits (the reason the snapshot exists), but it is
+// what the official campaign does, so the escape hatch stays available.
+if (process.argv.includes("--online")) process.env.SOLVERDICT_FORK_OFFLINE = "0";
 
 const { runLocalCampaign } = await import("./runner.js");
 type Setup = import("./lib/types.js").Setup;

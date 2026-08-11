@@ -17,6 +17,13 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 function isTransient(err: unknown): boolean {
   const m = (err instanceof Error ? err.message : String(err)).toLowerCase();
   return (
+    // Surfpool's own upstream-fetch failure. It reads as a sentence about
+    // fetching and matched none of the patterns below — the word order is
+    // "Failed to fetch accounts", not "fetch failed" — so it was thrown on the
+    // first attempt and never retried. It is re-askable: the account is still
+    // there, the datasource was momentarily unwilling. Retried on the SLOW
+    // budget, since re-asking is exactly what must not be done in a hurry.
+    isDatasourceFailure(err) ||
     m.includes("internal error") ||
     m.includes("-32603") ||
     m.includes("fetch failed") ||
@@ -31,10 +38,42 @@ function isTransient(err: unknown): boolean {
 }
 
 /**
+ * An upstream failure: the surfnet asked the mainnet datasource for accounts and
+ * the datasource refused. Distinguished from a local surfnet wobble because the
+ * right response is opposite. A local blip clears in milliseconds and retrying
+ * costs nothing; a public RPC under load is refusing BECAUSE of the load, and
+ * every retry re-issues the same upstream fetch — surfpool 1.3.1 passes every
+ * account read through to the datasource, so our retry is extra load on the
+ * thing that is already saturated.
+ */
+function isDatasourceFailure(err: unknown): boolean {
+  const m = (err instanceof Error ? err.message : String(err)).toLowerCase();
+  return m.includes("fetch accounts from remote") || (m.includes("internal error") && /\bget[a-z]/i.test(m));
+}
+
+/** Full jitter (AWS's term): sleep anywhere in [0, cap), not cap exactly. */
+const backoffMs = (attempt: number, base: number): number => Math.round(Math.random() * base * 2 ** attempt);
+
+/**
  * One surfnet JSON-RPC call, with bounded retry on transient errors. Permanent
  * errors (bad params, unknown method) throw on the first attempt. Surviving the
  * full retry budget rethrows the last error so the caller (funding.ts) can
  * decide whether to restart Surfpool.
+ *
+ * TWO BUDGETS, because two different failures wear the same clothes.
+ *
+ * A local surfnet blip deserves the old behaviour: retry quickly, a few times.
+ * A DATASOURCE failure does not. The N=20 campaign lost 13 runs to a public-RPC
+ * outage that ran for twelve consecutive runs — minutes, against a budget that
+ * totalled 1.75 s. Retrying four times could not have bridged it, and each
+ * retry re-asked the saturated endpoint, so the old policy added load during
+ * precisely the event it was trying to survive.
+ *
+ * So: fewer attempts against the datasource, spaced much further apart, with
+ * full jitter so a campaign's runs stop retrying in lockstep. This does not
+ * make a rate-limited public endpoint work — nothing client-side does; the
+ * offline snapshot path is what removes the dependency. It stops us making the
+ * outage worse, and gives a short one room to clear.
  */
 async function surfnetRpc<T>(method: string, params: unknown[], attempts = 4): Promise<T> {
   let lastErr: unknown;
@@ -50,12 +89,23 @@ async function surfnetRpc<T>(method: string, params: unknown[], attempts = 4): P
       return body.result as T;
     } catch (err) {
       lastErr = err;
-      if (i === attempts - 1 || !isTransient(err)) throw err;
-      await sleep(250 * 2 ** i); // 250ms, 500ms, 1s
+      if (!isTransient(err)) throw err;
+      const upstream = isDatasourceFailure(err);
+      // Cap attempts separately: re-asking an overloaded endpoint is the one
+      // retry that can make things worse, so it gets fewer tries, not more.
+      const budget = upstream ? DATASOURCE_ATTEMPTS : attempts;
+      if (i >= budget - 1) throw err;
+      await sleep(backoffMs(i, upstream ? DATASOURCE_BASE_MS : LOCAL_BASE_MS));
     }
   }
   throw lastErr;
 }
+
+/** Local wobble: 250ms/500ms/1s of jitter across 4 attempts, as before. */
+const LOCAL_BASE_MS = 250;
+/** Upstream: 3 attempts spread over ~2s/4s of jitter — ~6s, not 1.75s. */
+const DATASOURCE_ATTEMPTS = 3;
+const DATASOURCE_BASE_MS = 2_000;
 
 /** Sets an account's lamports (creates the account if missing). */
 export async function setAccountLamports(pubkey: string, lamports: bigint): Promise<void> {

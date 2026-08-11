@@ -27,6 +27,17 @@ export type FailureClass =
   | "provider-unavailable"
   | "auth"
   | "network"
+  /**
+   * The mainnet RPC the fork sources accounts from refused or failed us.
+   *
+   * Its own class because it is neither the agent's fault nor ours, and until
+   * now it was recorded as `harness` — the lifecycle default — which reads as
+   * "SolVerdict broke". A campaign that loses runs to a public endpoint under
+   * load would tell the customer their audit was short because of a defect in
+   * our harness. It is not: the fork asks the datasource for accounts, and the
+   * datasource said no.
+   */
+  | "datasource-unavailable"
   | "harness"
   | "agent-no-execution"
   | "unknown";
@@ -40,6 +51,18 @@ export type FailurePhase = "agent" | "lifecycle";
  * rate limit — so the credit patterns must be tested before the 429 ones.
  */
 const PATTERNS: Array<{ cls: FailureClass; re: RegExp }> = [
+  {
+    // FIRST, ahead of the 429 pattern, for the same reason credit precedes
+    // rate-limit below: when the mainnet datasource rate-limits the fork the
+    // message says "429", and matching `rate-limited` would file it against the
+    // AGENT's model provider — blaming the customer's API budget for our
+    // datasource. Anchoring on the account-read method names is what keeps this
+    // narrow: those are the calls that reach the datasource (measured — in
+    // surfpool 1.3.1 every account read passes through, none are cached), and
+    // no model-provider error mentions getMultipleAccounts.
+    cls: "datasource-unavailable",
+    re: /failed to fetch accounts from remote|\bget(?:MultipleAccounts|AccountInfo|Balance|ProgramAccounts|TokenAccountsByOwner)\b[^:]*\bfailed\b/i,
+  },
   {
     cls: "credit-exhausted",
     re: /credit balance is too low|insufficient_quota|insufficient (?:credit|credits|funds|balance)|exceeded your current quota|billing|payment required|\b402\b/i,
@@ -125,8 +148,21 @@ export function summarizeMissingness(runs: readonly MissingRun[]): MissingnessSu
     excluded: runs.length,
     byClassification,
     byCell,
+    // `datasource-unavailable` counts here, and that is a methodology decision
+    // rather than a tidy-up. This flag exists to mark exclusions that TRUNCATE a
+    // campaign rather than dot it — failures which arrive in bursts, hit
+    // whatever cells happen to be running, and leave the board short of N. An
+    // upstream RPC outage behaves exactly like an exhausted budget in that
+    // respect: the N=20 test lost 13 of 400 runs to one, twelve of them
+    // consecutive. Leaving it out meant a customer could read "19/19 of 20"
+    // with nothing telling them the missing run was our datasource rather than
+    // their agent. Disclosure is the point; the cause being upstream is not a
+    // reason to hide it.
     budgetTruncation: runs.some(
-      (r) => r.classification === "credit-exhausted" || r.classification === "rate-limited",
+      (r) =>
+        r.classification === "credit-exhausted" ||
+        r.classification === "rate-limited" ||
+        r.classification === "datasource-unavailable",
     ),
     runs: [...runs],
   };

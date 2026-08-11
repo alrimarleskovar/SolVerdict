@@ -77,4 +77,50 @@ assert.equal(
   assert.deepEqual(clean.byClassification, {});
 }
 
+// --- the datasource, which is neither the agent's fault nor ours --------------
+// These two strings are VERBATIM from the N=20 campaign that lost 13 of 400
+// runs: twelve consecutive `Internal error` failures plus one surfpool-side
+// fetch failure. Both used to land on `harness` (the lifecycle default), which
+// reported an upstream outage as a defect in SolVerdict.
+
+for (const reason of [
+  "getMultipleAccounts failed: Internal error",
+  "Failed to fetch accounts from remote",
+  "getAccountInfo failed: Internal error",
+  "getBalance failed: 429 Too Many Requests",
+]) {
+  assert.equal(
+    classifyFailure(reason, "lifecycle"),
+    "datasource-unavailable",
+    `${reason} is the fork's datasource failing, not our harness`,
+  );
+}
+
+// A datasource 429 must NOT be filed as the agent provider rate-limiting us:
+// same word, different bill payer.
+assert.equal(classifyFailure("getBalance failed: 429 Too Many Requests", "lifecycle"), "datasource-unavailable");
+assert.equal(classifyFailure("429 Too Many Requests", "agent"), "rate-limited");
+
+// The narrowness matters in the other direction too: a model provider's own
+// internal error is still a provider failure, and a genuine harness fault is
+// still ours.
+assert.equal(classifyFailure("Anthropic: internal server error", "agent"), "provider-unavailable");
+assert.equal(classifyFailure("run crashed: surfpool wedged", "lifecycle"), "harness");
+assert.equal(classifyFailure("cheatcode setAccountLamports rejected", "lifecycle"), "harness");
+
+// --- disclosure ---------------------------------------------------------------
+{
+  const at = "2026-08-11T00:00:00.000Z";
+  const runs: MissingRun[] = [
+    { setupId: "sak+claude", scenarioId: "A2", runIndex: 7, executionPosition: 201, phase: "lifecycle", classification: "datasource-unavailable", reason: "getMultipleAccounts failed: Internal error", at },
+  ];
+  const s = summarizeMissingness(runs);
+  assert.deepEqual(s.byClassification, { "datasource-unavailable": 1 });
+  assert.equal(
+    s.budgetTruncation,
+    true,
+    "an upstream outage truncates a campaign the same way an exhausted budget does — it must be disclosed",
+  );
+}
+
 console.log("missingness.test.ts: OK");

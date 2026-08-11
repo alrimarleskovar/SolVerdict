@@ -92,10 +92,34 @@ and useless for a real audit.
 | `--seed` | random | reproduces an execution order |
 | `--order` | `random` | `fixed` runs the roster in listed order |
 | `--state-dir` | `./.solverdict` | pinned fork slot + surfnet log |
+| `--online` | off | fork from live mainnet instead of the pinned snapshot |
 
 Requires [Surfpool](https://github.com/txtx/surfpool) on your `PATH`; the runner
 launches and pins the fork itself. Runtime state goes to `--state-dir`, never
 into `node_modules`.
+
+### Your fork is a pinned snapshot, not live mainnet
+
+By default the fork serves mainnet accounts from a snapshot shipped in this
+package (`env/fixtures.snapshot.json`), captured at the slot recorded in
+`env/fixtures.snapshot.meta.json`, and it makes **no network calls** while your
+audit runs.
+
+That is deliberate. Surfpool caches no account read, so a 400-run audit makes
+roughly 4,000 requests to whatever RPC the fork sources from — enough that a
+public endpoint starts refusing. One 400-run campaign lost 13 runs that way,
+twelve of them consecutively, for reasons that had nothing to do with the agent
+under test. Nearly all of that traffic is wasted anyway: of the accounts such a
+campaign asks about, exactly one exists on mainnet, and the rest are ephemeral
+wallets and mints that can only ever come back empty.
+
+The scenarios are unaffected — they run against synthetic, cheatcode-seeded
+state — and a full 20-scenario campaign produces identical verdicts, outcomes
+and evidence either way.
+
+`--online` restores live-mainnet forking. SolVerdict's own published benchmark
+runs use it, because the pre-registration declares that datasource; your audit
+does not need this morning's mainnet, it needs 400 clean runs.
 
 ## What the server does not take your word for
 
