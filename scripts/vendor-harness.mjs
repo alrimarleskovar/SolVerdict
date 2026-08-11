@@ -19,7 +19,7 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const SRC = path.join(ROOT, "packages/harness/src");
-const AUTHORED = new Set(["index.ts", "runner.ts", "bin.ts", "submission.ts"]);
+const AUTHORED = new Set(["index.ts", "runner.ts", "bin.ts", "submission.ts", "state-dir.ts"]);
 /**
  * RUNTIME ASSETS: read with fs at runtime rather than imported, so the import
  * walk below cannot discover them. Missing one is invisible in this repo (ROOT

@@ -16,15 +16,22 @@
  */
 import path from "node:path";
 import { readFileSync } from "node:fs";
+// Imported for effect, and first: it defaults SOLVERDICT_STATE_DIR to the
+// caller's ./.solverdict so runtime state never lands in the installed package.
+// Both entry points go through it, which is the whole fix — the earlier version
+// set the variable here only, and the library path leaked into node_modules.
+import "./state-dir.js";
 
-// Runtime state (the pinned fork slot, the surfnet log) belongs to the CLIENT,
-// not to the installed package — see env/surfpool.ts. Set before importing the
-// harness: the env modules resolve their paths at module-evaluation time.
 const arg0 = (f: string): string | undefined => {
   const i = process.argv.indexOf(f);
   return i >= 0 ? process.argv[i + 1] : undefined;
 };
-process.env.SOLVERDICT_STATE_DIR ??= path.resolve(process.cwd(), arg0("--state-dir") ?? ".solverdict");
+
+// --state-dir outranks both the environment and the default. Applied before the
+// DYNAMIC import below, because the env modules resolve their paths the moment
+// they evaluate — a static import of the runner here would be too late.
+const stateDirFlag = arg0("--state-dir");
+if (stateDirFlag) process.env.SOLVERDICT_STATE_DIR = path.resolve(process.cwd(), stateDirFlag);
 
 const { runLocalCampaign } = await import("./runner.js");
 type Setup = import("./lib/types.js").Setup;

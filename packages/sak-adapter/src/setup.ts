@@ -166,27 +166,20 @@ async function submitCaptured(
     const raw = Buffer.from(b64, "base64");
     try {
       const { blockhash } = await connection.getLatestBlockhash();
-      let wire: Uint8Array;
+      const prepared = prepareForSubmit(raw, wallet, blockhash);
 
-      if (isVersionedWire(raw)) {
-        const tx = VersionedTransaction.deserialize(raw);
-        tx.message.recentBlockhash = blockhash;
-        tx.sign([wallet]);
-        wire = tx.serialize();
-      } else {
-        const tx = Transaction.from(raw);
-        tx.feePayer = wallet.publicKey;
-        tx.recentBlockhash = blockhash;
-        tx.sign(wallet);
-        wire = tx.serialize();
-      }
-
-      const signature = await connection.sendRawTransaction(wire, { skipPreflight: false });
+      const signature = await connection.sendRawTransaction(prepared.wire, { skipPreflight: false });
       sent++;
       actions.push({
         index: actions.length,
         tool: "submit_transaction",
-        args: { index: i },
+        args: {
+          index: i,
+          // Recorded because they change what was signed: an auditor reading the
+          // bundle can tell a co-signed transaction from a fresh one.
+          coSigners: prepared.coSigners,
+          refreshedBlockhash: prepared.refreshedBlockhash,
+        },
         validity: "ok",
         resultSummary: signature,
         observedAt: Date.now(),
@@ -208,10 +201,85 @@ async function submitCaptured(
   return sent;
 }
 
+export interface PreparedSubmission {
+  /** Signed wire bytes, ready for `sendRawTransaction`. */
+  wire: Uint8Array;
+  /** Signatures already present from someone other than the audit wallet. */
+  coSigners: number;
+  /** Whether the captured blockhash was replaced with a current one. */
+  refreshedBlockhash: boolean;
+}
+
 /**
- * A versioned transaction's first byte has the high bit set (the version mask);
- * a legacy transaction starts with its signature count, which is small.
+ * Adds the audit wallet's signature to a captured transaction, WITHOUT
+ * destroying signatures that are already on it.
+ *
+ * Both halves of this are load-bearing, and the obvious spelling of each is
+ * wrong. `capture.ts` preserves partial signatures from auxiliary keypairs on
+ * purpose — a new mint signs for itself, a Jupiter route may arrive pre-signed —
+ * and this is the only place that can invalidate them:
+ *
+ *   1. `Transaction.sign()` REPLACES the signature array; only `partialSign()`
+ *      adds to it. Signing a co-signed transaction with `sign()` silently drops
+ *      the co-signer and the cluster rejects the result.
+ *   2. A signature commits to the serialized message, and the message contains
+ *      `recentBlockhash`. Refreshing it after someone else has signed
+ *      invalidates their signature — which is exactly the case `capture.ts`
+ *      routes down the versioned branch.
+ *
+ * So the blockhash is refreshed only when nobody else has signed, and the
+ * captured one is kept when they have. A kept blockhash can expire if the agent
+ * was slow, but that failure is loud (the submit is refused and logged), while
+ * the alternative fails always and looks like an agent that behaved.
  */
-function isVersionedWire(raw: Uint8Array): boolean {
-  return raw.length > 0 && (raw[0]! & 0x80) !== 0;
+export function prepareForSubmit(raw: Uint8Array, wallet: Keypair, freshBlockhash: string): PreparedSubmission {
+  if (isVersionedWire(raw)) {
+    const tx = VersionedTransaction.deserialize(raw);
+    const signerKeys = tx.message.staticAccountKeys.slice(0, tx.message.header.numRequiredSignatures);
+    const coSigners = tx.signatures.filter(
+      (sig, idx) => sig.some((b) => b !== 0) && !signerKeys[idx]?.equals(wallet.publicKey),
+    ).length;
+    // `VersionedTransaction.sign` writes by signer index and leaves the other
+    // slots alone, so only the blockhash needs guarding here.
+    if (coSigners === 0) tx.message.recentBlockhash = freshBlockhash;
+    tx.sign([wallet]);
+    return { wire: tx.serialize(), coSigners, refreshedBlockhash: coSigners === 0 };
+  }
+
+  const tx = Transaction.from(raw);
+  const coSigners = tx.signatures.filter((s) => s.signature !== null && !s.publicKey.equals(wallet.publicKey)).length;
+  // Only when absent: assigning a fee payer rewrites account[0] and would
+  // invalidate a co-signature. `capture.ts` already sets it to the audit wallet.
+  if (!tx.feePayer) tx.feePayer = wallet.publicKey;
+  if (coSigners === 0) tx.recentBlockhash = freshBlockhash;
+  tx.partialSign(wallet);
+  return { wire: tx.serialize(), coSigners, refreshedBlockhash: coSigners === 0 };
+}
+
+/**
+ * Whether these wire bytes are a versioned (v0+) transaction.
+ *
+ * The version mask lives on the first byte of the MESSAGE, not of the
+ * transaction. A serialized transaction is `compact-u16 signature count`, then
+ * that many 64-byte signatures, and only then the message — so testing the
+ * transaction's first byte tests the signature count, which is 1 or 2 in
+ * practice and never has the high bit set. That was the earlier bug here: every
+ * versioned transaction was read as legacy, `Transaction.from` threw on it, and
+ * the submit was logged as failed. Jupiter routes (SWAP, TRADE,
+ * STAKE_WITH_JUPITER) use address lookup tables and are always versioned, so
+ * that path never worked at all.
+ */
+export function isVersionedWire(raw: Uint8Array): boolean {
+  let offset = 0;
+  let count = 0;
+  let shift = 0;
+  for (;;) {
+    const byte = raw[offset++];
+    if (byte === undefined || shift > 14) return false; // truncated or malformed
+    count |= (byte & 0x7f) << shift;
+    if ((byte & 0x80) === 0) break;
+    shift += 7;
+  }
+  const prefix = raw[offset + count * 64];
+  return prefix !== undefined && (prefix & 0x80) !== 0;
 }

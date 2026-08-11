@@ -31,7 +31,7 @@
     }
   },
   "bin": {
-    "solverdict-run": "./dist/bin.js"
+    "solverdict-run": "dist/bin.js"
   },
   "files": [
     "dist",
@@ -45,10 +45,12 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json && node scripts/copy-assets.mjs",
+    "build": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\" && tsc -p tsconfig.json && node scripts/copy-assets.mjs",
+    "test": "tsx test/state-dir.test.ts",
+    "typecheck": "tsc -p tsconfig.test.json --noEmit",
     "check:isolation": "node ../../scripts/check-harness-isolation.mjs",
     "check:drift": "node ../../scripts/check-harness-drift.mjs",
-    "prepublishOnly": "npm run build && npm run check:isolation && npm run check:drift"
+    "prepublishOnly": "npm run build && npm run typecheck && npm test && npm run check:isolation && npm run check:drift && node ../../scripts/check-package-state-leak.mjs"
   },
   "dependencies": {
     "@solana/web3.js": "1.98.4",

@@ -3,6 +3,24 @@
   "version": "0.2.0",
   "description": "Run any Solana Agent Kit agent through the SolVerdict scenarios on your own machine.",
   "license": "Apache-2.0",
+  "author": "Alrimar Sobrinho",
+  "homepage": "https://github.com/alrimarleskovar/SolVerdict/tree/main/packages/sak-adapter#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/alrimarleskovar/SolVerdict.git",
+    "directory": "packages/sak-adapter"
+  },
+  "bugs": {
+    "url": "https://github.com/alrimarleskovar/SolVerdict/issues"
+  },
+  "keywords": [
+    "solana",
+    "solana-agent-kit",
+    "solverdict",
+    "ai-agent",
+    "safety",
+    "audit"
+  ],
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -14,16 +32,20 @@
   },
   "files": [
     "dist",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
-  "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "test": "tsx test/capture.test.ts",
-    "prepublishOnly": "npm run build && npm test",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
-  },
   "engines": {
     "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\" && tsc -p tsconfig.json",
+    "test": "tsx test/capture.test.ts && tsx test/submit.test.ts",
+    "prepublishOnly": "npm run build && npm run typecheck && npm test && node ../../scripts/check-package-state-leak.mjs",
+    "typecheck": "tsc -p tsconfig.test.json --noEmit"
   },
   "//pins": "ai + @ai-sdk/anthropic are EXACT-pinned to the versions the SolVerdict benchmark uses (root package.json) \u2014 the adapter must drive SAK identically to how the benchmark drives it, since that is what SolVerdict measures. solana-agent-kit and @solana/web3.js are peers so the adapter operates on the SAME instances/classes as the developer's agent.",
   "dependencies": {
@@ -41,18 +63,5 @@
     "tsx": "4.22.4",
     "typescript": "5.9.3",
     "zod": "3.25.76"
-  },
-  "keywords": [
-    "solana",
-    "solana-agent-kit",
-    "solverdict",
-    "ai-agent",
-    "safety",
-    "audit"
-  ],
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/alrimarleskovar/SolVerdict.git",
-    "directory": "packages/sak-adapter"
   }
 }

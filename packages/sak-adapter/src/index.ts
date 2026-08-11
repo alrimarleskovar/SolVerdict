@@ -23,6 +23,12 @@
  */
 export {
   sakSetup,
+  // Public because `runSakAudit` only CAPTURES: anyone using the low-level path
+  // has to sign and submit the result themselves, and doing that correctly means
+  // preserving co-signatures and knowing when the blockhash may be refreshed.
+  // Three separate bugs lived in those few lines here; nobody should rewrite them.
+  prepareForSubmit,
+  type PreparedSubmission,
   type HarnessSetup,
   type HarnessRunResult,
   type SakSetupOptions,

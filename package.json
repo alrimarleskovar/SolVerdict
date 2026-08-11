@@ -1,9 +1,9 @@
 {
   "name": "solverdict",
   "version": "0.1.0",
-  "//versioning": "SolVerdict has two independent version schemes: the benchmark PRE-REGISTRATION version (e.g. v0.2.2 — methodology/scoring rules, frozen once a run is scored under it) and this SOFTWARE package version (e.g. 0.1.0 — the codebase, semver). They move independently: code can iterate (bugfixes, refactors, new setups) without changing scored methodology, and methodology can be amended (new scenarios/rules) without shipping new code. See README §Versioning.",
+  "//versioning": "SolVerdict has two independent version schemes: the benchmark PRE-REGISTRATION version (e.g. v0.2.2 \u2014 methodology/scoring rules, frozen once a run is scored under it) and this SOFTWARE package version (e.g. 0.1.0 \u2014 the codebase, semver). They move independently: code can iterate (bugfixes, refactors, new setups) without changing scored methodology, and methodology can be amended (new scenarios/rules) without shipping new code. See README \u00a7Versioning.",
   "private": true,
-  "description": "SolVerdict — reproducible safety benchmark for AI agents operating Solana wallets (local fork only, no real funds)",
+  "description": "SolVerdict \u2014 reproducible safety benchmark for AI agents operating Solana wallets (local fork only, no real funds)",
   "license": "Apache-2.0",
   "type": "module",
   "engines": {
@@ -14,14 +14,16 @@
     "postinstall": "patch-package",
     "bench": "npm run lint:rpc && tsx bench.ts",
     "bench:smoke": "npm run lint:rpc && tsx bench.ts --setups selftest-scripted --n 2",
+    "prove:sak-submit": "tsx scripts/prove-sak-adapter-submits.ts",
     "report": "tsx report/generate.ts",
     "lint:rpc": "node scripts/check-rpc-lock.mjs",
     "lint:evidence": "node scripts/check-evidence-bundles.mjs",
     "lint:isolation": "node scripts/check-harness-isolation.mjs",
     "lint:vendor": "node scripts/check-harness-drift.mjs",
+    "lint:pkgstate": "node scripts/check-package-state-leak.mjs",
     "typecheck": "tsc --noEmit",
-    "typecheck:packages": "tsc -p packages/harness/tsconfig.json --noEmit && tsc -p packages/sak-adapter/tsconfig.test.json --noEmit",
-    "test": "npm run lint:rpc && npm run lint:evidence && npm run lint:isolation && npm run lint:vendor && npm run typecheck && npm run typecheck:packages && npm run test:unit",
+    "typecheck:packages": "tsc -p packages/harness/tsconfig.test.json --noEmit && tsc -p packages/sak-adapter/tsconfig.test.json --noEmit",
+    "test": "npm run lint:rpc && npm run lint:evidence && npm run lint:isolation && npm run lint:vendor && npm run lint:pkgstate && npm run typecheck && npm run typecheck:packages && npm run test:unit",
     "test:unit": "tsx config/capabilities.test.ts && tsx config/prereg-single-source.test.ts && tsx report/results-provenance.test.ts && tsx issuance/issuance.test.ts && tsx scoring/wilson.test.ts && tsx scoring/aggregate.test.ts && tsx scoring/outcome.test.ts && tsx scoring/action-registry.test.ts && tsx scenarios/scenarios.test.ts && tsx setups/setups.test.ts && tsx setups/google-provider.test.ts && tsx setups/ai-sdk-contract.test.ts && tsx lib/metrics.test.ts && tsx lib/evidence.test.ts && tsx lib/instance.test.ts && tsx lib/schedule.test.ts && tsx lib/missingness.test.ts && tsx lib/officiality.test.ts && tsx lib/prereg.test.ts && tsx env/txparse.test.ts && tsx env/token2022.test.ts && tsx env/recorder.test.ts && tsx env/state-reset.test.ts",
     "coverage": "c8 --reporter=lcov --reporter=text-summary npm run test:unit",
     "surfpool:start": "tsx env/start-surfpool.ts"
@@ -48,7 +50,7 @@
     "tsx": "4.22.4",
     "typescript": "5.9.3"
   },
-  "//overrides": "Requires npm >= 11 to resolve this override correctly (npm 10 writes a different, out-of-sync lockfile — see engines.npm and .github/workflows/smoke.yml, which pins npm@11). The package-lock.json MUST be (re)generated with npm 11; regenerating under npm 10 breaks the Railway `npm ci`.",
+  "//overrides": "Requires npm >= 11 to resolve this override correctly (npm 10 writes a different, out-of-sync lockfile \u2014 see engines.npm and .github/workflows/smoke.yml, which pins npm@11). The package-lock.json MUST be (re)generated with npm 11; regenerating under npm 10 breaks the Railway `npm ci`.",
   "overrides": {
     "@pump-fun/pump-sdk": "1.3.8"
   }

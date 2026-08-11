@@ -24,6 +24,11 @@
  * silently diverge.
  */
 
+// Runtime state goes to the CALLER's directory, never into this package. Must
+// stay the first import: the env modules resolve their paths when they
+// evaluate, and dependencies evaluate in source order. See state-dir.ts.
+import "./state-dir.js";
+
 // --- the local campaign loop (evidence only, no verdict) ---------------------
 export { runLocalCampaign, type LocalRunOptions, type LocalRunSummary } from "./runner.js";
 

@@ -50,3 +50,12 @@ runs/evidence/*
 # COMMITTED (session guardrails, kept for reproducibility). Do not ignore them.
 package.json.bak
 .solverdict/
+
+# --- Runtime state that must never enter a publishable package ---------------
+# The pinned fork slot is per-machine and is captured on first launch. It
+# belongs in the caller's .solverdict/, and the repo's own declared copy is
+# config/forkslot.json at the root (committed, prereg §3) — never a package's.
+# Ignoring is the backstop; scripts/check-package-state-leak.mjs is the guard,
+# because a file that reaches dist/ gets published whether or not git tracked it.
+packages/*/src/config/forkslot.json
+packages/*/src/runs/

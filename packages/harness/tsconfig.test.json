@@ -1,0 +1,6 @@
+{
+  "//": "Typecheck-only config covering src AND test. tsconfig.json emits dist/ and therefore includes src alone, which would leave test/ unchecked — and an unchecked test rots silently. rootDir is dropped because test/ sits outside src/. Mirrors packages/sak-adapter/tsconfig.test.json.",
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "noEmit": true, "rootDir": "." },
+  "include": ["src", "test"]
+}

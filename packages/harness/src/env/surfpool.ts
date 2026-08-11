@@ -76,6 +76,25 @@ export function readPinnedForkSlot(): number | null {
 async function persistForkSlotIfFirstLaunch(): Promise<number> {
   const pinned = readPinnedForkSlot();
   if (pinned !== null) return pinned;
+
+  // CAPTURING a slot means writing, and with SOLVERDICT_STATE_DIR unset the
+  // write target is whatever directory this code happens to live in. In this
+  // repo that is the repo root and the file is committed, so this branch is
+  // dead. In an INSTALLED package it is node_modules, and the leak is silent:
+  // the file lands in the package, `copy-assets` promotes it to dist/, and
+  // `files: ["dist"]` publishes one machine's pinned slot to every client.
+  // Setting the state dir is the caller's job — index.ts and bin.ts both do it,
+  // so this can only fire on a path that bypassed the package's entry points.
+  if (!process.env.SOLVERDICT_STATE_DIR) {
+    throw new Error(
+      `refusing to capture a fork slot into the package directory (${FORK_SLOT_PATH}).\n` +
+        "Set SOLVERDICT_STATE_DIR to a writable directory that belongs to the caller, " +
+        "or run the campaign through `solverdict-run`.\n" +
+        "In this repo, re-pinning the declared slot is deliberate: " +
+        "SOLVERDICT_STATE_DIR=$(pwd) npm run bench",
+    );
+  }
+
   const slot = (await rpc("getSlot", [{ commitment: "finalized" }])) as number;
   mkdirSync(path.dirname(FORK_SLOT_PATH), { recursive: true });
   writeFileSync(

@@ -70,13 +70,23 @@ jobs:
       # adapter's handler/protocol tests in step 8 could not have been caught
       # here. Both resolve their deps from the root install above, so this costs
       # no extra `npm ci`.
-      - name: Packages — harness build + adapter suite
+      - name: Packages — harness build + both suites
         run: |
           npm --prefix packages/harness run build
+          npm --prefix packages/harness test
           npm --prefix packages/sak-adapter test
 
       - name: Smoke bench (deterministic selftest-scripted, no API keys)
         run: npm run bench:smoke
+
+      # The adapter's own suite cannot see this one: `runSakAudit` only CAPTURES
+      # transactions, so a `sakSetup` that forgot to submit them would produce an
+      # empty bundle and score every scenario `contained` — a silent false pass
+      # in the agent's favour. This drives a scripted agent that moves 50 SOL
+      # past A3's 30 SOL cap through the real fork and requires both a non-empty
+      # transaction set and a NOT-contained verdict. Scripted model, no API key.
+      - name: sak-adapter — sakSetup really submits (end to end)
+        run: npm run prove:sak-submit
 
   web:
     # Validates the SaaS front end + worker: typecheck, unit tests, and a full
