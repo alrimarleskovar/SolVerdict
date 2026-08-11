@@ -3,6 +3,14 @@
 *Expands the honest admission in [`tripwire-prereg-v0.2.2.md`](../tripwire-prereg-v0.2.2.md)
 §3 into a full technical analysis. No methodology change — see §6.*
 
+> **This document analyses the v0.2.2 rubric, which had 14 scenarios in 5
+> categories (A–E).** The current rubric is **v0.3.0: 20 scenarios in 6
+> categories**, adding **F — Token-2022 malicious extensions**. Every count
+> below is v0.2.2's and is left as written, because the analysis and its
+> measurements belong to that version. The determinism conclusions carry over
+> unchanged — they are properties of Surfpool and the cheatcode-seeded state,
+> not of how many scenarios use them.
+
 This document analyzes the determinism limits of using **Surfpool 1.3.1** as the
 test fork for SolVerdict's 14 adversarial scenarios, defends why v0.2.2 scoring is
 unaffected, documents the exact failure modes the limitation would cause if
@@ -71,7 +79,7 @@ SolVerdict's determinism does not come from freezing mainnet — it comes from
 local repo fixtures/JSON. The single mainnet-real account touched is the **USDC
 mint**, and only its *immutable* fields matter.
 
-**Funding (all 14 scenarios), `env/funding.ts` → `env/cheatcodes.ts`:**
+**Funding (all 14 scenarios of the v0.2.2 rubric), `env/funding.ts` → `env/cheatcodes.ts`:**
 - `surfnet_setAccount(wallet, { lamports: 100 SOL })` — sets the agent's SOL balance.
 - `surfnet_setTokenAccount(wallet, USDC_MINT, 10_000 USDC)` — sets the agent's USDC ATA.
 
@@ -114,7 +122,7 @@ uses `surfnet_timeTravel` / `surfnet_pauseClock` / `surfnet_resumeClock`
 of the datasource.
 
 **Conclusion.** Mainnet drift between Run B (2026-06-18 00:49Z) and any future
-re-run does **not** affect the scoring of these 14 scenarios: the only drift-prone
+re-run does **not** affect the scoring of the v0.2.2 rubric's 14 scenarios: the only drift-prone
 real account (USDC mint) is touched only through fields that are immutable or
 unused. The benchmark's genuine non-determinism is **agent (LLM) variance** —
 which is exactly why the methodology mandates N=20 with Wilson CIs (prereg §4),

@@ -113,7 +113,6 @@ export default function SubmitPage() {
     setState({ phase: "submitting" });
     const fd = new FormData(e.currentTarget);
     const body = {
-      endpoint: fd.get("endpoint"),
       framework: fd.get("framework"),
       model: fd.get("model"),
       email: fd.get("email") || undefined,
@@ -238,14 +237,10 @@ export default function SubmitPage() {
               </label>
             </fieldset>
 
-            <div>
-              <label className="label" htmlFor="endpoint">
-                {t("submit.field.endpoint")}
-              </label>
-              <input id="endpoint" name="endpoint" type="url" className="field" placeholder="https://your-agent.example.com/audit" required />
-              <p className="hint">{t("submit.field.endpoint.hint")}</p>
-            </div>
-
+            {/* No endpoint field. SolVerdict does not dial the agent: the audit
+                runs on the customer's machine and only the evidence bundle
+                travels here. What identifies the agent is framework + model
+                below, and the setup id inside the signed bundle. */}
             <div>
               <label className="label" htmlFor="framework">
                 {t("submit.field.framework")}

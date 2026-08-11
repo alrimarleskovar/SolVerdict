@@ -6,9 +6,10 @@ plus an always-on worker that runs the audits.
 
 It lives **inside** the SolVerdict repo and **reuses the parent bench** — it
 imports `env/`, `scenarios/`, `scoring/`, and `config/` via relative paths
-(`../../scoring`, …) rather than copying anything. The worker sends each of the
-20 scenarios to the user's HTTPS endpoint (the **SolVerdict Audit Protocol**) and
-scores what their agent actually does on a local Solana mainnet fork.
+(`../../scoring`, …) rather than copying anything. The customer runs the 20
+scenarios themselves with `@solverdict/harness`, against a local Solana mainnet
+fork on their own machine, and submits a signed evidence bundle; the worker
+re-derives every verdict from that bundle. Nothing here dials the agent.
 
 As of **Sprint 5** the queue and audit state live in **Supabase Postgres** and
 the worker runs as an **always-on Railway container** (previously Upstash Redis +
@@ -19,7 +20,7 @@ audit runs single-shot at its full N.
 web/
   app/
     page.tsx                     home / hero / CTA
-    submit/page.tsx              submission form (endpoint, framework, model, email, protocol checkbox)
+    submit/page.tsx              submission form (framework, model, email, protocol checkbox)
     audit/[id]/page.tsx          status page: queue wait estimate, per-scenario progress, verdict placard
     docs/protocol/page.tsx       public protocol documentation
     api/audit/submit/route.ts    POST → validate + SSRF check → submit_audit RPC
@@ -29,7 +30,7 @@ web/
   components/                    Brand, Placard
   lib/
     audit-protocol.ts            the HTTP protocol: types, validator, constants
-    ssrf.ts                      SSRF guard (HTTPS + public-IP, DNS resolution)
+    ssrf.ts                      SSRF guard — RETAINED, NO CALLERS (see its header)
     submission.ts                submit-form validation
     supabase.ts                  Supabase clients (admin/anon) + row→AuditRecord mapper
     payment.ts                   on-chain USDC payment verification
@@ -85,8 +86,10 @@ N. Full spec: **`/docs/protocol`**.
 Apply [`supabase/schema.sql`](supabase/schema.sql) to a Supabase project. It
 creates:
 
-- **`audits`** — one row per submission (status, tier, N, endpoint, results jsonb,
-  progress jsonb, …).
+- **`audits`** — one row per submission (status, tier, N, framework, model,
+  results jsonb, progress jsonb, …). `endpoint` is a legacy column, nullable
+  since migration 010 and NULL for every audit created since; it is kept so
+  audits submitted before the field was removed still render what they sent.
 - **`queue`** — `audit_id` PK with `claimed_at` / `claimed_by`; claimed atomically
   via `FOR UPDATE SKIP LOCKED`.
 - **`free_tier_usage`** — one row per wallet, enforcing the 24h free-tier cooldown.
@@ -117,8 +120,8 @@ Supabase project:
 npm run worker                  # long-running: claims queued audits and runs them
 ```
 
-The worker does **not** need model provider keys — the user's agent uses its own
-keys behind its endpoint.
+The worker does **not** need model provider keys — the customer's agent runs on
+their machine, with their keys, and never here.
 
 Other scripts:
 
@@ -202,30 +205,41 @@ stale and `reclaim_stale_claims` requeues it on the next worker's maintenance
 tick. A `/tmp/worker-alive` heartbeat file (touched every 30s) backs the
 container healthcheck.
 
-## Safety (the worker dials arbitrary user URLs — see `lib/ssrf.ts`)
+## Safety (the hostile input is a *bundle*, not a URL)
 
-- **HTTPS + public-IP only.** The endpoint is DNS-resolved and rejected if it
-  (or any resolved address) is loopback / private / link-local / CGNAT /
-  multicast / reserved. Enforced at submit **and** re-checked in the worker
-  before each audit (DNS-rebinding defense). Redirects are blocked.
-- **Per-scenario timeout:** 30s hard cap (AbortController).
-- **Per-audit budget:** `AUDIT_BUDGET_MS` (default 30 min); scenarios past the
-  budget are left unrun and reported (never silently dropped).
-- **Response size cap:** 100 KB.
-- **Free-tier cooldown:** one free audit per wallet per 24h (enforced in
-  `submit_audit`).
+Nothing in this app makes an outbound request to a user-supplied host, so the
+controls are on intake. Full write-up: [`docs/THREAT_MODEL.md`](../docs/THREAT_MODEL.md).
+
+- **The verdict is re-derived, never read from the bundle.** Magnitudes are
+  recomputed from the validator's own pre/post balances; the denominator is the
+  pre-registered N, so a short bundle scores *incomplete* rather than better.
+- **Server-issued secret instance.** A bundle run against the public fixtures
+  instead of the audit's issued instance is refused (`instance-mismatch`).
+- **Wallet-signed submission** over a message distinct from the sign-in message,
+  so a login signature cannot be replayed as a submission.
+- **The archive is treated as hostile.** Size- and entry-capped, path traversal
+  / symlinks / absolute paths rejected — at intake and again in the worker.
+- **Bundles are private.** Service-role-only storage; never anon-readable.
+- **Free-tier cooldown:** one free audit per wallet per 24h, and a per-wallet cap
+  on unpaid pending audits — both enforced inside `submit_audit`.
 - **Abuse contact:** see `/docs/protocol`.
 
+> **`lib/ssrf.ts` has no callers.** It guarded the deleted remote executor, which
+> POSTed scenarios to a user-supplied URL. It is kept, correct and unit-tested,
+> for the next feature that fetches one — not because anything screens a URL
+> today. See its header.
+
 > **Note (Sprint 5):** the Sprint 2 per-hostname hourly rate limit was removed
-> with Redis — it has no equivalent in the new schema. Re-add it later as a small
-> `rate_limit` table if abuse warrants it.
+> with Redis — it has no equivalent in the new schema, and no hostname to key on
+> now that the endpoint field is gone.
 
 ## Known limitations
 
 - **Depth, not official.** Free runs default to `N=1` per scenario, so results
   are *unofficial* (the pre-registered board is `N=20`).
-- **Legacy transactions.** The protocol documents legacy `Transaction`s;
-  versioned transactions are decoded/submitted best-effort.
+- **Legacy transactions.** Bundle decoding handles legacy `Transaction`s and v0
+  `VersionedTransaction`s; magnitude re-derivation is best-effort for the latter
+  where a lookup table is involved.
 - **No auth.** Privacy relies on the unguessable UUID in the link (and RLS being
   off until anon reads are added).
 - **Not a prereg change.** This protocol is a product surface; user audits will

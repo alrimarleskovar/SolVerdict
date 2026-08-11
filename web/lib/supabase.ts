@@ -62,7 +62,8 @@ export function supabaseAnon(): SupabaseClient {
 export interface AuditRow {
   id: string;
   wallet: string;
-  endpoint: string;
+  /** LEGACY — nullable since migration 010; NULL on every audit created since. */
+  endpoint: string | null;
   framework: string;
   model: string;
   email: string | null;
@@ -88,9 +89,11 @@ export interface AuditRow {
 /** Map a DB row into the wire-facing AuditRecord. */
 export function rowToRecord(row: AuditRow): AuditRecord {
   const form: AuditForm = {
-    endpoint: row.endpoint,
     framework: row.framework,
     model: row.model,
+    // Omitted rather than carried as null, so a consumer's `form.endpoint &&`
+    // and its `"endpoint" in form` agree. Present only for legacy rows.
+    ...(row.endpoint ? { endpoint: row.endpoint } : {}),
     ...(row.email ? { email: row.email } : {}),
   };
 

@@ -11,7 +11,7 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit -p tsconfig.check.json",
-    "test": "export TSX_TSCONFIG_PATH=tsconfig.check.json; tsc --noEmit -p tsconfig.check.json && tsx lib/root-imports.test.ts && tsx lib/no-repo-runtime.test.ts && tsx lib/placard-model.test.ts && tsx lib/wallet-auth.test.ts && tsx lib/session.test.ts && tsx lib/bundle-extract.test.ts && tsx lib/evidence-storage.test.ts && tsx lib/evidence-intake.test.ts && tsx lib/evidence-refusals.test.ts && tsx lib/instance-route.test.ts && tsx lib/instance-cache.test.ts && tsx lib/landing-data.test.ts && tsx lib/submit-outcomes.test.ts && tsx lib/server-only-secrets.test.ts && tsx lib/audit-protocol.test.ts && tsx lib/payment.test.ts && tsx lib/notify.test.ts && tsx lib/supabase.test.ts && tsx worker/queue-claim.test.ts",
+    "test": "export TSX_TSCONFIG_PATH=tsconfig.check.json; tsc --noEmit -p tsconfig.check.json && tsx lib/root-imports.test.ts && tsx lib/no-repo-runtime.test.ts && tsx lib/placard-model.test.ts && tsx lib/wallet-auth.test.ts && tsx lib/session.test.ts && tsx lib/bundle-extract.test.ts && tsx lib/evidence-storage.test.ts && tsx lib/evidence-intake.test.ts && tsx lib/evidence-refusals.test.ts && tsx lib/instance-route.test.ts && tsx lib/instance-cache.test.ts && tsx lib/landing-data.test.ts && tsx lib/submit-outcomes.test.ts && tsx lib/server-only-secrets.test.ts && tsx lib/audit-protocol.test.ts && tsx lib/audit-pdf-layout.test.ts && tsx lib/payment.test.ts && tsx lib/notify.test.ts && tsx lib/supabase.test.ts && tsx worker/queue-claim.test.ts",
     "worker": "tsx worker/run-audit.ts"
   },
   "dependencies": {

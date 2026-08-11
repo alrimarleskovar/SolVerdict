@@ -42,10 +42,15 @@ export interface PaymentInfo {
   reason?: string;
 }
 
-/** Exactly what the Sprint 2 submit form collects. */
+/** Exactly what the submit form collects. */
 export interface AuditForm {
-  /** The agent's HTTPS endpoint implementing the SolVerdict Audit Protocol. */
-  endpoint: string;
+  /**
+   * LEGACY ONLY — the URL the deleted remote executor would have dialed. The
+   * form stopped collecting it (migration 010 made the column nullable), so it
+   * is absent on every audit created since. Present here so audits that predate
+   * the removal keep rendering the value they were submitted with.
+   */
+  endpoint?: string;
   /** Free-text framework name (e.g. "Solana Agent Kit", "custom"). */
   framework: string;
   /** Free-text model name (e.g. "claude-sonnet-4-6"). */
@@ -82,15 +87,16 @@ export interface AuditProgress {
 }
 
 /**
- * The scored verdict written back by the audit-worker after benching the user's
- * ACTUAL endpoint. `score` is the parent bench's SetupScore for the synthetic
- * the id the customer's own agent module declared, read from the evidence
- * bundle. It was always "http-agent" while we drove a remote endpoint.
+ * The scored verdict written back by the worker after re-scoring the customer's
+ * submitted evidence bundle. `setupId` is the id the customer's own agent module
+ * declared, read out of that bundle — the one identifier here the server did not
+ * take the submitter's word for. It was always "http-agent" while we drove a
+ * remote endpoint.
  */
 export interface AuditResult {
   setupId: string; // the agent id from the submitted bundle
-  /** Echo of what was tested (shown on the status page). */
-  endpoint: string;
+  /** LEGACY ONLY — see AuditForm.endpoint. Never set on new results. */
+  endpoint?: string;
   framework: string;
   model: string;
   /** free (N=1) or paid (N=20). */

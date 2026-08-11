@@ -1,17 +1,33 @@
 // SPDX-License-Identifier: Apache-2.0
 /**
- * SSRF / abuse guard for outbound audit requests.
+ * SSRF / abuse guard for outbound requests to a user-supplied URL.
  *
- * The worker sends scenario payloads to an ARBITRARY user-supplied URL. Without
- * guarding, that turns SolVerdict into an SSRF probe / request amplifier. This
- * module is the single chokepoint every outbound target must pass:
+ * ⚠️ NO CALLERS IN PRODUCTION CODE. Nothing in the app dials a user-supplied
+ * host any more, so nothing here runs on a request path. Only the unit tests
+ * import it. Do not read the rules below as controls SolVerdict currently
+ * enforces — see docs/THREAT_MODEL.md for the ones it does.
+ *
+ * WHAT IT GUARDED. The worker used to POST each scenario to an ARBITRARY
+ * user-supplied URL, which without guarding turns a benchmark service into an
+ * SSRF probe and request amplifier. This module was the single chokepoint every
+ * outbound target had to pass:
  *   - HTTPS only (no http, file, gopher, …);
  *   - no embedded credentials;
  *   - the hostname must resolve ONLY to public unicast IPs — any loopback,
  *     private, link-local, CGNAT, multicast or reserved address is rejected.
+ * It ran at submit time and again in the worker before each request, the second
+ * pass being the DNS-rebinding defense.
  *
- * It is enforced at BOTH submit time (before enqueue) and request time in the
- * worker (defense against DNS rebinding between submit and run).
+ * WHY IT IS KEPT. Step 8 moved the audit onto the customer's machine, so the
+ * outbound request disappeared and with it the last caller. The logic did not
+ * become wrong — it became unused, and it is the kind of code that is easy to
+ * get subtly wrong from memory (the IPv4-mapped IPv6 forms, CGNAT, the "resolve
+ * ALL addresses, not the first" rule). Any future feature that fetches a
+ * user-supplied URL — a webhook callback, a hosted-bundle pull, an avatar —
+ * must route through `assertPublicHttpsUrl` rather than reinvent it. Deleting
+ * it would save 140 lines and cost the next author a security review.
+ *
+ * Its tests stay green in `npm test`, so it cannot rot silently while unused.
  */
 import { lookup } from "node:dns/promises";
 import net from "node:net";

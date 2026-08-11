@@ -5,9 +5,13 @@
  * The HTTP request/response round-trip this file used to cover was deleted in
  * step 8 along with the protocol itself; what is left of the protocol is a
  * format identifier and a size cap, and what is left to test about them is that
- * they cannot silently become something else. The SSRF and submission coverage
- * below is unchanged and still live: /api/audit/submit validates the endpoint a
- * customer types into the form.
+ * they cannot silently become something else.
+ *
+ * The SSRF block below now covers a module with NO production callers. That is
+ * deliberate, not an oversight: lib/ssrf.ts is kept for the next feature that
+ * fetches a user-supplied URL (see its header), and code kept for later is
+ * worth nothing if it rots in the meantime. These assertions are what stop it
+ * rotting. They are not evidence that SolVerdict screens anything today.
  */
 import assert from "node:assert/strict";
 import { PROTOCOL_VERSION, MAX_BUNDLE_BYTES, SUBMISSION_FIELDS } from "./audit-protocol";
@@ -27,7 +31,7 @@ import { validateSubmission } from "./submission";
   assert.deepEqual([...SUBMISSION_FIELDS], ["bundle", "manifest", "signature"]);
 }
 
-// --- SSRF: private IP + hostname screens ---
+// --- SSRF: private IP + hostname screens (kept warm; no live caller) --------
 {
   for (const ip of ["127.0.0.1", "10.0.0.5", "192.168.1.1", "169.254.1.1", "172.16.0.1", "100.64.0.1", "::1", "0.0.0.0"]) {
     assert.equal(isPrivateIp(ip), true, `${ip} should be private`);
@@ -48,27 +52,33 @@ import { validateSubmission } from "./submission";
 // --- validateSubmission ---
 {
   const good = validateSubmission({
-    endpoint: "https://agent.example.com/audit",
     framework: "Solana Agent Kit",
     model: "claude-sonnet-4-6",
     protocolConfirmed: true,
   });
   assert.equal(good.ok, true);
-  assert.equal(good.value?.endpoint, "https://agent.example.com/audit");
+  assert.equal(good.value?.framework, "Solana Agent Kit");
+  assert.equal(good.value?.model, "claude-sonnet-4-6");
 
-  // http rejected.
-  assert.equal(validateSubmission({ endpoint: "http://agent.example.com", framework: "x", model: "y", protocolConfirmed: true }).ok, false);
-  // localhost rejected.
-  assert.equal(validateSubmission({ endpoint: "https://localhost/audit", framework: "x", model: "y", protocolConfirmed: true }).ok, false);
+  // A submitted endpoint is neither required nor honoured. An old client (or a
+  // hand-rolled POST) may still send one; it must be ignored, not stored — the
+  // whole point of the removal is that no unverified URL rides along.
+  const stale = validateSubmission({
+    endpoint: "https://agent.example.com/audit",
+    framework: "x",
+    model: "y",
+    protocolConfirmed: true,
+  });
+  assert.equal(stale.ok, true, "a stale endpoint field must not fail the submission");
+  assert.ok(!("endpoint" in (stale.value ?? {})), "a submitted endpoint must not survive validation");
+
   // missing framework/model.
-  assert.equal(validateSubmission({ endpoint: "https://a.com", protocolConfirmed: true }).ok, false);
+  assert.equal(validateSubmission({ protocolConfirmed: true }).ok, false);
+  assert.equal(validateSubmission({ framework: "x", protocolConfirmed: true }).ok, false);
   // unconfirmed checkbox.
-  assert.equal(validateSubmission({ endpoint: "https://a.com", framework: "x", model: "y", protocolConfirmed: false }).ok, false);
+  assert.equal(validateSubmission({ framework: "x", model: "y", protocolConfirmed: false }).ok, false);
   // bad email.
-  assert.equal(
-    validateSubmission({ endpoint: "https://a.com", framework: "x", model: "y", email: "nope", protocolConfirmed: true }).ok,
-    false,
-  );
+  assert.equal(validateSubmission({ framework: "x", model: "y", email: "nope", protocolConfirmed: true }).ok, false);
 }
 
 console.log("submission-protocol + ssrf + submission tests passed");

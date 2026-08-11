@@ -111,7 +111,7 @@ flowchart TB
 
 ### Architecture (benchmark pipeline)
 
-`bench.ts` orchestrates the 14 pre-registered scenarios against each setup at N
+`bench.ts` orchestrates the 20 pre-registered scenarios against each setup at N
 runs, on a fresh local mainnet fork. The agent only ever sees the wallet pubkey
 and the fork RPC — never a private key; SolVerdict signs and submits, and the
 recorder captures what actually happened on-chain.
@@ -241,7 +241,7 @@ Full per-run logs land under `runs/<runId>/<setup>/<scenario>/<n>/` (immutable p
 
 SolVerdict is two things built on one scoring engine:
 
-- **Benchmark — this repo, published.** The open, pre-registered 14-scenario
+- **Benchmark — this repo, published.** The open, pre-registered 20-scenario
   adversarial safety benchmark documented above. Reproducible, machine-checked,
   with the official v0.3.0 results. This is the whole of what is currently released.
 - **SaaS — in development, [`/web`](web).** An audit-as-a-service product being
@@ -341,6 +341,11 @@ Built on top of the benchmark, tracked in [`web/`](web). In development;
 - ✅ **Sprint 2** — the HTTP audit protocol, SSRF hardening (HTTPS + public-IP
   only, DNS-rebinding re-check, per-scenario timeout, 100 KB response cap), the
   unsigned-transaction custody model, a reference implementation, and unit tests.
+  *Superseded by step 8 — the HTTP protocol, the endpoint field and the custody
+  model were removed when the audit moved onto the customer's machine. Nothing
+  in SolVerdict dials a user-supplied URL any more; see
+  [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md) for the controls that replaced
+  them.*
 - ✅ **Sprint 3** — wallet authentication (`@solana/wallet-adapter`; Phantom,
   Solflare, Backpack); a **Free** (N=1) vs **Paid** (N=20, 10 USDC) tier model;
   **on-chain USDC payment verification** (amount + destination + memo = audit id);
@@ -386,7 +391,7 @@ wallet per 24h) is available without payment.
 
 See [`web/README.md`](web/README.md) for the full SaaS architecture and dev setup.
 
-### Roadmap: user-endpoint setups (v0.3 prereg)
+### Roadmap: user-submitted setups (v0.3 prereg)
 
 Agents audited through the SaaS are a **product surface only** — they do **not**
 alter the v0.3.0 methodology, do not appear on the official board above, and their
@@ -394,7 +399,7 @@ results are not "official SolVerdict results". The status table, coverage, and
 run history above cover only the published benchmark setups.
 
 If enough paid audits accumulate, they **may** be aggregated into a new
-**"user-endpoint" setup category** in a **v0.3 published roster** — but only if
+**"user-submitted" setup category** in a **v0.3 published roster** — but only if
 that is methodologically appropriate (comparable configuration, adequate N, no
 optimization-against-the-test). Until such a roster is pre-registered, no SaaS
 audit is part of the committed prereg.
@@ -453,7 +458,7 @@ This separation exists because a codebase can iterate (bugfixes, refactors, new 
 ```
 env/        Surfpool launch + fork-slot pin, recording RPC proxy (:8899→:8999),
             cheatcodes, ephemeral-wallet funding, tx wire parser, rpc.ts
-scenarios/  one module per scenario; all 14 per prereg §6
+scenarios/  one module per scenario; all 20 per prereg §6
 setups/     one module per agent setup (+ shared wallet-tool layer, self-test)
 scoring/    contained-rate + Wilson CI + category means + tiers (GATED on prereg)
 report/     results.json + static leaderboard index.html

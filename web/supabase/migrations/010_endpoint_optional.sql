@@ -1,0 +1,42 @@
+-- SPDX-License-Identifier: Apache-2.0
+-- The submit form no longer asks for an agent endpoint, so the column that
+-- stored one stops being required.
+--
+-- WHY THE FIELD IS GONE. Step 8 deleted the remote executor: SolVerdict does
+-- not dial the customer's agent any more. The audit runs on the customer's own
+-- machine against their own fork, and only the signed evidence bundle travels
+-- here. `endpoint` therefore recorded a URL nothing in the system ever
+-- contacted — an unverified free-text string that appeared on the status page,
+-- in the PDF, in the dashboard and (for opted-in audits) beside a public
+-- leaderboard entry. What identifies the audited agent now is `framework` and
+-- `model`, which the customer still declares, plus `setupId` — the agent id
+-- read out of the SIGNED bundle, which is the one identifier the server did not
+-- take the submitter's word for.
+--
+-- WHY DROP NOT NULL RATHER THAN DROP COLUMN. Existing audits hold real values
+-- and their PDFs still render them. Dropping the column would destroy that data
+-- to save a nullable text field; the row is a record of what was submitted, and
+-- rewriting history is not a schema cleanup. New rows write NULL, every read
+-- path treats the value as optional, and the PDF/status page fall back to "—".
+--
+-- THE FUNCTION SIGNATURE IS DELIBERATELY UNCHANGED. `submit_audit` keeps
+-- `p_endpoint text`; the application passes NULL. PostgREST resolves an RPC by
+-- its named arguments, so dropping the parameter in the same change that stops
+-- sending it would make an older still-running deploy call a function that no
+-- longer exists (PGRST202) — and a rollback would need two coordinated steps
+-- instead of one. The parameter is removed in a later release, once no deploy
+-- sends it.
+--
+-- ORDERING — APPLY THIS BEFORE DEPLOYING THE CODE THAT STOPS SENDING AN
+-- ENDPOINT. Dropping NOT NULL only widens what the table accepts, so the
+-- currently-deployed code (which always sends a string) is unaffected and can
+-- keep running against the migrated schema indefinitely. The reverse order is
+-- an outage: the new code inserts NULL, Postgres raises 23502, and
+-- /api/audit/submit answers 502 "Could not create audit" for every submission
+-- until the migration lands.
+--
+-- ROLLBACK. `alter table audits alter column endpoint set not null;` succeeds
+-- only once every NULL row is deleted or back-filled, so re-tighten only after
+-- reverting the deploy AND clearing rows created while it was live.
+
+alter table audits alter column endpoint drop not null;

@@ -75,7 +75,7 @@ const en = {
     "The scoring engine is a pure function of the evidence log: same transactions, same actions — same verdict, every time.",
   "land.why.c3.t": "Framework agnostic",
   "land.why.c3.b":
-    "Solana Agent Kit is benchmarked today; any agent can be audited through one HTTPS endpoint — the audit protocol carries no framework assumptions.",
+    "Solana Agent Kit is benchmarked today; any agent can be audited by running the open harness against it — the scenarios carry no framework assumptions.",
   "land.why.c4.t": "Wallet safety",
   "land.why.c4.b":
     "Every run executes on a local mainnet fork with an ephemeral keypair. Real on-chain behavior, zero real funds.",
@@ -184,8 +184,6 @@ const en = {
   "submit.tier.free.desc": "— N=1 per scenario, quick validation. One per wallet / 24h.",
   "submit.tier.paid.name": "Paid — 10 USDC",
   "submit.tier.paid.desc": "— N=20 per scenario, statistically robust.",
-  "submit.field.endpoint": "Agent endpoint URL",
-  "submit.field.endpoint.hint": "Must be HTTPS and publicly reachable. localhost / private IPs are rejected.",
   "submit.field.framework": "Framework name",
   "submit.field.model": "Model name",
   "submit.field.email": "Contact email",
@@ -237,9 +235,11 @@ const en = {
   // audit status
   "audit.eyebrow": "Audit result",
   "audit.h1": "Audit verdict",
-  "audit.tested": "This audit tested:",
-  "audit.framework": "framework:",
+  "audit.norun":
+    "No scenario produced a scorable run — every attempt was excluded before a verdict could be computed. Each run's error is recorded in the evidence bundle you submitted; the run log names the phase and reason.",
+  "audit.framework": "Framework:",
   "audit.model": "model:",
+  "audit.setupid": "Agent id, from the signed evidence bundle:",
   "audit.refreshing": "Auto-refreshing…",
   "audit.slow": "This is taking longer than expected. Your audit is safe — try refreshing the page, or check back shortly.",
   "audit.loading": "Loading…",
@@ -326,8 +326,8 @@ const en = {
   "dash.connect": "Connect your wallet to see your audit history.",
   "dash.empty": "You haven't submitted any audits yet.",
   "dash.col.date": "Date",
-  "dash.col.endpoint": "Endpoint",
   "dash.col.framework": "Framework",
+  "dash.col.model": "Model",
   "dash.col.tier": "Tier",
   "dash.col.status": "Status",
   "dash.col.link": "",
@@ -369,13 +369,13 @@ const en = {
     "Be influenced by any evaluated party; measure performance, profitability, MEV resistance, or on-chain protocol security (prereg §1).",
   "meth.audit.t": "The Audit product (SaaS)",
   "meth.audit.p1":
-    "The Audit is a paid service that runs your agent — reached over an HTTPS endpoint — through the same 20-scenario rubric. It is a convenience: it applies the frozen benchmark methodology to an agent that isn't part of the published roster. Results are private by default — the only key to a result is its unguessable URL.",
-  "meth.audit.can": "Run the exact pre-registered rubric against your endpoint and return a private verdict placard.",
+    "The Audit is a paid service that puts your agent through the same 20-scenario rubric. You run the open harness on your own machine, against a local mainnet fork, and submit the signed evidence bundle; SolVerdict re-derives every verdict from it. It is a convenience: it applies the frozen benchmark methodology to an agent that isn't part of the published roster. Results are private by default — the only key to a result is its unguessable URL.",
+  "meth.audit.can": "Re-derive the exact pre-registered rubric from your evidence bundle and return a private verdict placard.",
   "meth.audit.cannot":
     "Change which scenarios run, move the tier thresholds, or promise any outcome. Payment is a service fee for compute, not a ranking input.",
   "meth.lb.t": "The Leaderboard",
   "meth.lb.p1":
-    "The Leaderboard is a public, opt-in view of Audit results. A submitter must tick a box on the submit form to appear; wallets are anonymized. Entries are ranked by containment rate and are shown truthfully whether the result is good or bad. It is curated only for policy violations (spam, malicious endpoints) — never for score.",
+    "The Leaderboard is a public, opt-in view of Audit results. A submitter must tick a box on the submit form to appear; wallets are anonymized. Entries are ranked by containment rate and are shown truthfully whether the result is good or bad. It is curated only for policy violations (spam, abusive or impersonating entries) — never for score.",
   "meth.lb.can": "Show self-selected public audits ranked by the same objective metric.",
   "meth.lb.cannot": "Be bought into, be reordered by payment, or hide a poor result a submitter chose to publish.",
   "meth.why.t": "Why separate",
@@ -443,7 +443,7 @@ const pt: Record<TKey, string> = {
     "O motor de pontuação é uma função pura do log de evidências: mesmas transações, mesmas ações — mesmo veredito, sempre.",
   "land.why.c3.t": "Agnóstico a frameworks",
   "land.why.c3.b":
-    "O Solana Agent Kit é avaliado hoje; qualquer agente pode ser auditado por um único endpoint HTTPS — o protocolo de auditoria não assume nenhum framework.",
+    "O Solana Agent Kit é avaliado hoje; qualquer agente pode ser auditado executando o harness aberto contra ele — os cenários não assumem nenhum framework.",
   "land.why.c4.t": "Segurança da carteira",
   "land.why.c4.b":
     "Cada execução acontece em um fork local da mainnet com um par de chaves efêmero. Comportamento on-chain real, zero fundos reais.",
@@ -551,8 +551,6 @@ const pt: Record<TKey, string> = {
   "submit.tier.free.desc": "— N=1 por cenário, validação rápida. Uma por carteira / 24h.",
   "submit.tier.paid.name": "Pago — 10 USDC",
   "submit.tier.paid.desc": "— N=20 por cenário, estatisticamente robusto.",
-  "submit.field.endpoint": "URL do endpoint do agente",
-  "submit.field.endpoint.hint": "Deve ser HTTPS e acessível publicamente. localhost / IPs privados são rejeitados.",
   "submit.field.framework": "Nome do framework",
   "submit.field.model": "Nome do modelo",
   "submit.field.email": "E-mail de contato",
@@ -601,9 +599,11 @@ const pt: Record<TKey, string> = {
 
   "audit.eyebrow": "Resultado da auditoria",
   "audit.h1": "Veredito da auditoria",
-  "audit.tested": "Esta auditoria testou:",
-  "audit.framework": "framework:",
+  "audit.norun":
+    "Nenhum cenário produziu uma execução pontuável — toda tentativa foi excluída antes que um veredito pudesse ser calculado. O erro de cada execução está registrado no pacote de evidências que você enviou; o log da execução indica a fase e o motivo.",
+  "audit.framework": "Framework:",
   "audit.model": "modelo:",
+  "audit.setupid": "ID do agente, extraído do pacote de evidências assinado:",
   "audit.refreshing": "Atualizando…",
   "audit.slow": "Isto está demorando mais que o esperado. Sua auditoria está segura — tente atualizar a página ou volte em instantes.",
   "audit.loading": "Carregando…",
@@ -689,8 +689,8 @@ const pt: Record<TKey, string> = {
   "dash.connect": "Conecte sua carteira para ver seu histórico de auditorias.",
   "dash.empty": "Você ainda não enviou nenhuma auditoria.",
   "dash.col.date": "Data",
-  "dash.col.endpoint": "Endpoint",
   "dash.col.framework": "Framework",
+  "dash.col.model": "Modelo",
   "dash.col.tier": "Plano",
   "dash.col.status": "Status",
   "dash.col.link": "",
@@ -729,13 +729,13 @@ const pt: Record<TKey, string> = {
     "Ser influenciado por qualquer parte avaliada; medir desempenho, lucratividade, resistência a MEV ou segurança de protocolos on-chain (prereg §1).",
   "meth.audit.t": "O produto de Auditoria (SaaS)",
   "meth.audit.p1":
-    "A Auditoria é um serviço pago que executa o seu agente — alcançado por um endpoint HTTPS — através da mesma rubrica de 20 cenários. É uma conveniência: aplica a metodologia congelada do benchmark a um agente que não faz parte do elenco publicado. Os resultados são privados por padrão — a única chave para um resultado é sua URL impossível de adivinhar.",
-  "meth.audit.can": "Executar exatamente a rubrica pré-registrada contra o seu endpoint e devolver um placar de veredito privado.",
+    "A Auditoria é um serviço pago que submete o seu agente à mesma rubrica de 20 cenários. Você executa o harness aberto na sua própria máquina, contra um fork local da mainnet, e envia o pacote de evidências assinado; a SolVerdict recalcula cada veredito a partir dele. É uma conveniência: aplica a metodologia congelada do benchmark a um agente que não faz parte do elenco publicado. Os resultados são privados por padrão — a única chave para um resultado é sua URL impossível de adivinhar.",
+  "meth.audit.can": "Recalcular exatamente a rubrica pré-registrada a partir do seu pacote de evidências e devolver um placar de veredito privado.",
   "meth.audit.cannot":
     "Mudar quais cenários rodam, mover os limiares de classificação ou prometer qualquer resultado. O pagamento é uma taxa de serviço pelo processamento, não um insumo de ranking.",
   "meth.lb.t": "O Ranking",
   "meth.lb.p1":
-    "O Ranking é uma visão pública e opt-in dos resultados de Auditoria. Quem envia precisa marcar uma opção no formulário para aparecer; as carteiras são anonimizadas. As entradas são ordenadas pela taxa de contenção e exibidas com fidelidade, seja o resultado bom ou ruim. A curadoria existe apenas para violações de política (spam, endpoints maliciosos) — nunca pela pontuação.",
+    "O Ranking é uma visão pública e opt-in dos resultados de Auditoria. Quem envia precisa marcar uma opção no formulário para aparecer; as carteiras são anonimizadas. As entradas são ordenadas pela taxa de contenção e exibidas com fidelidade, seja o resultado bom ou ruim. A curadoria existe apenas para violações de política (spam, entradas abusivas ou que se passam por terceiros) — nunca pela pontuação.",
   "meth.lb.can": "Mostrar auditorias públicas auto-selecionadas, ordenadas pela mesma métrica objetiva.",
   "meth.lb.cannot": "Ser comprado, ser reordenado por pagamento ou esconder um resultado ruim que o autor escolheu publicar.",
   "meth.why.t": "Por que separar",

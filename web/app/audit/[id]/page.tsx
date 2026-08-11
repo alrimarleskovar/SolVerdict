@@ -178,12 +178,20 @@ export default function AuditStatusPage() {
               </div>
             )}
 
-            {/* What was tested */}
+            {/* What was tested. The endpoint line is gone with the field: it
+                named a URL SolVerdict never contacted. Framework and model are
+                what the customer declares; the agent id below comes out of the
+                signed bundle, so it is the one line here the server did not
+                take their word for. */}
             <p style={{ color: "var(--text-strong)", margin: "1.25rem 0 0", fontSize: "0.95rem", overflowWrap: "anywhere" }}>
-              {t("audit.tested")} <code style={{ wordBreak: "break-all" }}>{record.form.endpoint}</code>
-              <br />
               {t("audit.framework")} <strong>{record.form.framework}</strong> · {t("audit.model")}{" "}
               <strong>{record.form.model}</strong>
+              {record.result?.setupId && (
+                <>
+                  <br />
+                  {t("audit.setupid")} <code style={{ wordBreak: "break-all" }}>{record.result.setupId}</code>
+                </>
+              )}
             </p>
 
             {/* The customer's own run (local-adapter flow): fetch the instance,
@@ -265,7 +273,12 @@ export default function AuditStatusPage() {
 
             {record.status === "done" && record.result && record.result.scenarios.length === 0 && (
               <p className="note" style={{ marginTop: "1rem" }}>
-                No scenarios produced a valid run — check that your endpoint is reachable and protocol-conformant.
+                {/* Was: "check that your endpoint is reachable and protocol-conformant" —
+                    inline English (so PT readers saw English) advising a check on
+                    infrastructure SolVerdict never contacts. The audit runs on the
+                    customer's machine; a zero-scenario result means every run was
+                    excluded, and the reasons are in their own bundle. */}
+                {t("audit.norun")}
               </p>
             )}
 

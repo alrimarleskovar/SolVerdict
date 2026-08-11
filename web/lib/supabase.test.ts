@@ -37,6 +37,9 @@ function main() {
     assert.equal(rec.tier, "free");
     assert.equal(rec.n, 1);
     assert.equal(rec.walletPubkey, BASE.wallet);
+    // BASE is a LEGACY row — created while the form still collected an endpoint.
+    // Its stored value must keep surfacing, or an existing audit's page and PDF
+    // silently lose data the customer submitted.
     assert.equal(rec.form.endpoint, BASE.endpoint);
     assert.equal(rec.form.framework, "custom");
     assert.equal(rec.form.email, undefined);
@@ -44,6 +47,15 @@ function main() {
     assert.equal(rec.result, null);
     assert.equal(rec.progress, undefined);
     assert.equal(rec.createdAt, BASE.created_at);
+  }
+
+  // --- post-removal row: endpoint is NULL and must be absent, not "null" ---
+  {
+    const rec = rowToRecord({ ...BASE, endpoint: null });
+    assert.equal(rec.form.endpoint, undefined);
+    assert.ok(!("endpoint" in rec.form), "a null endpoint must be omitted, not carried");
+    assert.equal(rec.form.framework, "custom");
+    assert.equal(rec.form.model, "claude-sonnet-4-6");
   }
 
   // --- email carried through when present ---

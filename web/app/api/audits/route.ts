@@ -96,7 +96,7 @@ export async function POST(req: Request) {
   try {
     const { data, count, error } = await supabaseAdmin()
       .from("audits")
-      .select("id, created_at, endpoint, framework, model, tier, status", { count: "exact" })
+      .select("id, created_at, framework, model, tier, status", { count: "exact" })
       .eq("wallet", wallet)
       .order("created_at", { ascending: false })
       .range(from, to);
@@ -105,7 +105,6 @@ export async function POST(req: Request) {
     const audits = (data ?? []).map((r: Record<string, unknown>) => ({
       id: r.id,
       createdAt: r.created_at,
-      endpoint: r.endpoint,
       framework: r.framework,
       model: r.model,
       tier: r.tier,

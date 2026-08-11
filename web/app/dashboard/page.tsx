@@ -19,7 +19,6 @@ const WalletMultiButton = dynamic(
 interface AuditRow {
   id: string;
   createdAt: string;
-  endpoint: string;
   framework: string;
   model: string;
   tier: string;
@@ -177,8 +176,8 @@ export default function DashboardPage() {
                 <thead>
                   <tr>
                     <th>{t("dash.col.date")}</th>
-                    <th style={{ textAlign: "left" }}>{t("dash.col.endpoint")}</th>
                     <th style={{ textAlign: "left" }}>{t("dash.col.framework")}</th>
+                    <th style={{ textAlign: "left" }}>{t("dash.col.model")}</th>
                     <th>{t("dash.col.tier")}</th>
                     <th>{t("dash.col.status")}</th>
                     <th>{t("dash.col.link")}</th>
@@ -189,9 +188,11 @@ export default function DashboardPage() {
                     <tr key={r.id}>
                       <td className="cell">{r.createdAt.slice(0, 10)}</td>
                       <td className="cell" style={{ textAlign: "left", maxWidth: "220px", overflow: "hidden", textOverflow: "ellipsis" }}>
-                        {r.endpoint}
+                        {r.framework}
                       </td>
-                      <th style={{ textAlign: "left" }}>{r.framework}</th>
+                      <td className="cell" style={{ textAlign: "left", maxWidth: "220px", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        {r.model}
+                      </td>
                       <td className="cell">{r.tier === "paid" ? "Paid" : "Free"}</td>
                       <td className="cell">{t(`status.${r.status}` as TKey)}</td>
                       <td className="cell">

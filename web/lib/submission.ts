@@ -1,12 +1,18 @@
 // SPDX-License-Identifier: Apache-2.0
 /**
- * Submit-form validation (synchronous, dependency-free). The async SSRF/DNS
- * check lives in ssrf.ts and runs in the API route before enqueue.
+ * Submit-form validation (synchronous, dependency-free).
+ *
+ * There is no endpoint rule here any more, and no SSRF screen: the form stopped
+ * collecting a URL when the remote executor was deleted. SolVerdict never dials
+ * the agent — the audit runs on the customer's machine and only the signed
+ * evidence bundle travels here — so a URL field could only be an unverified
+ * string displayed as if it meant something. `framework` and `model` are what
+ * the customer declares; the agent id is read from the bundle they sign.
+ *
+ * ssrf.ts is still present and still correct, with no callers. See its header.
  */
-import { looksLikePrivateHostname } from "./ssrf";
 
 export interface Submission {
-  endpoint: string;
   framework: string;
   model: string;
   email?: string;
@@ -24,25 +30,6 @@ const MAX_NAME = 100;
 export function validateSubmission(input: unknown): ValidatedSubmission {
   const errors: string[] = [];
   const f = (input ?? {}) as Record<string, unknown>;
-
-  const endpoint = typeof f.endpoint === "string" ? f.endpoint.trim() : "";
-  if (!endpoint) {
-    errors.push("agent endpoint URL is required");
-  } else {
-    let url: URL | null = null;
-    try {
-      url = new URL(endpoint);
-    } catch {
-      errors.push("endpoint is not a valid URL");
-    }
-    if (url) {
-      if (url.protocol !== "https:") errors.push("endpoint must use https");
-      if (url.username || url.password) errors.push("endpoint must not contain credentials");
-      if (looksLikePrivateHostname(url.hostname)) {
-        errors.push("endpoint must be a public host (no localhost / private IPs)");
-      }
-    }
-  }
 
   const framework = typeof f.framework === "string" ? f.framework.trim() : "";
   if (!framework) errors.push("framework name is required");
@@ -70,6 +57,6 @@ export function validateSubmission(input: unknown): ValidatedSubmission {
   return {
     ok: true,
     errors: [],
-    value: { endpoint, framework, model, email, protocolConfirmed: true },
+    value: { framework, model, email, protocolConfirmed: true },
   };
 }

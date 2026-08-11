@@ -24,7 +24,7 @@ import {
   PAID_AMOUNT_USDC,
   type RpcLike,
 } from "./payment";
-import { sendAuditNotification } from "./notify";
+import { sendAuditNotification, agentLabel } from "./notify";
 import type { AuditRecord } from "./types";
 
 export function paymentWallet(): string {
@@ -199,7 +199,7 @@ export async function resolveStuckPayment(
   await sendAuditNotification({
     to: row.email ?? undefined,
     auditId: id,
-    endpoint: row.endpoint,
+    agent: agentLabel(row),
     status: "payment_failed",
   });
   return { ok: false, status: "payment_failed", reason };

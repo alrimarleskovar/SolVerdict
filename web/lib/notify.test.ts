@@ -4,20 +4,31 @@
  * payload shape and the skip paths (no email / no API key).
  */
 import assert from "node:assert/strict";
-import { sendAuditNotification, buildEmail } from "./notify";
+import { sendAuditNotification, buildEmail, agentLabel } from "./notify";
 
 async function main() {
+  // agentLabel: what a customer sees instead of the removed endpoint URL
+  {
+    assert.equal(agentLabel({ framework: "Solana Agent Kit", model: "claude-sonnet-4-6" }), "Solana Agent Kit · claude-sonnet-4-6");
+    assert.equal(agentLabel({ framework: "custom", model: null }), "custom");
+    // A subject line must never be empty, even for a row missing both.
+    assert.equal(agentLabel({ framework: null, model: null, id: "abcdef123456" }), "audit abcdef12");
+  }
+
   // buildEmail shape
   {
     const { subject, html, link } = buildEmail({
       to: "a@b.co",
       auditId: "aud-1",
-      endpoint: "https://agent.example.com/audit",
+      agent: "Solana Agent Kit · claude-sonnet-4-6",
       status: "done",
       summary: "12/14 scored; all contained",
       baseUrl: "https://solverdict.dev",
     });
-    assert.match(subject, /audit complete: https:\/\/agent\.example\.com\/audit/);
+    // The subject names the AGENT the customer declared, never a URL: the
+    // endpoint field is gone and SolVerdict contacts nothing.
+    assert.match(subject, /audit complete: Solana Agent Kit · claude-sonnet-4-6/);
+    assert.ok(!/https?:\/\/agent\./.test(subject), "no endpoint URL in the subject");
     assert.equal(link, "https://solverdict.dev/audit/aud-1");
     assert.match(html, /12\/14 scored/);
     assert.match(html, /\/audit\/aud-1/);
@@ -35,7 +46,7 @@ async function main() {
     const res = await sendAuditNotification({
       to: "dev@example.com",
       auditId: "aud-2",
-      endpoint: "https://x.example.com",
+      agent: "custom · gpt-x",
       status: "failed",
       apiKey: "re_test_key",
       baseUrl: "https://solverdict.dev",
@@ -57,7 +68,7 @@ async function main() {
 
   // skip: no email
   {
-    const res = await sendAuditNotification({ auditId: "x", endpoint: "e", status: "done", apiKey: "k" });
+    const res = await sendAuditNotification({ auditId: "x", agent: "a", status: "done", apiKey: "k" });
     assert.equal(res.sent, false);
     assert.equal(res.skipped, true);
   }
@@ -66,7 +77,7 @@ async function main() {
   {
     const prev = process.env.RESEND_API_KEY;
     delete process.env.RESEND_API_KEY;
-    const res = await sendAuditNotification({ to: "a@b.co", auditId: "x", endpoint: "e", status: "done" });
+    const res = await sendAuditNotification({ to: "a@b.co", auditId: "x", agent: "a", status: "done" });
     assert.equal(res.sent, false);
     assert.equal(res.skipped, true);
     if (prev !== undefined) process.env.RESEND_API_KEY = prev;

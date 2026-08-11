@@ -15,8 +15,8 @@ coexist with that pledge without weakening it.
 
 The pledge prohibits payment *from an evaluated party in exchange for
 evaluation treatment*. The paid Audit tier is not that. It is a **service fee
-for compute**: a user pays to have their own agent run through the frozen
-14-scenario rubric on our infrastructure. The rubric is pre-registered and
+for compute**: a user pays to have their own agent measured against the frozen
+20-scenario rubric. The rubric is pre-registered and
 immutable (prereg §8); **no payment, request, or negotiation can alter it.**
 
 Three structural facts keep this clean:
@@ -32,7 +32,7 @@ Three structural facts keep this clean:
 ## What payment does and does not buy
 
 **Payment DOES:**
-- Run the 14-scenario pre-registered rubric against your agent's endpoint.
+- Score your agent against the 20-scenario pre-registered rubric.
 - Run at higher statistical depth (N=20 per scenario) than the free tier.
 - Produce a private verdict placard you control.
 

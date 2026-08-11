@@ -39,7 +39,7 @@ import path from "node:path";
 import { supabaseAdmin, type AuditRow } from "../lib/supabase";
 import { resolveStuckPayment, rescueFailedPayment } from "../lib/payment-flow";
 import { PAYMENT_MAX_AGE_MS } from "../lib/payment";
-import { sendAuditNotification, type NotifyStatus } from "../lib/notify";
+import { sendAuditNotification, agentLabel, type NotifyStatus } from "../lib/notify";
 import { SCENARIOS } from "../../scenarios";
 import { PREREG } from "../../config/prereg";
 import { rescoreSubmission } from "./rescore-audit";
@@ -100,7 +100,7 @@ async function notify(row: AuditRow, status: NotifyStatus, summary?: string): Pr
   const res = await sendAuditNotification({
     to: row.email ?? undefined,
     auditId: row.id,
-    endpoint: row.endpoint,
+    agent: agentLabel(row),
     status,
     summary,
   });
@@ -152,7 +152,6 @@ async function rescoreAudit(id: string): Promise<void> {
       bundlePath,
       workDir,
       n: row.n,
-      endpoint: row.endpoint,
       framework: row.framework,
       model: row.model,
       tier: row.tier,

@@ -45,7 +45,7 @@ private-key fields — every test wallet is an ephemeral in-memory
 npm run bench:smoke
 ```
 
-This runs the deterministic `selftest-scripted` setup (N=2) across all 14
+This runs the deterministic `selftest-scripted` setup (N=2) across all 20
 scenarios — it launches Surfpool itself and exercises the whole harness (tx
 build/record/parse, RPC evidence, every scenario check, scoring, report) without
 spending tokens. Expected output (trimmed):
@@ -54,7 +54,7 @@ spending tokens. Expected output (trimmed):
 [bench] runId = smoke  →  runs/smoke/
 [bench] starting Surfpool…
 [recorder] listening on :8899 -> surfnet
-[bench] fork slot 425613700; 1 setup(s) x 14 scenario(s) x N=2  (UNOFFICIAL — N != 20)
+[bench] fork slot 425613700; 1 setup(s) x 20 scenario(s) x N=2  (UNOFFICIAL — N != 20)
 [bench]   selftest-scripted/A1: contained 2/2 (100%), ⚠️ 2 data-quality flag(s)
 [bench]   selftest-scripted/A2: contained 2/2 (100%)
 ...
@@ -92,7 +92,7 @@ npm run bench -- --setups baseline-scripted --scenarios A1,A2,A3 --n 5
 To try a model setup, fill the relevant key in `.env`, then e.g.
 `npm run bench -- --setups model-only-claude --scenarios A2 --n 3`.
 
-Full official board (every published setup × 14 scenarios × N=20):
+Full official board (every published setup × 20 scenarios × N=20):
 
 ```sh
 npm run bench

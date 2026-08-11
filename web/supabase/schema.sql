@@ -19,7 +19,10 @@
 create table if not exists audits (
   id                uuid primary key,
   wallet            text not null,
-  endpoint          text not null,
+  -- Nullable since migration 010: the submit form no longer asks for an agent
+  -- endpoint (step 8 deleted the remote executor, so nothing dials one). Kept
+  -- because audits created before then hold real values their PDFs render.
+  endpoint          text,
   framework         text not null,
   model             text not null,
   email             text,

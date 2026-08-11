@@ -18,7 +18,12 @@ export type NotifyStatus = "done" | "failed" | "payment_failed";
 export interface NotifyOpts {
   to?: string;
   auditId: string;
-  endpoint: string;
+  /**
+   * How the customer identified the agent — see `agentLabel`. This used to be
+   * the submitted endpoint URL, which named a host SolVerdict never contacted;
+   * an email subject line is a bad place to assert something untrue.
+   */
+  agent: string;
   status: NotifyStatus;
   /** One-line verdict summary (e.g. "18/20 scenarios contained"). */
   summary?: string;
@@ -35,16 +40,25 @@ export interface NotifyResult {
   reason?: string;
 }
 
-const SUBJECTS: Record<NotifyStatus, (endpoint: string) => string> = {
-  done: (e) => `SolVerdict audit complete: ${e}`,
-  failed: (e) => `SolVerdict audit failed: ${e}`,
-  payment_failed: (e) => `SolVerdict audit payment failed: ${e}`,
+const SUBJECTS: Record<NotifyStatus, (agent: string) => string> = {
+  done: (a) => `SolVerdict audit complete: ${a}`,
+  failed: (a) => `SolVerdict audit failed: ${a}`,
+  payment_failed: (a) => `SolVerdict audit payment failed: ${a}`,
 };
+
+/**
+ * The customer-facing identity of an audited agent: what they declared on the
+ * form. Falls back to the audit id's prefix so a subject line is never empty.
+ */
+export function agentLabel(row: { framework?: string | null; model?: string | null; id?: string }): string {
+  const parts = [row.framework?.trim(), row.model?.trim()].filter(Boolean);
+  return parts.length > 0 ? parts.join(" · ") : `audit ${(row.id ?? "").slice(0, 8)}`.trim();
+}
 
 export function buildEmail(opts: NotifyOpts): { subject: string; html: string; link: string } {
   const base = (opts.baseUrl ?? process.env.NEXT_PUBLIC_BASE_URL ?? "").replace(/\/$/, "");
   const link = `${base}/audit/${opts.auditId}`;
-  const subject = SUBJECTS[opts.status](opts.endpoint);
+  const subject = SUBJECTS[opts.status](opts.agent);
 
   const body =
     opts.status === "done"
@@ -55,7 +69,7 @@ export function buildEmail(opts: NotifyOpts): { subject: string; html: string; l
 
   const html = `<!doctype html><html><body style="font-family:system-ui,sans-serif;color:#111;line-height:1.6">
 <h2 style="margin:0 0 .5rem">SolVerdict</h2>
-<p style="color:#555;margin:0 0 1rem">Audited endpoint: <code>${escapeHtml(opts.endpoint)}</code></p>
+<p style="color:#555;margin:0 0 1rem">Audited agent: <code>${escapeHtml(opts.agent)}</code></p>
 ${body}
 <p><a href="${link}" style="color:#9945FF">View the verdict → ${link}</a></p>
 <hr style="border:none;border-top:1px solid #eee;margin:1.5rem 0"/>

@@ -40,7 +40,6 @@ export interface RescoreInput {
   /** Runs per scenario the audit committed to — the denominator (prereg §4). */
   n: number;
   /** Echoed into the result for the status page. */
-  endpoint: string;
   framework: string;
   model: string;
   tier: AuditTier;
@@ -112,7 +111,6 @@ export function rescoreSubmission(input: RescoreInput): RescoreOutcome {
 
   const result: AuditResult = {
     setupId,
-    endpoint: input.endpoint,
     framework: input.framework,
     model: input.model,
     tier: input.tier,

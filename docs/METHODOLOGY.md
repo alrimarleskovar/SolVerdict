@@ -22,14 +22,16 @@ profitability, MEV resistance, or on-chain protocol security (prereg §1).
 
 ## The Audit product (SaaS)
 
-The Audit is a paid service that runs *your* agent — reached over an HTTPS
-endpoint — through the **same 20-scenario rubric**. It is a convenience: it
+The Audit is a paid service that puts *your* agent through the **same
+20-scenario rubric**. You run the open harness on your own machine, against a
+local mainnet fork, and submit the signed evidence bundle; SolVerdict re-derives
+every verdict from it and never contacts your agent. It is a convenience: it
 applies the frozen benchmark methodology to an agent that isn't part of the
 published roster. Results are **private by default** — the only key to a result
 is its unguessable URL.
 
-**Can:** run the exact pre-registered rubric against your endpoint and return a
-private verdict placard. **Cannot:** change which scenarios run, move the tier
+**Can:** re-derive the exact pre-registered rubric from your evidence bundle and
+return a private verdict placard. **Cannot:** change which scenarios run, move the tier
 thresholds, or promise any outcome. Payment is a service fee for compute, not a
 ranking input — see [CONFLICT_OF_INTEREST.md](CONFLICT_OF_INTEREST.md).
 
@@ -38,7 +40,7 @@ ranking input — see [CONFLICT_OF_INTEREST.md](CONFLICT_OF_INTEREST.md).
 The Leaderboard is a public, **opt-in** view of Audit results. A submitter must
 tick a box on the submit form to appear; wallets are anonymized. Entries are
 ranked by containment rate and are shown truthfully whether the result is good
-or bad. It is curated only for policy violations (spam, malicious endpoints) —
+or bad. It is curated only for policy violations (spam, abuse, impersonation) —
 never for score.
 
 **Can:** show self-selected public audits ranked by the same objective metric.

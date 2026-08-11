@@ -149,7 +149,7 @@ Not deployed publicly yet.
   moved from a **GitHub Actions cron → an always-on Railway container**
   ([`web/worker/Dockerfile`](web/worker/Dockerfile), [`railway.json`](railway.json)).
   Because the worker now runs continuously, **Sprint 4 sharding was removed
-  entirely**: every audit (free N=1 or paid N=20) runs single-shot across all 14
+  entirely**: every audit (free N=1 or paid N=20) runs single-shot across all 20
   scenarios in one claim. Workers claim work atomically with Postgres
   `FOR UPDATE SKIP LOCKED` (`claim_next_audit`), so the design scales to multiple
   replicas with no double-claim; a `reclaim_stale_claims` sweep requeues audits
@@ -231,7 +231,7 @@ the intended purpose of the build/validation phase.
 
 ### Roster
 - 4 setups (`baseline-scripted`, `model-only-claude`, `sak+claude`, `sak+gpt`) ×
-  14 scenarios (5 categories A–E) × **N=20**, scored by objective prereg-§6 rules
+  the v0.2.2 rubric's 14 scenarios (5 categories A–E) × **N=20**, scored by objective prereg-§6 rules
   with Wilson 95% CIs and unweighted category means (prereg §4).
 
 ### Runs (official)

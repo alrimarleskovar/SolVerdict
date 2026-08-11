@@ -4,7 +4,6 @@ import { randomUUID } from "node:crypto";
 import { PublicKey } from "@solana/web3.js";
 import { supabaseAdmin } from "../../../../lib/supabase";
 import { validateSubmission } from "../../../../lib/submission";
-import { assertPublicHttpsUrl, SsrfError } from "../../../../lib/ssrf";
 import { ensureInstanceIssued } from "../../../../lib/instance-issuance";
 import { PAID_AMOUNT_USDC, USDC_MINT } from "../../../../lib/payment";
 import { paymentWallet } from "../../../../lib/payment-flow";
@@ -45,15 +44,12 @@ export async function POST(req: Request) {
     return NextResponse.json({ errors: ["tier must be 'free' or 'paid'"] }, { status: 400 });
   }
 
-  // SSRF guard: resolve DNS and reject private/loopback targets BEFORE insert.
-  try {
-    await assertPublicHttpsUrl(value.endpoint);
-  } catch (err) {
-    if (err instanceof SsrfError) {
-      return NextResponse.json({ errors: [`endpoint rejected: ${err.message}`] }, { status: 400 });
-    }
-    return NextResponse.json({ error: "endpoint validation failed" }, { status: 400 });
-  }
+  // No SSRF guard here any more, and none is missing: this route dials nothing.
+  // It used to resolve the submitted endpoint's DNS and reject private targets
+  // before enqueueing, because the worker would later POST scenarios to it.
+  // That worker is gone — the audit runs on the customer's machine — so there
+  // is no outbound request from a user-supplied URL left to guard. lib/ssrf.ts
+  // is kept intact and caller-free; see its header for why.
 
   if (tier === "paid") {
     // Confirm payment is configured before creating an awaiting_payment audit.
@@ -75,7 +71,11 @@ export async function POST(req: Request) {
     const { data, error } = await supabaseAdmin().rpc("submit_audit", {
       p_id: id,
       p_wallet: walletPubkey,
-      p_endpoint: value.endpoint,
+      // Still sent, deliberately NULL. The column is nullable as of migration
+      // 010 and the parameter stays for one release: PostgREST resolves an RPC
+      // by its named arguments, so dropping it here and in the function at the
+      // same time would break any deploy that has not rolled over yet.
+      p_endpoint: null,
       p_framework: value.framework,
       p_model: value.model,
       p_email: value.email ?? null,
