@@ -29,7 +29,18 @@
  * comes from the placard-model helpers — no number is recomputed here.
  */
 import { jsPDF } from "jspdf";
-import { categoryCells, scenarioRows, containmentSummary, forkAnchor, pct, type CategoryCell } from "./placard-model";
+import {
+  categoryCells,
+  scenarioRows,
+  containmentSummary,
+  forkAnchor,
+  notApplicableGroups,
+  coveredCategories,
+  CATEGORY_LABELS,
+  pct,
+  type CategoryCell,
+} from "./placard-model";
+import { t, type Lang, type TKey } from "./i18n";
 import { PREREG } from "../../config/prereg";
 import { SYMBOL_PNG_DATA_URI } from "./brand-assets";
 import type { Tier } from "../../scoring/tiers";
@@ -93,7 +104,22 @@ function drawBadge(doc: jsPDF, x: number, y: number, size: number): void {
   doc.addImage(SYMBOL_PNG_DATA_URI, "PNG", x + pad, y + pad, inner, inner);
 }
 
-export function buildAuditPdf(id: string, result: AuditResult, createdAt: string): ArrayBuffer {
+export function buildAuditPdf(
+  id: string,
+  result: AuditResult,
+  createdAt: string,
+  /**
+   * Language for the explanatory blocks (not-applicable, category legend).
+   *
+   * SCOPE, STATED HONESTLY: only those blocks are localised. The other 42
+   * strings on this page — headings, labels, the disclaimer — are still English
+   * literals. This parameter exists so the copy that EXPLAINS a customer's
+   * result reaches them in their language; finishing the page is mechanical
+   * from here and deliberately not done in the same change as a layout fix.
+   */
+  lang: Lang = "en",
+): ArrayBuffer {
+  const tr = (k: TKey): string => t(lang, k);
   const doc = new jsPDF({ unit: "pt", format: "a4" });
   const W = doc.internal.pageSize.getWidth();
   const H = doc.internal.pageSize.getHeight();
@@ -392,24 +418,166 @@ export function buildAuditPdf(id: string, result: AuditResult, createdAt: string
     // page 1 must not be able to mistake the placard for the whole report.
     // Deliberately NOT a partial table — half a table looks like a table.
     deferred = true;
-    const panelH = 62;
+    // Two lines, not four. The panel earns its border by being unmissable, not
+    // by being large, and page 1 now carries the not-applicable explanation
+    // that needs the height more — in Portuguese, whose text runs longer, the
+    // four-line version left the explanation unable to fit at all.
+    const panelH = 34;
     doc.setFillColor(...tint(BLUE, 0.06));
     doc.setDrawColor(...tint(BLUE, 0.35));
     doc.setLineWidth(0.9);
     doc.roundedRect(L, headY - 6, CW, panelH, 8, 8, "FD");
     doc.setFillColor(...BLUE);
-    doc.rect(L + 2, headY + 1, 3.5, panelH - 14, "F");
-    txt(`All ${rows.length} scenarios are tabulated on page 2`, L + 18, headY + 14, { size: 10, style: "bold", color: INK });
+    doc.rect(L + 2, headY - 1, 3.5, panelH - 10, "F");
+    txt(tr("rep.page2.title").replace("{n}", String(rows.length)), L + 18, headY + 12, {
+      size: 10, style: "bold", color: INK,
+    });
     txt(
-      `${rows[0]!.scenarioId} through ${rows[rows.length - 1]!.scenarioId}, each with its contained count, ` +
-        "containment rate and Wilson 95% confidence interval. No scenario is summarised away: the per-category " +
-        "figures above are means over exactly those rows.",
+      tr("rep.page2.body")
+        .replace("{first}", rows[0]!.scenarioId)
+        .replace("{last}", rows[rows.length - 1]!.scenarioId),
       L + 18,
-      headY + 28,
+      headY + 24,
       { size: 7.5, color: BODY, maxWidth: CW - 36 },
     );
     y = headY + panelH;
   }
+
+  // ================= EXPLANATORY BLOCKS (fill the page-1 gap) ===============
+  //
+  // When the table defers to page 2, page 1 is left with ~230pt of white
+  // between the pointer panel and the strip. These two blocks earn that space
+  // rather than padding it, and BOTH measure themselves the way the table does:
+  // each returns without drawing if it would reach the strip, so nothing here
+  // can reintroduce the overflow that hid category F.
+
+  /** A measured paragraph: laid out first, drawn only if the whole block fits. */
+  interface Para {
+    text: string;
+    size: number;
+    style: "normal" | "italic";
+    color: RGB;
+    indent: number;
+    gapBefore: number;
+    /** Droppable when space is short. The caveat and the reasons are NOT. */
+    optional?: boolean;
+  }
+
+  const measure = (p: Para): { lines: string[]; height: number } => {
+    doc.setFont("helvetica", p.style);
+    doc.setFontSize(p.size);
+    const lines = doc.splitTextToSize(p.text, CW - p.indent) as string[];
+    return { lines, height: p.gapBefore + lines.length * p.size * 1.28 };
+  };
+
+  /**
+   * Draws a block only if ALL of it fits, dropping `optional` paragraphs first.
+   *
+   * WHY MEASURE-THEN-DRAW. The first version drew paragraph by paragraph and
+   * fell back to the previous y when one did not fit — which silently dropped
+   * the last line. In Portuguese, whose text runs longer, the line that vanished
+   * was the caveat: the sentence saying a capability gap is NOT a safety
+   * property. Losing precisely the anti-overclaim clause, and only in one
+   * language, is the kind of failure this whole exercise exists to prevent.
+   */
+  const drawBlock = (paras: Para[], top: number, limit: number): number | null => {
+    let use = [...paras];
+    let total = use.reduce((a, p) => a + measure(p).height, 0);
+    while (top + total > limit && use.some((p) => p.optional)) {
+      const i = use.findIndex((p) => p.optional);
+      use = [...use.slice(0, i), ...use.slice(i + 1)];
+      total = use.reduce((a, p) => a + measure(p).height, 0);
+    }
+    if (top + total > limit) return null; // the core does not fit: draw nothing
+    let by = top;
+    for (const p of use) {
+      const { lines } = measure(p);
+      by += p.gapBefore;
+      txt(lines.join("\n"), L + p.indent, by, { size: p.size, style: p.style, color: p.color });
+      by += lines.length * p.size * 1.28;
+    }
+    return by;
+  };
+
+  /**
+   * Why some cells were never run.
+   *
+   * THE POINT OF THIS BLOCK. The headline can read "14 applicable to this
+   * agent · 20-scenario pre-registered board", and a customer has no way to
+   * tell whether that is good, bad, or a property of their framework. It is a
+   * CAPABILITY finding: the agent has no action that can express those attacks,
+   * so there was no choice to measure. Never rendered when there are none.
+   */
+  const naGroups = notApplicableGroups(result.score);
+  if (naGroups.length > 0) {
+    const naCount = naGroups.reduce((a, g) => a + g.scenarioIds.length, 0);
+    const paras: Para[] = [
+      {
+        text: tr("rep.na.lead").replace("{n}", String(naCount)).replace("{total}", String(PREREG.scenarios)),
+        size: 8, style: "normal", color: INK, indent: 0, gapBefore: 0,
+      },
+      { text: tr("rep.na.meaning"), size: 7.5, style: "normal", color: BODY, indent: 0, gapBefore: 4 },
+    ];
+    for (const g of naGroups) {
+      paras.push({
+        text: `${g.scenarioIds.join(", ")} — ${g.capability}`,
+        size: 8, style: "normal", color: INK, indent: 0, gapBefore: 5,
+      });
+      // QUOTED from config/capabilities.ts via the stored score, not paraphrased:
+      // it is the same text prereg §6 discloses.
+      paras.push({ text: g.reason, size: 7, style: "normal", color: MUTED, indent: 10, gapBefore: 1 });
+    }
+    // Droppable. Provenance about WHERE the declaration comes from is useful;
+    // the caveat below is not negotiable, so it is not marked optional.
+    paras.push({ text: tr("rep.na.declared"), size: 7, style: "italic", color: MUTED, indent: 0, gapBefore: 5, optional: true });
+    paras.push({ text: tr("rep.na.caveat"), size: 7, style: "italic", color: MUTED, indent: 0, gapBefore: 2 });
+
+    const headH = 16 + 13;
+    const after = drawBlock(paras, y + headH, PAGE1_LIMIT);
+    if (after !== null) {
+      hairline(L, y, CW);
+      txt(tr("rep.na.title"), L, y + 16, { size: 12, style: "bold", color: INK });
+      txt(naGroups.map((g) => g.scenarioIds.join(", ")).join(" · "), R, y + 16, {
+        size: 8, style: "bold", color: MUTED, align: "right",
+      });
+      y = after + 6;
+    }
+  }
+
+  const covered = coveredCategories(result.score);
+  const legendCandidate = covered.length >= 2;
+
+  /** Draws the legend at `top` if it fits under `limit`; returns the y after. */
+  const drawCategoryLegend = (top: number, limit: number, rule: boolean): number | null => {
+    if (!legendCandidate) return null;
+    const note: Para = { text: tr("rep.cat.note"), size: 7, style: "italic", color: MUTED, indent: 0, gapBefore: 3 };
+    // Measured up front, note included: half a legend is not a legend, and the
+    // note is the line that says what a category score does NOT mean.
+    const bodyTop = top + (rule ? 15 : 0) + 12;
+    const end = bodyTop + covered.length * 10 + measure(note).height;
+    if (end > limit) return null;
+
+    let ly = top;
+    if (rule) {
+      hairline(L, ly, CW);
+      ly += 15;
+    }
+    txt(tr("rep.cat.title"), L, ly, { size: 11, style: "bold", color: INK });
+    ly += 12;
+    for (const c of covered) {
+      txt(c, L + 2, ly, { size: 8.5, style: "bold", color: INK });
+      txt(tr(`rep.cat.${c}` as TKey), L + 16, ly, { size: 7.5, color: BODY, maxWidth: CW - 16 });
+      ly += 10;
+    }
+    return drawBlock([note], ly, limit);
+  };
+
+  // Page 1 first — it is where the placard those categories describe lives. When
+  // the not-applicable block has taken the space, the legend follows the table
+  // to page 2 instead, where it sits directly above the CATEGORY column.
+  const legendOnPage1 = drawCategoryLegend(y, PAGE1_LIMIT, true);
+  if (legendOnPage1 !== null) y = legendOnPage1;
+  let legendPending = legendCandidate && legendOnPage1 === null;
 
   // ================= PROVENANCE STRIP (anchored to the page bottom) =========
   // A shareable RECORD of what was measured — explicitly NOT a safety seal.
@@ -492,6 +660,13 @@ export function buildAuditPdf(id: string, result: AuditResult, createdAt: string
       brandRule(0, 58, W);
 
       let py = 92;
+      if (legendPending) {
+        const after = drawCategoryLegend(py, CONT_LIMIT - 120, false);
+        if (after !== null) {
+          py = after + 12;
+          legendPending = false;
+        }
+      }
       txt("Per-scenario breakdown", L, py, { size: 12, style: "bold", color: INK });
       txt(
         cursor === 0 ? `all ${rows.length} scenarios · prereg §6` : `continued · prereg §6`,

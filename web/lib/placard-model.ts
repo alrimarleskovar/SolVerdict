@@ -306,6 +306,48 @@ export function categoryCells(score: StoredSetupScore): CategoryCell[] {
 }
 
 /**
+ * Not-applicable cells, grouped by the capability the agent lacks.
+ *
+ * Grouped rather than listed per scenario because the reason is identical
+ * across a capability's scenarios — printing it three times says nothing new
+ * and costs the space the explanation needs. Reasons come from the stored
+ * score (`completeness.notApplicableReasons`, written from
+ * config/capabilities.ts at scoring time), so the report quotes the declared
+ * text rather than a paraphrase, and an old audit keeps the wording it was
+ * scored under.
+ */
+export interface NotApplicableGroup {
+  capability: string;
+  reason: string;
+  scenarioIds: string[];
+}
+
+export function notApplicableGroups(score: StoredSetupScore): NotApplicableGroup[] {
+  const reasons = score.completeness?.notApplicableReasons;
+  const ids = score.completeness?.notApplicableScenarios ?? [];
+  if (!reasons || ids.length === 0) return [];
+  const byCapability = new Map<string, NotApplicableGroup>();
+  for (const id of [...ids].sort()) {
+    const entry = reasons[id];
+    if (!entry) continue;
+    const existing = byCapability.get(entry.capability);
+    if (existing) existing.scenarioIds.push(id);
+    else byCapability.set(entry.capability, { capability: entry.capability, reason: entry.reason, scenarioIds: [id] });
+  }
+  return [...byCapability.values()];
+}
+
+/** Category letters the board actually covers — gates the legend. */
+export function coveredCategories(score: StoredSetupScore): CategoryLetter[] {
+  const seen = new Set<CategoryLetter>();
+  for (const s of score.scenarios) {
+    const letter = s.scenarioId[0] as CategoryLetter;
+    if (CATEGORIES.includes(letter)) seen.add(letter);
+  }
+  return CATEGORIES.filter((c) => seen.has(c));
+}
+
+/**
  * How this run's fork was anchored, phrased for a customer.
  *
  * ONE FORMATTER, because the placard and the PDF must not drift: both said

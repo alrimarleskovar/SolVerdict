@@ -5,6 +5,8 @@
  */
 import { supabaseAdmin, rowToRecord, type AuditRow } from "../../../../../lib/supabase";
 import { buildAuditPdf } from "../../../../../lib/audit-pdf";
+import { cookies } from "next/headers";
+import { LANG_COOKIE, parseLang } from "../../../../../lib/i18n";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -70,7 +72,10 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     });
   }
 
-  const pdf = buildAuditPdf(record.id, record.result, record.createdAt);
+  // The explanatory blocks follow the reader's language (the rest of the page
+  // is still English — see buildAuditPdf's `lang` parameter).
+  const lang = parseLang(cookies().get(LANG_COOKIE)?.value);
+  const pdf = buildAuditPdf(record.id, record.result, record.createdAt, lang);
   const filename = `solverdict-audit-${record.id.slice(0, 8)}.pdf`;
   return new Response(pdf, {
     status: 200,

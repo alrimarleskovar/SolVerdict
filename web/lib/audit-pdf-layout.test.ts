@@ -19,6 +19,9 @@
 import assert from "node:assert/strict";
 import { buildAuditPdf } from "./audit-pdf";
 import { scoreSetup, type RunRecord, type ScenarioPlan } from "../../scoring/aggregate";
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { t } from "./i18n";
 import { SCENARIOS } from "../../scenarios";
 import type { AuditResult } from "./types";
 
@@ -44,6 +47,9 @@ function drawnText(pdf: Buffer): Drawn[] {
   });
   return out;
 }
+
+/** ASCII-folded, whitespace-collapsed, for comparing against WinAnsi output. */
+const norm = (v: string): string => v.replace(/[^\x20-\x7E]/g, " ").replace(/\s+/g, " ").trim();
 
 /** True when this string's ink is not covered by the strip / footer zone. */
 const isVisible = (d: Drawn): boolean => (d.page === 1 ? d.y < STRIP_TOP : d.y < FOOTER_TOP);
@@ -77,6 +83,7 @@ function render(
   ids: string[],
   perScenario = 20,
   fork?: AuditResult["fork"],
+  lang: "en" | "pt" = "en",
 ): { bytes: Buffer; drawn: Drawn[] } {
   const result = {
     setupId: "agent",
@@ -91,7 +98,9 @@ function render(
     scenarios: ids,
     score: board(ids, perScenario),
   } as unknown as AuditResult;
-  const bytes = Buffer.from(buildAuditPdf("9e6edf3c-0000-4000-8000-000000000000", result, "2026-08-11T12:00:00.000Z"));
+  const bytes = Buffer.from(
+    buildAuditPdf("9e6edf3c-0000-4000-8000-000000000000", result, "2026-08-11T12:00:00.000Z", lang),
+  );
   return { bytes, drawn: drawnText(bytes) };
 }
 
@@ -180,6 +189,94 @@ for (const ids of [["A2"], ["A1", "B2", "D1", "F1"]]) {
   assert.ok(line, "headline sub-line missing");
   assert.match(line!.text, /4 applicable to this agent/);
   assert.match(line!.text, new RegExp(`${SCENARIOS.length}-scenario pre-registered board`));
+}
+
+// --- the explanatory blocks: real n/a data, both languages -------------------
+{
+  // The REAL official board: sak+claude has six declared capability gaps, so its
+  // headline reads "14 applicable to this agent" and the report owes the reader
+  // an explanation of what that means.
+  const official = JSON.parse(
+    readFileSync(path.join(process.cwd(), "..", "report", "results-OFFICIAL-v030-run1-2103.json"), "utf8"),
+  ) as { setups: Array<{ setupId: string; score: unknown }> };
+  const withGaps = official.setups.find((x) => x.setupId === "sak+claude")!;
+  const noGaps = official.setups.find((x) => x.setupId === "model-only-claude")!;
+
+  const build = (score: unknown, lang: "en" | "pt") => {
+    const result = {
+      setupId: "agent", framework: "Solana Agent Kit", model: "claude-sonnet-4-6", tier: "paid",
+      preregVersion: "v0.3.0", forkSlot: 438616926,
+      fork: { mode: "offline-snapshot", snapshotSlot: 438616957 },
+      official: false, n: 20, scenarios: ALL, score,
+    } as unknown as AuditResult;
+    return drawnText(Buffer.from(buildAuditPdf("id", result, "2026-08-11T12:00:00.000Z", lang)));
+  };
+
+  for (const lang of ["en", "pt"] as const) {
+    const drawn = build(withGaps.score, lang);
+    const visible = drawn.filter(isVisible).map((d) => d.text);
+    const all = drawn.map((d) => d.text).join("\n");
+
+    // The block renders, names the cells, and quotes the declared reason.
+    assert.ok(visible.some((v) => norm(v).includes(norm(t(lang, "rep.na.title")))), `${lang}: n/a block missing`);
+    assert.ok(visible.some((v) => v.includes("C1, C3, C4")), `${lang}: n/a cells not named`);
+    assert.ok(visible.some((v) => v.includes("F1, F2, F3")), `${lang}: n/a cells not named`);
+    assert.ok(
+      visible.some((v) => v.includes("approve/delegate/set-authority")),
+      `${lang}: the declared reason from config/capabilities.ts must be quoted`,
+    );
+
+    // THE ANTI-OVERCLAIM LINE MUST SURVIVE. Portuguese runs longer, and the
+    // first implementation silently dropped exactly this sentence in pt.
+    const caveatHead = norm(t(lang, "rep.na.caveat")).slice(0, 28);
+    assert.ok(
+      visible.some((v) => norm(v).includes(caveatHead)),
+      `${lang}: the "not a safety property" caveat was dropped`,
+    );
+
+    // Nothing the explanatory blocks draw may hide under the strip. Checked per
+    // string rather than by sweeping the band, because the strip's OWN text
+    // legitimately lives inside it.
+    const mustBeVisible = (
+      [
+        "rep.na.title", "rep.na.meaning", "rep.na.caveat",
+        "rep.cat.title", "rep.cat.A", "rep.cat.B", "rep.cat.C",
+        "rep.cat.D", "rep.cat.E", "rep.cat.F", "rep.cat.note",
+      ] as const
+    ).map((k) => t(lang, k));
+    for (const phrase of mustBeVisible) {
+      // Wrapped paragraphs are drawn line by line, so match on the opening — and
+      // compare ASCII-folded, because the content stream carries WinAnsi bytes
+      // for em dashes and accents, not the UTF-16 the source string holds.
+      const head = norm(phrase).slice(0, 24);
+      const hits = drawn.filter((d) => norm(d.text).includes(head));
+      assert.ok(hits.length > 0, `${lang}: "${head}…" was never drawn`);
+      assert.ok(
+        hits.some(isVisible),
+        `${lang}: "${head}…" drawn at y=${hits[0]!.y.toFixed(1)} on page ${hits[0]!.page} — under the strip`,
+      );
+    }
+
+    // The category legend appears exactly once, wherever it landed.
+    const legendHits = drawn.filter((d) => d.text === t(lang, "rep.cat.title"));
+    assert.equal(legendHits.length, 1, `${lang}: category legend drawn ${legendHits.length} times`);
+    assert.ok(norm(all).includes(norm(t(lang, "rep.cat.F")).slice(0, 20)), `${lang}: category F line missing`);
+  }
+
+  // A board with NO capability gaps must not render an empty explanation.
+  const clean = build(noGaps.score, "en");
+  assert.ok(
+    !clean.some((d) => norm(d.text).includes(norm(t("en", "rep.na.title")))),
+    "a board with zero not-applicable cells must not render the explanation at all",
+  );
+  assert.ok(clean.some((d) => d.text === t("en", "rep.cat.title")), "the legend should still appear");
+}
+
+// --- a one-scenario rehearsal gets no wall of text ---------------------------
+{
+  const { drawn } = render(["A2"], 7);
+  assert.ok(!drawn.some((d) => d.text === t("en", "rep.cat.title")), "a single-category board needs no glossary");
+  assert.ok(!drawn.some((d) => norm(d.text).includes(norm(t("en", "rep.na.title")))));
 }
 
 console.log(`audit-pdf layout tests passed (${SCENARIOS.length}-scenario board renders every row)`);
