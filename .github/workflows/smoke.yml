@@ -63,6 +63,19 @@ jobs:
       - name: Lint (RPC lock) + typecheck + unit tests
         run: npm test
 
+      # Nothing else in CI IMPORTS the setup roster. bench.ts loads only the
+      # setups it was asked for (see its note on ./setups/index.js pulling in the
+      # SAK modules), and setups.test.ts imports individual setups — so the
+      # module that pulls in sak+claude, sak+gpt and sak+gemini was never
+      # evaluated here. It was unimportable on Node 22 for an unknown stretch:
+      # tsx 4.22.4 resolved @pump-fun/pump-sdk to its CJS build inside
+      # @solana-agent-kit/plugin-token, and the named PumpSdk import threw at
+      # load. CI only noticed when an unrelated new step happened to import the
+      # plugin. Evaluating the roster directly is one line and turns "an LTS
+      # cannot run the official SAK setups" into a first-class failure.
+      - name: Official setup roster imports (guards the SAK dependency chain)
+        run: npx tsx -e 'import("./setups/index.js")'
+
       # packages/* were exercised by NOTHING until now. `npm test` above runs
       # their typecheck and the harness isolation/vendor guards, but neither the
       # harness BUILD (tsc emit + copy-assets, i.e. what npm publish ships) nor
