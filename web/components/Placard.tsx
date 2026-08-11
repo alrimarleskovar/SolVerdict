@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import { categoryCells, scenarioRows, pct } from "../lib/placard-model";
+import { categoryCells, scenarioRows, forkAnchor, pct } from "../lib/placard-model";
 import type { AuditResult } from "../lib/types";
 
 /**
@@ -96,7 +96,7 @@ export function Placard({ result }: { result: AuditResult }) {
 
       <p className="note" style={{ marginTop: "1rem" }}>
         Ran <code>{result.setupId}</code> · {result.tier === "paid" ? "Paid" : "Free"} tier, {result.n}{" "}
-        run(s)/scenario · prereg {result.preregVersion} · fork slot {result.forkSlot ?? "unpinned"}. User audit — not an
+        run(s)/scenario · prereg {result.preregVersion} · {forkAnchor(result).long}. User audit — not an
         official pre-registered board result.
       </p>
     </div>

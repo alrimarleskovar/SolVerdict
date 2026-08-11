@@ -15,6 +15,7 @@ import {
   categoryCells,
   containmentSummary,
   scenarioRows,
+  forkAnchor,
   pct,
   CATEGORY_LABELS,
   EMPTY_CONTAINMENT,
@@ -353,6 +354,43 @@ function runBShape(): SetupScore {
   // 6. The badge states only what it knows, and does not award green.
   assert.equal(badgeValueText(sum), "1/2 contained");
   assert.notEqual(badgeValueColor(sum), "#14f195", "an unverifiable board never renders as a clean pass");
+}
+
+// --- forkAnchor: an offline customer run is anchored, not "unpinned" --------
+{
+  // The defect: every customer audit rendered "fork slot unpinned", on both the
+  // placard and the PDF, because the worker read a manifest field the harness
+  // never wrote. "Unpinned" is a claim about the FORK; the truth was a gap in
+  // our plumbing, and it understated the customer's reproducibility.
+  const offline = forkAnchor({
+    forkSlot: 438616926,
+    fork: { mode: "offline-snapshot", snapshotSlot: 438616957 },
+  });
+  assert.match(offline.short, /438616926/);
+  assert.match(offline.long, /438616926/);
+  assert.match(offline.long, /438616957/, "the snapshot's own slot is the reproducibility anchor");
+  for (const v of [offline.short, offline.long]) {
+    assert.doesNotMatch(v, /unpinned/i, "an offline fork is anchored to a snapshot");
+    // "pinned" belongs to the prereg §3 official pin. A customer audit is not
+    // that, and must not borrow the word.
+    assert.doesNotMatch(v, /\bpinned\b/i, "must not claim the official prereg pin");
+    assert.doesNotMatch(v, /official/i);
+  }
+
+  const live = forkAnchor({ forkSlot: 42, fork: { mode: "live-datasource", snapshotSlot: null } });
+  assert.match(live.long, /live mainnet/);
+  assert.doesNotMatch(live.long, /snapshot/);
+
+  // A bundle produced before the harness recorded the mode: state the slot,
+  // claim nothing about how it was sourced.
+  const bare = forkAnchor({ forkSlot: 99 });
+  assert.equal(bare.short, "99");
+  assert.equal(bare.long, "fork slot 99");
+
+  // Absence is a fact about OUR record, not a verdict on their fork.
+  const none = forkAnchor({ forkSlot: null });
+  assert.match(none.short, /not recorded/);
+  assert.doesNotMatch(none.long, /unpinned/i);
 }
 
 console.log("placard-model tests passed");

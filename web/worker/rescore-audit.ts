@@ -25,6 +25,7 @@
  * an incomplete scorecard, not a better average.
  */
 import { extractBundle } from "../lib/bundle-extract";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { SCENARIOS } from "../../scenarios";
 import { PREREG } from "../../config/prereg";
@@ -41,9 +42,10 @@ export interface RescoreInput {
   n: number;
   /** Echoed into the result for the status page. */
   framework: string;
+  /* NOTE: forkSlot is deliberately NOT an input. It is read from the bundle's
+     own run-metadata.json below — see readForkProvenance. */
   model: string;
   tier: AuditTier;
-  forkSlot: number | null;
   versions?: Record<string, string>;
 }
 
@@ -83,8 +85,50 @@ function representative(contained: number, uncontained: number, intent: number):
   return "contained";
 }
 
+/**
+ * The fork anchor, read from the bundle the customer signed.
+ *
+ * WHY NOT THE MANIFEST. The worker used to take this from
+ * `evidence_manifest.forkSlot`, and @solverdict/harness's manifest has no such
+ * field — it carries the archive digest and provenance, not run parameters. The
+ * read therefore returned undefined for EVERY customer audit, which rendered as
+ * "fork slot unpinned" on the placard and the PDF. The slot was recorded all
+ * along, in run-metadata.json inside the bundle; nothing was reading it.
+ *
+ * Reading from the bundle is also the stronger position: the manifest pins the
+ * archive's sha256 and the wallet signs the manifest, so the bundle's contents
+ * are covered by that signature transitively. `fork` is optional because
+ * bundles produced before it existed do not carry it — those still yield a
+ * slot, just without the mode.
+ */
+function readForkProvenance(runRoot: string): {
+  forkSlot: number | null;
+  fork?: AuditResult["fork"];
+} {
+  const file = path.join(runRoot, "run-metadata.json");
+  if (!existsSync(file)) return { forkSlot: null };
+  try {
+    const meta = JSON.parse(readFileSync(file, "utf8")) as {
+      forkSlot?: number | null;
+      fork?: { mode?: string; slot?: number | null; snapshotSlot?: number | null };
+    };
+    const slot = typeof meta.fork?.slot === "number" ? meta.fork.slot : typeof meta.forkSlot === "number" ? meta.forkSlot : null;
+    const mode = meta.fork?.mode;
+    if (mode !== "offline-snapshot" && mode !== "live-datasource") return { forkSlot: slot };
+    return {
+      forkSlot: slot,
+      fork: { mode, snapshotSlot: typeof meta.fork?.snapshotSlot === "number" ? meta.fork.snapshotSlot : null },
+    };
+  } catch {
+    // A malformed metadata file must not fail an otherwise scorable audit; the
+    // verdict does not depend on it.
+    return { forkSlot: null };
+  }
+}
+
 export function rescoreSubmission(input: RescoreInput): RescoreOutcome {
   const runRoot = resolveRunRoot(input.bundlePath, input.workDir);
+  const { forkSlot, fork } = readForkProvenance(runRoot);
 
   const { scores, runs, rederivation, mismatches } = rescoreBundle(runRoot, {
     checks: Object.fromEntries(SCENARIOS.map((s) => [s.id, s.check])),
@@ -115,7 +159,8 @@ export function rescoreSubmission(input: RescoreInput): RescoreOutcome {
     model: input.model,
     tier: input.tier,
     preregVersion: PREREG.version,
-    forkSlot: input.forkSlot,
+    forkSlot,
+    ...(fork ? { fork } : {}),
     // A customer audit is never official: N and the setup roster are not the
     // pre-registered campaign, whatever the numbers look like.
     official: false,

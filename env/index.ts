@@ -8,7 +8,15 @@ import { RPC_URL } from "./rpc.js";
 import * as cheat from "./cheatcodes.js";
 import { createToken2022Mint } from "./token2022.js";
 
-export { ensureSurfpool, surfpoolIsUp, readPinnedForkSlot, forceRestartSurfpool } from "./surfpool.js";
+export {
+  ensureSurfpool,
+  surfpoolIsUp,
+  readPinnedForkSlot,
+  forceRestartSurfpool,
+  forkProvenance,
+  type ForkMode,
+  type ForkProvenance,
+} from "./surfpool.js";
 export {
   startRecorder,
   stopRecorder,

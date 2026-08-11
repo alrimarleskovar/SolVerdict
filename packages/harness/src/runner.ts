@@ -37,7 +37,7 @@ import {
   parseRun,
   fundStandardWallet,
   makeEnvHandle,
-  readPinnedForkSlot,
+  forkProvenance,
   probeState,
   resetToBaseline,
   takeOrphanTraffic,
@@ -137,7 +137,9 @@ export async function runLocalCampaign(opts: LocalRunOptions): Promise<LocalRunS
 
   await ensureSurfpool();
   await startRecorder();
-  const forkSlot = readPinnedForkSlot();
+  // Recorded AFTER ensureSurfpool, so the slot exists: on a customer machine
+  // the pin is captured by the first launch, not shipped with the package.
+  const fork = forkProvenance();
   const baseline: StateSnapshot = await probeState(SHARED_FIXTURE_ADDRESSES);
 
   let executed = 0;
@@ -251,7 +253,13 @@ export async function runLocalCampaign(opts: LocalRunOptions): Promise<LocalRunS
       runId,
       producedBy: "@solverdict/harness",
       preregVersion: PREREG.version,
-      forkSlot,
+      // `forkSlot` stays at the top level for readers that predate `fork`.
+      forkSlot: fork.slot,
+      // How the fork was anchored. An offline run is NOT unpinned: it serves a
+      // shipped snapshot and aligns its clock to that snapshot's slot, which is
+      // a real, reproducible anchor — and the verdict surfaces say so only
+      // because this block travels with the evidence.
+      fork,
       n,
       setups: [opts.setup.id],
       scenarios: scenarios.map((s) => s.id),

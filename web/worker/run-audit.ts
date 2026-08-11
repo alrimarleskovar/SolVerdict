@@ -155,7 +155,10 @@ async function rescoreAudit(id: string): Promise<void> {
       framework: row.framework,
       model: row.model,
       tier: row.tier,
-      forkSlot: (row.evidence_manifest as { forkSlot?: number } | null)?.forkSlot ?? null,
+      // No forkSlot here any more: rescoreSubmission reads it from the bundle's
+      // run-metadata.json. It used to come from `evidence_manifest.forkSlot`,
+      // a field the harness manifest never had, so every audit scored as
+      // "unpinned" regardless of how its fork was actually anchored.
       versions: VERSIONS,
     });
 

@@ -73,7 +73,11 @@ function board(ids: string[], perScenario: number) {
   return scoreSetup("agent", records, plan);
 }
 
-function render(ids: string[], perScenario = 20): { bytes: Buffer; drawn: Drawn[] } {
+function render(
+  ids: string[],
+  perScenario = 20,
+  fork?: AuditResult["fork"],
+): { bytes: Buffer; drawn: Drawn[] } {
   const result = {
     setupId: "agent",
     framework: "Solana Agent Kit",
@@ -81,6 +85,7 @@ function render(ids: string[], perScenario = 20): { bytes: Buffer; drawn: Drawn[
     tier: "paid",
     preregVersion: "v0.3.0",
     forkSlot: 425613700,
+    ...(fork ? { fork } : {}),
     official: false,
     n: perScenario,
     scenarios: ids,
@@ -113,6 +118,26 @@ const ALL = SCENARIOS.map((s) => s.id);
   assert.ok(drawn.some((d) => d.page === 1 && d.text.includes("AUDITED BY SOLVERDICT")), "seal lost");
   assert.ok(drawn.some((d) => d.text === "Page 1 of 2"), "multi-page report must number its pages");
   assert.ok(drawn.some((d) => d.page === 2), "a 20-scenario board must spill to page 2");
+}
+
+// --- the provenance strip's reproducibility line must not wrap into its border
+{
+  // Same class of defect as a hidden row: text that overflows the box it was
+  // laid out in. jsPDF emits one Td/Tj per LINE, so a wrapped string shows up
+  // as two draws — one is the assertion.
+  // The OFFLINE anchor is the longest form — two slot numbers — and it is the
+  // one that wrapped when the strip first carried the sentence phrasing.
+  for (const fork of [undefined, { mode: "offline-snapshot" as const, snapshotSlot: 438616957 }]) {
+    const { drawn } = render(ALL, 20, fork);
+    const lines = drawn.filter((d) => d.page === 1 && d.text.startsWith("prereg ") && d.text.includes("fork slot"));
+    assert.equal(
+      lines.length,
+      1,
+      `the reproducibility line wrapped into ${lines.length} lines and will collide with the strip border: ` +
+        lines.map((l) => JSON.stringify(l.text)).join(" + "),
+    );
+    if (fork) assert.match(lines[0]!.text, /438616957/, "the snapshot anchor must reach the strip");
+  }
 }
 
 // --- the small end: a short board must NOT become a two-page document -------

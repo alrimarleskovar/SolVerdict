@@ -109,6 +109,47 @@ export function readPinnedForkSlot(): number | null {
   return (JSON.parse(readFileSync(FORK_SLOT_PATH, "utf8")) as { slot: number }).slot;
 }
 
+export type ForkMode = "offline-snapshot" | "live-datasource";
+
+export interface ForkProvenance {
+  /** Where the fork sourced mainnet accounts from. */
+  mode: ForkMode;
+  /** The slot recorded for this fork, at FINALIZED commitment. Null before launch. */
+  slot: number | null;
+  /** Offline only: the slot the shipped account snapshot was captured at. */
+  snapshotSlot: number | null;
+}
+
+/**
+ * What anchors this fork — recorded into the evidence so a verdict can say how
+ * reproducible the run was, instead of guessing.
+ *
+ * WHY BOTH SLOTS. An offline fork is anchored twice over, at two different
+ * commitments, and the numbers legitimately differ:
+ *
+ *   - `snapshotSlot` is the FINALIZED slot the account snapshot was captured at
+ *     on a live fork (scripts/build-fork-snapshot.ts). It is the provenance of
+ *     the state the fork actually serves.
+ *   - `alignOfflineClock()` time-travels this fork's TIP (processed slot) to
+ *     that number, so absolute slots in the evidence look like a live run's.
+ *   - `slot` is then read back at FINALIZED commitment, and surfpool models
+ *     finality at a fixed depth behind the tip — measured at exactly 31 slots
+ *     (processed − finalized = 31, confirmed − finalized = 30, constant across
+ *     samples). So `slot` lands 31 below `snapshotSlot`.
+ *
+ * That offset is arithmetic, not drift: the same instant read at two
+ * commitments. It is recorded rather than corrected because `slot` must stay
+ * comparable with the official pin, which is captured the same way — at
+ * finalized commitment (persistForkSlotIfFirstLaunch).
+ */
+export function forkProvenance(): ForkProvenance {
+  return {
+    mode: OFFLINE ? "offline-snapshot" : "live-datasource",
+    slot: readPinnedForkSlot(),
+    snapshotSlot: OFFLINE ? readSnapshotSlot() : null,
+  };
+}
+
 async function persistForkSlotIfFirstLaunch(): Promise<number> {
   const pinned = readPinnedForkSlot();
   if (pinned !== null) return pinned;

@@ -29,7 +29,7 @@
  * comes from the placard-model helpers — no number is recomputed here.
  */
 import { jsPDF } from "jspdf";
-import { categoryCells, scenarioRows, containmentSummary, pct, type CategoryCell } from "./placard-model";
+import { categoryCells, scenarioRows, containmentSummary, forkAnchor, pct, type CategoryCell } from "./placard-model";
 import { PREREG } from "../../config/prereg";
 import { SYMBOL_PNG_DATA_URI } from "./brand-assets";
 import type { Tier } from "../../scoring/tiers";
@@ -212,7 +212,7 @@ export function buildAuditPdf(id: string, result: AuditResult, createdAt: string
   kv(colB, halfW, "Model", result.model || "—");
   y += 26;
   kv(L, halfW, "Tier", `${result.tier === "paid" ? "Paid" : "Free"} · N=${result.n} per scenario`);
-  kv(colB, halfW, "Fork slot", String(result.forkSlot ?? "unpinned"));
+  kv(colB, halfW, "Fork slot", forkAnchor(result).short);
   y += 26;
   kv(L, halfW, "Pre-registration", result.preregVersion);
   kv(colB, halfW, "Official result", "No — user audit");
@@ -450,7 +450,12 @@ export function buildAuditPdf(id: string, result: AuditResult, createdAt: string
   txt(`${VERIFY_HOST}/audit/${id}`, tx, stripY + 72, { size: 8, style: "bold", color: BLUE, maxWidth: tw });
   txt("REPRODUCIBILITY", tx, stripY + 87, { size: 6.5, style: "bold", color: MUTED });
   txt(
-    `prereg ${result.preregVersion} · fork slot ${result.forkSlot ?? "unpinned"} · N=${result.n} per scenario · tier ${result.tier}`,
+    // The COMPACT anchor here, not the sentence form: this line is drawn with
+    // maxWidth inside a fixed-height strip, and the sentence wraps to a second
+    // line that collides with the strip's bottom border. Measured: the sentence
+    // is 453pt against 329pt of room; the compact form is 311pt. The placard
+    // uses the sentence, where wrapping costs nothing.
+    `prereg ${result.preregVersion} · fork slot ${forkAnchor(result).short} · N=${result.n} per scenario · tier ${result.tier}`,
     tx,
     stripY + 97,
     { size: 8, color: BODY, maxWidth: tw },

@@ -305,6 +305,55 @@ export function categoryCells(score: StoredSetupScore): CategoryCell[] {
   });
 }
 
+/**
+ * How this run's fork was anchored, phrased for a customer.
+ *
+ * ONE FORMATTER, because the placard and the PDF must not drift: both said
+ * "fork slot unpinned" for every customer audit, and "unpinned" is a claim about
+ * the fork, not about our records — it told a customer their run was less
+ * reproducible than it was. An offline run serves a shipped account snapshot and
+ * aligns its clock to that snapshot's slot; both numbers are recorded in the
+ * evidence bundle.
+ *
+ * DELIBERATELY NOT "pinned". That word belongs to the prereg §3 official pin,
+ * which a customer audit is not, and the surfaces already say "not an official
+ * pre-registered board result". This describes the anchor without borrowing the
+ * official one's authority. Absence now reads "not recorded" — a statement about
+ * our data rather than a verdict on their fork.
+ */
+export interface ForkAnchorView {
+  /** Tight form for a metadata cell. */
+  short: string;
+  /** Sentence form for a provenance line. */
+  long: string;
+}
+
+export function forkAnchor(result: {
+  forkSlot: number | null;
+  fork?: { mode: "offline-snapshot" | "live-datasource"; snapshotSlot: number | null };
+}): ForkAnchorView {
+  if (result.forkSlot === null) {
+    return { short: "not recorded", long: "fork slot not recorded in this bundle" };
+  }
+  const slot = String(result.forkSlot);
+  if (result.fork?.mode === "offline-snapshot") {
+    const snap = result.fork.snapshotSlot;
+    return {
+      short: snap !== null ? `${slot} · snapshot ${snap}` : `${slot} · offline snapshot`,
+      long:
+        snap !== null
+          ? `fork slot ${slot}, anchored to the account snapshot captured at slot ${snap}`
+          : `fork slot ${slot}, anchored to the shipped account snapshot`,
+    };
+  }
+  if (result.fork?.mode === "live-datasource") {
+    return { short: `${slot} · live fork`, long: `fork slot ${slot}, forked from live mainnet` };
+  }
+  // No mode recorded (a bundle predating `fork`): state the slot, claim nothing
+  // about how it was sourced.
+  return { short: slot, long: `fork slot ${slot}` };
+}
+
 export function scenarioRows(score: StoredSetupScore): ScenarioRow[] {
   return [...score.scenarios]
     .sort((a, b) => a.scenarioId.localeCompare(b.scenarioId))

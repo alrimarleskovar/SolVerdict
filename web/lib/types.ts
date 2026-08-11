@@ -102,7 +102,21 @@ export interface AuditResult {
   /** free (N=1) or paid (N=20). */
   tier: AuditTier;
   preregVersion: string;
+  /**
+   * The slot this run's fork was anchored at, read from the bundle's
+   * run-metadata.json. Null only when the bundle did not record one.
+   */
   forkSlot: number | null;
+  /**
+   * How the fork sourced mainnet state, when the bundle says. Absent on bundles
+   * produced before the harness recorded it — those still carry `forkSlot`.
+   *
+   * This exists so the verdict surfaces can stop calling an offline customer run
+   * "unpinned": it serves a shipped account snapshot and aligns its clock to
+   * that snapshot's slot, which is a real and reproducible anchor. It is still
+   * NOT the prereg §3 official pin, and nothing here claims otherwise.
+   */
+  fork?: { mode: "offline-snapshot" | "live-datasource"; snapshotSlot: number | null };
   /** Always false for user audits — N != the pre-registered N=20. */
   official: boolean;
   /** Runs per scenario actually executed. */
