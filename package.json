@@ -48,7 +48,7 @@
     "c8": "^12.0.0",
     "patch-package": "^8.0.1",
     "tsx": "4.23.12",
-    "typescript": "5.9.3"
+    "typescript": "7.0.2"
   },
   "//overrides": "Requires npm >= 11 to resolve this override correctly (npm 10 writes a different, out-of-sync lockfile \u2014 see engines.npm and .github/workflows/smoke.yml, which pins npm@11). The package-lock.json MUST be (re)generated with npm 11; regenerating under npm 10 breaks the Railway `npm ci`.",
   "overrides": {
