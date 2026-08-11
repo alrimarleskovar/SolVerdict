@@ -26,6 +26,9 @@
  * do. `runner.ts` and `capture.ts` are untouched — they are the proven core.
  */
 import { Connection, Keypair, Transaction, VersionedTransaction } from "@solana/web3.js";
+import { createRequire } from "node:module";
+import { dirname, join } from "node:path";
+import { existsSync, readFileSync } from "node:fs";
 import {
   runSakAudit,
   DEFAULT_MAX_STEPS,
@@ -45,6 +48,15 @@ import { createBenchmarkAnthropicModel } from "./provider.js";
  */
 export interface HarnessSetup {
   id: string;
+  /**
+   * Which framework build this agent is, read from the installed package.
+   *
+   * The harness uses it to look up a committed capability profile and skip
+   * scenarios the framework cannot express (prereg §6, Emenda 7). It is NOT a
+   * field a customer fills in: `sakSetup` resolves the version off disk. An
+   * agent that omits it simply gets no profile, and every scenario runs.
+   */
+  framework?: { id: string; version: string | null };
   run(
     input: { task: string; context: Array<{ source: string; content: string }> },
     wallet: Keypair,
@@ -84,8 +96,38 @@ export interface SakSetupOptions extends Partial<RunAuditOptions> {
  *
  *   npx solverdict-run --agent ./my-agent.mjs --audit <id> --instance ./instance.json
  */
+/**
+ * The installed solana-agent-kit version, read from its own package.json.
+ *
+ * Resolved by walking up from the resolved entry point rather than importing
+ * "solana-agent-kit/package.json": the package's `exports` map declares only
+ * ".", so the subpath import is blocked. Returns null rather than guessing —
+ * an unknown version resolves to no capability profile, which means every
+ * scenario runs and nothing leaves the denominator.
+ */
+function installedSakVersion(): string | null {
+  try {
+    const req = createRequire(import.meta.url);
+    let dir = dirname(req.resolve("solana-agent-kit"));
+    for (let i = 0; i < 6; i++) {
+      const pkg = join(dir, "package.json");
+      if (existsSync(pkg)) {
+        const parsed = JSON.parse(readFileSync(pkg, "utf8")) as { name?: string; version?: string };
+        if (parsed.name === "solana-agent-kit") return parsed.version ?? null;
+      }
+      const up = dirname(dir);
+      if (up === dir) break;
+      dir = up;
+    }
+  } catch {
+    /* not resolvable — treated as unknown */
+  }
+  return null;
+}
+
 export function sakSetup(agent: SakAgentLike, opts: SakSetupOptions = {}): HarnessSetup {
   const { id = "sak-agent", anthropicApiKey, ...overrides } = opts;
+  const frameworkVersion = installedSakVersion();
 
   // Benchmark-identical wiring unless the caller says otherwise. You are
   // auditing YOUR agent, so the model and prompt you ship are the right ones;
@@ -101,6 +143,7 @@ export function sakSetup(agent: SakAgentLike, opts: SakSetupOptions = {}): Harne
 
   return {
     id,
+    framework: { id: "solana-agent-kit", version: frameworkVersion },
     async run(input, wallet, rpcUrl, _ctx) {
       const result = await runSakAudit(
         agent,
@@ -121,7 +164,12 @@ export function sakSetup(agent: SakAgentLike, opts: SakSetupOptions = {}): Harne
         return {
           actions: result.actions,
           finalText: result.finalText,
-          settings: { framework: "solana-agent-kit", adapter: "@solverdict/sak-adapter" },
+          settings: {
+            framework: "solana-agent-kit",
+            frameworkId: "solana-agent-kit",
+            frameworkVersion,
+            adapter: "@solverdict/sak-adapter",
+          },
           ok: false,
           error: result.error,
         };
@@ -134,6 +182,9 @@ export function sakSetup(agent: SakAgentLike, opts: SakSetupOptions = {}): Harne
         finalText: result.finalText,
         settings: {
           framework: "solana-agent-kit",
+          // Re-derived server-side from these two fields; see config/capabilities.ts.
+          frameworkId: "solana-agent-kit",
+          frameworkVersion,
           adapter: "@solverdict/sak-adapter",
           transactionsSubmitted: submitted,
         },

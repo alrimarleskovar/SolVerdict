@@ -11,6 +11,10 @@
 import assert from "node:assert/strict";
 import {
   SETUP_CAPABILITY_GAPS,
+  CAPABILITY_PROFILES,
+  profileForSetup,
+  profileForFramework,
+  applicabilityForProfile,
   SCENARIO_REQUIRES,
   applicabilityOf,
   notApplicableScenarios,
@@ -107,6 +111,67 @@ const ALL = SCENARIOS.map((s) => s.id);
   assert.match(a.notApplicable!.reason, /approve|delegate|authority/i, "the reason is published verbatim in §6");
   for (const gaps of Object.values(SETUP_CAPABILITY_GAPS)) {
     for (const g of gaps) assert.ok(g.reason.length > 40, "a capability claim must carry a real justification");
+  }
+}
+
+// --- THE OFFICIAL AND CUSTOMER PATHS MUST MEASURE THE SAME BOARD -----------
+//
+// bench.ts resolves a profile by SETUP ID; the harness and the re-scoring worker
+// resolve it by FRAMEWORK FINGERPRINT read out of the bundle. If those two can
+// disagree for the same agent, the published benchmark and a paying customer's
+// audit are scoring different rosters — a worse defect than the mis-keying this
+// replaced. They must agree cell for cell, for every scenario.
+{
+  const viaSetup = profileForSetup("sak+claude");
+  const viaFramework = profileForFramework({ frameworkId: "solana-agent-kit", frameworkVersion: "2.0.10" });
+
+  assert.ok(viaSetup, "the roster setup must still resolve a profile");
+  assert.equal(viaSetup, viaFramework, "both paths must resolve the SAME profile object, not a copy of it");
+
+  for (const scenarioId of SCENARIOS.map((s) => s.id)) {
+    const a = applicabilityForProfile(viaSetup, scenarioId);
+    const b = applicabilityForProfile(viaFramework, scenarioId);
+    assert.equal(a.applicable, b.applicable, `${scenarioId}: official and customer paths disagree on applicability`);
+    assert.equal(
+      a.notApplicable?.capability,
+      b.notApplicable?.capability,
+      `${scenarioId}: the two paths disagree on WHICH capability is absent`,
+    );
+    assert.equal(
+      a.notApplicable?.reason,
+      b.notApplicable?.reason,
+      `${scenarioId}: the two paths quote different reasons`,
+    );
+  }
+
+  // sak+gpt shares the build, so it shares the profile.
+  assert.equal(profileForSetup("sak+gpt"), viaSetup);
+
+  // An UNVERIFIED build gets no profile, so nothing leaves N — a scenario is
+  // scored rather than silently excused. This is the direction that cannot
+  // produce a falsely favourable report.
+  assert.equal(profileForFramework({ frameworkId: "solana-agent-kit", frameworkVersion: "3.0.0" }), null);
+  assert.equal(profileForFramework({ frameworkId: "some-other-kit", frameworkVersion: "2.0.10" }), null);
+
+  // An UNVERSIONED claim must never remove a scenario from N: a bare framework
+  // name does not establish which action surface was present.
+  assert.equal(profileForFramework({ frameworkId: "solana-agent-kit" }), null);
+  assert.equal(profileForFramework({ frameworkId: "solana-agent-kit", frameworkVersion: "" }), null);
+  assert.equal(profileForFramework(null), null);
+
+  // The name no longer decides anything — the agent does.
+  for (const id of ["my-agent", "sak-agent", "totally-made-up"]) {
+    assert.equal(profileForSetup(id), null, `${id} must not resolve a profile by name`);
+  }
+
+  // A profile that exempts a capability no scenario requires exempts nothing.
+  for (const p of Object.values(CAPABILITY_PROFILES)) {
+    for (const g of p.gaps) {
+      assert.ok(
+        Object.values(SCENARIO_REQUIRES).includes(g.capability),
+        `profile ${p.id} declares capability "${g.capability}", which no scenario requires`,
+      );
+    }
   }
 }
 

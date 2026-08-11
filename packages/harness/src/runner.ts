@@ -51,6 +51,7 @@ import { buildRunPlan, cellKey, makeSeed, type ExecutionOrder } from "./lib/sche
 import { issuedKey, type IssuedInstances } from "./lib/instance.js";
 import { classifyFailure } from "./lib/missingness.js";
 import { PREREG } from "./config/prereg.js";
+import { applicabilityForProfile, profileForFramework } from "./config/capabilities.js";
 import { N_RUNS } from "./config/params.js";
 import type { RunLogs, ScenarioClient, ScenarioContext, Setup } from "./lib/types.js";
 
@@ -119,19 +120,58 @@ export async function runLocalCampaign(opts: LocalRunOptions): Promise<LocalRunS
     : SCENARIO_CLIENTS;
   const byId = new Map(scenarios.map((s) => [s.id, s]));
 
+  /**
+   * Scenarios this agent's framework cannot express — skipped, not run.
+   *
+   * Emenda 7: "As células não-aplicáveis não são executadas (não se gastam
+   * créditos a observar um agente a não usar uma ferramenta que não tem)."
+   * The bench honoured this from the start; the harness had no applicability
+   * concept at all, so a customer paid for six model calls to watch their agent
+   * fail to use tools it does not have — and the server then had to decide what
+   * those runs meant.
+   *
+   * The profile comes from the framework identity the SETUP reports (for
+   * @solverdict/sak-adapter, read off the installed package), resolved through
+   * the same committed table bench.ts uses. It is recorded in run-metadata.json
+   * and RE-DERIVED independently server-side from the bundle's own settings:
+   * this skip is a cost decision, never the authoritative one.
+   */
+  // Mapped into the WIRE shape the server also reads out of the bundle's
+  // per-cell settings, so both sides resolve from identical inputs.
+  const profile = profileForFramework(
+    opts.setup.framework
+      ? { frameworkId: opts.setup.framework.id, frameworkVersion: opts.setup.framework.version }
+      : null,
+  );
+  const notApplicable = new Map<string, { capability: string; reason: string }>();
+  for (const sc of scenarios) {
+    const a = applicabilityForProfile(profile, sc.id);
+    if (!a.applicable && a.notApplicable) notApplicable.set(sc.id, a.notApplicable);
+  }
+  const runnable = scenarios.filter((sc) => !notApplicable.has(sc.id));
+  if (profile) {
+    log(`[harness] capability profile ${profile.id} (${opts.setup.framework?.id}@${opts.setup.framework?.version})`);
+  }
+  for (const [scenarioId, na] of notApplicable) {
+    log(`[harness] ${scenarioId}: n/a — ${na.capability} capability absent (not run, not scored, not in N)`);
+  }
+
   const runId = new Date().toISOString().slice(0, 19).replace(/:/g, "") + "Z";
   const outDir = path.join(opts.outDir, runId);
   mkdirSync(outDir, { recursive: true });
 
   const plan = buildRunPlan({
     setupIds: [opts.setup.id],
-    scenarioIds: scenarios.map((s) => s.id),
+    scenarioIds: runnable.map((s) => s.id),
     n,
     seed,
     order,
   });
 
-  log(`[harness] runId ${runId} — ${scenarios.length} scenario(s) x N=${n} = ${plan.cells.length} runs`);
+  log(
+    `[harness] runId ${runId} — ${runnable.length} scenario(s) x N=${n} = ${plan.cells.length} runs` +
+      (notApplicable.size > 0 ? ` (${notApplicable.size} n/a, not run)` : ""),
+  );
   log(`[harness] order ${order}, seed ${seed}, ${plan.fingerprint}`);
   if (opts.issued) log(`[harness] server-issued instance: ${Object.keys(opts.issued).length} cell(s)`);
 
@@ -255,6 +295,15 @@ export async function runLocalCampaign(opts: LocalRunOptions): Promise<LocalRunS
       preregVersion: PREREG.version,
       // `forkSlot` stays at the top level for readers that predate `fork`.
       forkSlot: fork.slot,
+      // The profile this machine applied, and the fingerprint it came from. The
+      // server re-resolves both from the bundle's own per-cell settings and
+      // refuses the submission if the two disagree, so a client cannot quietly
+      // shrink its own board.
+      capability: {
+        framework: opts.setup.framework ?? null,
+        profileId: profile?.id ?? null,
+        notApplicable: Object.fromEntries([...notApplicable.entries()]),
+      },
       // How the fork was anchored. An offline run is NOT unpinned: it serves a
       // shipped snapshot and aligns its clock to that snapshot's slot, which is
       // a real, reproducible anchor — and the verdict surfaces say so only
@@ -262,7 +311,7 @@ export async function runLocalCampaign(opts: LocalRunOptions): Promise<LocalRunS
       fork,
       n,
       setups: [opts.setup.id],
-      scenarios: scenarios.map((s) => s.id),
+      scenarios: runnable.map((s) => s.id),
       execution: {
         order,
         seed,

@@ -29,7 +29,12 @@ import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { SCENARIOS } from "../../scenarios";
 import { PREREG } from "../../config/prereg";
-import { applicabilityOf } from "../../config/capabilities";
+import {
+  applicabilityForProfile,
+  profileForFramework,
+  type CapabilityProfile,
+} from "../../config/capabilities";
+import { readdirSync } from "node:fs";
 import { rescoreBundle } from "../../scoring/rescore";
 import type { AuditResult, AuditTier, ScenarioProgress } from "../lib/types";
 
@@ -126,16 +131,94 @@ function readForkProvenance(runRoot: string): {
   }
 }
 
+/**
+ * The capability profile, RE-DERIVED from the bundle's own per-cell settings.
+ *
+ * The harness resolves a profile too, and skips the cells it excludes — but that
+ * is a cost decision on the client's machine. The authoritative one is here,
+ * from `frameworkId` / `frameworkVersion` that @solverdict/sak-adapter wrote
+ * into every cell's settings.json off the installed package. Never from a form
+ * field, and never from what run-metadata.json claims the profile was.
+ *
+ * DISAGREEMENT IS REFUSED, NOT RECONCILED. If the client applied a different
+ * profile from the one we derive, the two sides measured different boards, and
+ * quietly scoring ours over their bundle would produce a number neither of them
+ * stands behind. `scoreSetup` would also throw the moment a cell we call n/a
+ * turns out to contain runs. Failing loudly is the only honest option.
+ */
+function deriveProfile(runRoot: string, setupId: string): CapabilityProfile | null {
+  const seen = new Set<string>();
+  const setupDir = path.join(runRoot, setupId);
+  if (!existsSync(setupDir)) return null;
+  for (const scenarioId of readdirSync(setupDir)) {
+    const scenarioDir = path.join(setupDir, scenarioId);
+    for (const n of readdirSync(scenarioDir)) {
+      const file = path.join(scenarioDir, n, "settings.json");
+      if (!existsSync(file)) continue;
+      try {
+        const st = JSON.parse(readFileSync(file, "utf8")) as {
+          frameworkId?: unknown;
+          frameworkVersion?: unknown;
+        };
+        const id = typeof st.frameworkId === "string" ? st.frameworkId : "";
+        const version = typeof st.frameworkVersion === "string" ? st.frameworkVersion : "";
+        seen.add(`${id}@${version}`);
+      } catch {
+        seen.add("@");
+      }
+    }
+  }
+  // A bundle whose cells disagree about what framework produced them is not a
+  // single agent's audit.
+  if (seen.size !== 1) return null;
+  const [only] = [...seen];
+  const at = only!.lastIndexOf("@");
+  return profileForFramework({ frameworkId: only!.slice(0, at), frameworkVersion: only!.slice(at + 1) });
+}
+
+/** The profile id run-metadata.json says the client applied, or null. */
+function readCapabilityClaim(runRoot: string): string | null {
+  const file = path.join(runRoot, "run-metadata.json");
+  if (!existsSync(file)) return null;
+  try {
+    const meta = JSON.parse(readFileSync(file, "utf8")) as { capability?: { profileId?: string | null } };
+    return meta.capability ? (meta.capability.profileId ?? null) : null;
+  } catch {
+    return null;
+  }
+}
+
 export function rescoreSubmission(input: RescoreInput): RescoreOutcome {
   const runRoot = resolveRunRoot(input.bundlePath, input.workDir);
   const { forkSlot, fork } = readForkProvenance(runRoot);
+
+  // The setup id the bundle carries — needed before scoring to locate the cells.
+  const setupDirs = existsSync(runRoot)
+    ? readdirSync(runRoot, { withFileTypes: true })
+        .filter((e) => e.isDirectory())
+        .map((e) => e.name)
+    : [];
+  const bundleSetupId = setupDirs.length === 1 ? setupDirs[0]! : "";
+  const profile = bundleSetupId ? deriveProfile(runRoot, bundleSetupId) : null;
+
+  // What the CLIENT said it applied. Compared, never trusted.
+  const claimed = readCapabilityClaim(runRoot);
+  if (claimed !== null && claimed !== (profile?.id ?? null)) {
+    throw new Error(
+      `capability profile mismatch: the bundle was produced under "${claimed ?? "none"}" but this server ` +
+        `derives "${profile?.id ?? "none"}" from its own settings. The two measured different boards; ` +
+        "re-run with a current @solverdict/harness.",
+    );
+  }
 
   const { scores, runs, rederivation, mismatches } = rescoreBundle(runRoot, {
     checks: Object.fromEntries(SCENARIOS.map((s) => [s.id, s.check])),
     categoryOf: Object.fromEntries(SCENARIOS.map((s) => [s.id, s.category])),
     // NOT `runs.length`. The plan is the denominator; see the header.
     plannedRuns: input.n,
-    notApplicable: (setupId, scenarioId) => applicabilityOf(setupId, scenarioId).notApplicable,
+    // Resolved from the profile this server derived, so the official path and
+    // the customer path share one table and one decision function.
+    notApplicable: (_setupId, scenarioId) => applicabilityForProfile(profile, scenarioId).notApplicable,
     // No ctxOverride: a bundle from @solverdict/harness always carries ctx.json.
     // Anything that needs the legacy shim is not something we produced.
   });

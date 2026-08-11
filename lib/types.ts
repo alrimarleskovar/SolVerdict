@@ -392,6 +392,15 @@ export interface Setup {
   status: SetupStatus;
   description: string;
   /**
+   * Which framework build this setup is, when it can say.
+   *
+   * Used ONLY by the client harness, to resolve a committed capability profile
+   * and skip scenarios the framework cannot express (prereg §6, Emenda 7). The
+   * published roster does not need it — bench.ts resolves those by setup id —
+   * so it is optional, and an absent value means "no profile, run everything".
+   */
+  framework?: { id: string; version: string | null };
+  /**
    * Runs the agent once. `wallet` is an ephemeral in-memory keypair (never
    * persisted); `rpcUrl` is always the localhost recorder. Implementations
    * must log EVERY attempted tool call into the returned action log.
