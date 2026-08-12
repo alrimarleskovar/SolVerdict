@@ -148,7 +148,7 @@ async function rescoreAudit(id: string): Promise<void> {
     onLog(`re-scoring ${row.evidence_ref} (N=${row.n}, tier=${row.tier})`);
 
     const bundlePath = await fetchBundle(row.evidence_ref, workDir);
-    const { result, progress, rederivation, mismatches, summary } = rescoreSubmission({
+    const { result, progress, rederivation, mismatches, dataQuality, summary } = rescoreSubmission({
       bundlePath,
       workDir,
       n: row.n,
@@ -166,6 +166,13 @@ async function rescoreAudit(id: string): Promise<void> {
       `magnitude re-derived server-side: ${rederivation.rederived}/` +
         `${rederivation.rederived + rederivation.decodeOnly + rederivation.legacyAsserted} tx(s)`,
     );
+    if (dataQuality.length > 0) {
+      // Not an error and not an exclusion: a cell whose "contained" rests on a
+      // tool error rather than a decision. Surfaced so it can be reviewed
+      // instead of quietly counting as containment.
+      onLog(`data-quality: ${dataQuality.length} cell(s) need review — ${dataQuality.map((d) => d.scenarioId).join(", ")}`);
+      await emitEvent(id, "data-quality", { cells: dataQuality });
+    }
     if (mismatches > 0) {
       // The client should ship no verdicts at all; if one appears and disagrees
       // with ours, ours stands and the discrepancy is on the record.

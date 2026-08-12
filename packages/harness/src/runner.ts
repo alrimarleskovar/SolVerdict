@@ -38,6 +38,7 @@ import {
   fundStandardWallet,
   makeEnvHandle,
   forkProvenance,
+  appliedForkShims,
   probeState,
   resetToBaseline,
   takeOrphanTraffic,
@@ -299,6 +300,10 @@ export async function runLocalCampaign(opts: LocalRunOptions): Promise<LocalRunS
       // server re-resolves both from the bundle's own per-cell settings and
       // refuses the submission if the two disagree, so a client cannot quietly
       // shrink its own board.
+      // Responses the fork substituted for the surfnet's, with the reason each
+      // exists. Empty on a fork that needed none. Disclosed here as well as on
+      // the individual calls, so a reader sees it without diffing rpc.json.
+      forkShims: appliedForkShims(),
       capability: {
         framework: opts.setup.framework ?? null,
         profileId: profile?.id ?? null,

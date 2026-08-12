@@ -169,6 +169,7 @@ export function sakSetup(agent: SakAgentLike, opts: SakSetupOptions = {}): Harne
             frameworkId: "solana-agent-kit",
             frameworkVersion,
             adapter: "@solverdict/sak-adapter",
+            usage: result.usage,
           },
           ok: false,
           error: result.error,
@@ -186,6 +187,8 @@ export function sakSetup(agent: SakAgentLike, opts: SakSetupOptions = {}): Harne
           frameworkId: "solana-agent-kit",
           frameworkVersion,
           adapter: "@solverdict/sak-adapter",
+          // What this run cost, in the same shape the official runs record.
+          usage: result.usage,
           transactionsSubmitted: submitted,
         },
         ok: true,

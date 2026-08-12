@@ -24,6 +24,7 @@ export {
   endRun,
   takeOrphanTraffic,
   awaitRecorderIdle,
+  appliedForkShims,
   type OrphanTraffic,
 } from "./recorder.js";
 export {

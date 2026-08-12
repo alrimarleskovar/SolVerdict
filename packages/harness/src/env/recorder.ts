@@ -16,6 +16,7 @@
  */
 import http from "node:http";
 import { SURFPOOL_INTERNAL_URL, RECORDER_PORT } from "./rpc.js";
+import { shimRpcResponse, type ForkShim } from "./fork-shims.js";
 import type { RpcCallEntry } from "../lib/types.js";
 
 export interface RawSend {
@@ -72,12 +73,13 @@ let lastActivityAt = 0;
  * server handler) so the recording rules can be unit-tested without binding a
  * port or standing up a surfnet.
  */
-export function observeBody(bodyText: string): void {
+export function observeBody(bodyText: string): number[] {
+  const recorded: number[] = [];
   let parsed: unknown;
   try {
     parsed = JSON.parse(bodyText);
   } catch {
-    return;
+    return recorded;
   }
   const calls = Array.isArray(parsed) ? parsed : [parsed];
   for (const call of calls) {
@@ -94,6 +96,7 @@ export function observeBody(bodyText: string): void {
       if (isSend) orphan.sends++;
       continue;
     }
+    recorded.push(active.rpc.length);
     active.rpc.push({ index: active.rpc.length, method, observedAt });
     if (isSend) {
       // web3.js sends base64 (with encoding option) or base58. Normalize later.
@@ -104,6 +107,27 @@ export function observeBody(bodyText: string): void {
       });
     }
   }
+  return recorded;
+}
+
+/**
+ * Marks the calls a fork shim answered, so the substitution is visible in the
+ * cell's own rpc.json and not only in the bundle-level disclosure.
+ */
+function noteShim(indices: number[], method: string, shim: ForkShim): void {
+  if (!active) return;
+  for (const i of indices) {
+    const entry = active.rpc[i];
+    if (entry && entry.method === method) entry.synthesized = shim.id;
+  }
+  forkShims.set(shim.id, { shim, calls: (forkShims.get(shim.id)?.calls ?? 0) + indices.length });
+}
+
+/** Fork substitutions applied during this process, for bundle-level disclosure. */
+const forkShims = new Map<string, { shim: ForkShim; calls: number }>();
+
+export function appliedForkShims(): Array<{ id: string; method: string; why: string; calls: number }> {
+  return [...forkShims.values()].map(({ shim, calls }) => ({ ...shim, calls }));
 }
 
 export async function startRecorder(): Promise<void> {
@@ -114,7 +138,8 @@ export async function startRecorder(): Promise<void> {
     req.on("end", async () => {
       const body = Buffer.concat(chunks);
       lastActivityAt = Date.now();
-      observeBody(body.toString("utf8"));
+      const requestText = body.toString("utf8");
+      const recordedIdx = observeBody(requestText);
       inFlight++;
       try {
         const upstream = await fetch(SURFPOOL_INTERNAL_URL, {
@@ -123,8 +148,14 @@ export async function startRecorder(): Promise<void> {
           body: body.length > 0 ? body : undefined,
         });
         const respBody = Buffer.from(await upstream.arrayBuffer());
+        // Declared, self-retiring substitutions — see env/fork-shims.ts. Applied
+        // AFTER the upstream answer so a real one is never overridden, and
+        // recorded on the affected calls so the bundle discloses it.
+        const { body: shimmed, applied } = shimRpcResponse(requestText, respBody.toString("utf8"));
+        for (const shim of applied) noteShim(recordedIdx, shim.method, shim);
+        const out = applied.length > 0 ? Buffer.from(shimmed, "utf8") : respBody;
         res.writeHead(upstream.status, { "content-type": upstream.headers.get("content-type") ?? "application/json" });
-        res.end(respBody);
+        res.end(out);
       } catch (err) {
         res.writeHead(502, { "content-type": "application/json" });
         res.end(JSON.stringify({ jsonrpc: "2.0", id: null, error: { code: -32000, message: String(err) } }));

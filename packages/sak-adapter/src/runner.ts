@@ -43,7 +43,27 @@ export interface RunAuditOptions {
   onLog: (line: string) => void;
 }
 
+/**
+ * Tokens the model consumed, summed across every step of the tool loop.
+ *
+ * Shaped to match lib/metrics.ts `TokenUsage` in the benchmark, so a customer's
+ * cost is measured the same way the official runs measure it. The adapter
+ * recorded none at all until now: the first real customer audit finished with
+ * no way to say what it had cost, which is not an acceptable property of a paid
+ * product.
+ */
+export interface TokenUsage {
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  /** Present only when the provider reports them. */
+  cacheReadTokens?: number;
+  cacheWriteTokens?: number;
+}
+
 export interface RunAuditResult {
+  /** Tokens consumed by the whole tool loop. */
+  usage: TokenUsage;
   /**
    * False when the model loop never produced a turn (auth error, network,
    * abort before first response). The handler maps this to HTTP 500 so
@@ -138,6 +158,7 @@ export async function runSakAudit(agent: SakAgentLike, request: AuditTask, opts:
 
   let finalText = "";
   let modelTurns = 0;
+  let usage: TokenUsage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
   let runError: string | undefined;
   try {
     const res = await generateText({
@@ -150,6 +171,11 @@ export async function runSakAudit(agent: SakAgentLike, request: AuditTask, opts:
     });
     finalText = res.text;
     modelTurns = Array.isArray(res.steps) && res.steps.length > 0 ? res.steps.length : 1;
+    // Per STEP, not the top-level total: with a tool loop the AI SDK reports
+    // usage for each round trip, and the top-level figure covers only the last
+    // one. Summing the steps is what lib/metrics.ts usageFromGenerateText does
+    // for the official SAK setups, so the two are comparable.
+    usage = sumStepUsage(res);
   } catch (err) {
     runError = `model call failed: ${String(err).slice(0, 200)}`;
     opts.onLog(`run error: ${runError}`);
@@ -180,7 +206,50 @@ export async function runSakAudit(agent: SakAgentLike, request: AuditTask, opts:
     finalText,
     actions,
     modelTurns,
+    usage,
   };
+}
+
+/**
+ * Sums per-step usage from an AI SDK v4 `generateText` result.
+ *
+ * Mirrors lib/metrics.ts `usageFromGenerateText`: prefer the per-step figures,
+ * because with `maxSteps` the top-level `usage` describes the final round trip
+ * only. Falls back to the top-level value when the provider reported no steps.
+ * Anthropic's cache counters are carried through when present, since a cached
+ * read is billed differently from a fresh input token.
+ */
+function sumStepUsage(res: unknown): TokenUsage {
+  const pick = (u: unknown): TokenUsage => {
+    const o = (u ?? {}) as Record<string, unknown>;
+    const num = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) ? v : 0);
+    const input = num(o.promptTokens ?? o.inputTokens);
+    const output = num(o.completionTokens ?? o.outputTokens);
+    const cacheRead = num(o.cacheReadInputTokens ?? o.cachedInputTokens);
+    const cacheWrite = num(o.cacheCreationInputTokens);
+    const usage: TokenUsage = {
+      inputTokens: input,
+      outputTokens: output,
+      totalTokens: num(o.totalTokens) || input + output,
+    };
+    if (cacheRead > 0) usage.cacheReadTokens = cacheRead;
+    if (cacheWrite > 0) usage.cacheWriteTokens = cacheWrite;
+    return usage;
+  };
+  const r = (res ?? {}) as Record<string, unknown>;
+  const steps = Array.isArray(r.steps) ? (r.steps as Array<Record<string, unknown>>) : [];
+  const withUsage = steps.filter((st) => st && st.usage !== undefined);
+  if (withUsage.length === 0) return pick(r.usage);
+  const total: TokenUsage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
+  for (const st of withUsage) {
+    const u = pick(st.usage);
+    total.inputTokens += u.inputTokens;
+    total.outputTokens += u.outputTokens;
+    total.totalTokens += u.totalTokens;
+    if (u.cacheReadTokens) total.cacheReadTokens = (total.cacheReadTokens ?? 0) + u.cacheReadTokens;
+    if (u.cacheWriteTokens) total.cacheWriteTokens = (total.cacheWriteTokens ?? 0) + u.cacheWriteTokens;
+  }
+  return total;
 }
 
 // Re-export for consumers who need to build custom capture flows.

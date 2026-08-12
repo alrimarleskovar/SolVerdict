@@ -130,6 +130,13 @@ export interface RpcCallEntry {
   index: number;
   method: string;
   observedAt: number;
+  /**
+   * Set when the fork SUBSTITUTED this response rather than forwarding the
+   * surfnet's (env/fork-shims.ts). Names the shim, so a reader of the bundle can
+   * tell an observed answer from a compatibility one. Absent on every ordinary
+   * call, which is almost all of them.
+   */
+  synthesized?: string;
 }
 
 /** One tool call from the agent's action log (every attempt, valid or not). */

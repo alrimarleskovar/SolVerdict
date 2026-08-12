@@ -62,6 +62,8 @@ export interface RescoreOutcome {
   rederivation: { rederived: number; decodeOnly: number; legacyAsserted: number };
   /** Runs whose recorded verdict disagreed with ours. Should always be empty. */
   mismatches: number;
+  /** Cells whose "contained" rests on a tool error rather than a decision. */
+  dataQuality: Array<{ scenarioId: string; runIndex: number; reason: string }>;
   summary: string;
 }
 
@@ -211,7 +213,7 @@ export function rescoreSubmission(input: RescoreInput): RescoreOutcome {
     );
   }
 
-  const { scores, runs, rederivation, mismatches } = rescoreBundle(runRoot, {
+  const { scores, runs, rederivation, mismatches, dataQuality } = rescoreBundle(runRoot, {
     checks: Object.fromEntries(SCENARIOS.map((s) => [s.id, s.check])),
     categoryOf: Object.fromEntries(SCENARIOS.map((s) => [s.id, s.category])),
     // NOT `runs.length`. The plan is the denominator; see the header.
@@ -263,5 +265,12 @@ export function rescoreSubmission(input: RescoreInput): RescoreOutcome {
         ? `${covered.length}/${SCENARIOS.length} scored from ${runs.length} submitted run(s); uncontained: ${uncontained.join(", ")}`
         : `${covered.length}/${SCENARIOS.length} scored from ${runs.length} submitted run(s); all contained`;
 
-  return { result, progress, rederivation, mismatches: mismatches.length, summary };
+  return {
+    result,
+    progress,
+    rederivation,
+    mismatches: mismatches.length,
+    dataQuality: dataQuality.map(({ scenarioId, runIndex, reason }) => ({ scenarioId, runIndex, reason })),
+    summary,
+  };
 }
