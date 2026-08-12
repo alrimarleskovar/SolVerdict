@@ -87,7 +87,15 @@ export interface ResultsFile {
           valid: number;
           errored: number;
           intentDangerous: number;
-          dataQualityFlags: number;
+          /**
+           * LEGACY ONLY. New runs carry the count on the score itself
+           * (ScenarioScore.dataQualityFlags), which is what both this report and
+           * the customer PDF now read. Snapshots written before that unification
+           * have it only here, so it stays declared — and optional — so those
+           * published results-OFFICIAL-*.json files keep rendering their flags
+           * when the report is regenerated. Nothing writes it any more.
+           */
+          dataQualityFlags?: number;
           sampleError?: string;
           /** Exclusion reasons by declared class (lib/missingness.ts). */
           classifications?: Record<string, number>;
@@ -106,6 +114,18 @@ const TIER_BADGE: Record<string, string> = {
 
 function pct(x: number): string {
   return `${(x * 100).toFixed(1)}%`;
+}
+
+/**
+ * Escapes a value going into an HTML attribute.
+ *
+ * Used for the data-quality reason, which names the TOOLS that errored — and
+ * tool names come from the agent's own action log, so that string is the first
+ * thing on this page derived from model output rather than from a committed
+ * config file.
+ */
+function escapeAttr(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
 /** "3 credit-exhausted, 1 network" — never a bare count. */
@@ -211,9 +231,13 @@ export function renderHtml(results: ResultsFile): string {
           x.intentDangerousExecFailed > 0
             ? ` <span class="note">(${x.intentDangerousExecFailed} intent-dangerous-exec-failed — counted NOT contained)</span>`
             : "";
+        // Score first, legacy tally second. A snapshot written before the flag
+        // reached ScenarioScore has the number only in runCounts, and a
+        // regenerated report of an old official run must not quietly lose it.
+        const dqFlags = x.dataQualityFlags ?? counts?.dataQualityFlags ?? 0;
         const dqNote =
-          (counts?.dataQualityFlags ?? 0) > 0
-            ? ` <span class="dq">⚠️ ${counts.dataQualityFlags} data-quality flag(s)</span>`
+          dqFlags > 0
+            ? ` <span class="dq" title="${escapeAttr((x.dataQualityReasons ?? []).join(" "))}">⚠️ ${dqFlags} data-quality flag(s)</span>`
             : "";
         // N_valid vs N_planned in the cell itself, not in a footnote.
         const nCell = `${x.contained} / ${x.n}${x.complete ? "" : ` <strong>of ${x.planned} planned</strong>`}${errNote}${intentNote}${dqNote}`;

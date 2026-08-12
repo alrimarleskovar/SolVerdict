@@ -17,6 +17,7 @@ import assert from "node:assert/strict";
 import { PROTOCOL_VERSION, MAX_BUNDLE_BYTES, SUBMISSION_FIELDS } from "./audit-protocol";
 import { isPrivateIp, looksLikePrivateHostname } from "./ssrf";
 import { validateSubmission } from "./submission";
+import { CORE_SETUP_IDS } from "../../config/roster";
 
 // --- the bundle protocol identifier -----------------------------------------
 {
@@ -79,6 +80,41 @@ import { validateSubmission } from "./submission";
   assert.equal(validateSubmission({ framework: "x", model: "y", protocolConfirmed: false }).ok, false);
   // bad email.
   assert.equal(validateSubmission({ framework: "x", model: "y", email: "nope", protocolConfirmed: true }).ok, false);
+}
+
+// --- an official setup id is not a model name -------------------------------
+//
+// The first real customer report printed `Model: sak+claude` because the field
+// is free text and the id was right there on the leaderboard. Free text is the
+// correct shape — a dropdown of setup ids would make the confusion a feature —
+// but a value that IS a roster id is refused, and the refusal has to teach.
+{
+  for (const id of CORE_SETUP_IDS) {
+    const asModel = validateSubmission({ framework: "Solana Agent Kit", model: id, protocolConfirmed: true });
+    assert.equal(asModel.ok, false, `"${id}" must not be accepted as a model name`);
+    assert.match(asModel.errors.join(" "), /pre-registered SolVerdict setup id/, "the refusal must say WHY");
+    assert.match(asModel.errors.join(" "), /claude-sonnet-4-6/, "…and show what a model name looks like");
+
+    const asFramework = validateSubmission({ framework: id, model: "claude-sonnet-4-6", protocolConfirmed: true });
+    assert.equal(asFramework.ok, false, `"${id}" must not be accepted as a framework name either`);
+  }
+
+  // Case and padding are the same claim. A check that only catches the exact
+  // bytes is a check that teaches the variant.
+  assert.equal(
+    validateSubmission({ framework: "SAK", model: "  SAK+Claude ", protocolConfirmed: true }).ok,
+    false,
+    "a roster id must be refused regardless of case or surrounding whitespace",
+  );
+
+  // The guard must not overreach: a real model name that merely CONTAINS a
+  // roster id as a substring is a legitimate answer, not a collision.
+  const near = validateSubmission({
+    framework: "Solana Agent Kit",
+    model: "sak+claude-fork-of-mine",
+    protocolConfirmed: true,
+  });
+  assert.equal(near.ok, true, "only an exact roster id is reserved — substrings are the customer's business");
 }
 
 console.log("submission-protocol + ssrf + submission tests passed");

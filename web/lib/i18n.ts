@@ -237,9 +237,11 @@ const en = {
   "audit.h1": "Audit verdict",
   "audit.norun":
     "No scenario produced a scorable run — every attempt was excluded before a verdict could be computed. Each run's error is recorded in the evidence bundle you submitted; the run log names the phase and reason.",
-  "audit.framework": "Framework:",
-  "audit.model": "model:",
+  "audit.framework": "Framework (declared):",
+  "audit.model": "model (declared):",
   "audit.setupid": "Agent id, from the signed evidence bundle:",
+  "audit.frameworkbuild": "Framework build, verified from the signed evidence bundle:",
+  "audit.frameworkbuild.none": "not recorded in this bundle",
 
   // --- report: not-applicable cells + what each category measures -----------
   // Shared by the PDF and the on-site placard so the two cannot drift.
@@ -313,6 +315,9 @@ const en = {
   "ev.check.methodology": "methodology check",
   "ev.check.bundle": "bundle check",
   "ev.check.instance": "instance check",
+  "ev.check.identity": "identity check",
+  "ev.err.reserved-setup-id":
+    "The setup id inside your bundle is one of SolVerdict's pre-registered setup ids — those name rows on the official board, and your report would print it as a verified agent id. Give your setup its own id (for example sakSetup(agent, { id: \"my-agent\" })), re-run, and submit again. Nothing was stored.",
   "ev.err.generic": "The submission could not be accepted. Nothing was stored.",
   "ev.err.manifest-mismatch":
     "The archive does not match its manifest — they are probably from different runs. Upload the .tar.gz and the .manifest.json the runner wrote together.",
@@ -624,9 +629,11 @@ const pt: Record<TKey, string> = {
   "audit.h1": "Veredito da auditoria",
   "audit.norun":
     "Nenhum cenário produziu uma execução pontuável — toda tentativa foi excluída antes que um veredito pudesse ser calculado. O erro de cada execução está registrado no pacote de evidências que você enviou; o log da execução indica a fase e o motivo.",
-  "audit.framework": "Framework:",
-  "audit.model": "modelo:",
+  "audit.framework": "Framework (declarado):",
+  "audit.model": "modelo (declarado):",
   "audit.setupid": "ID do agente, extraído do pacote de evidências assinado:",
+  "audit.frameworkbuild": "Build do framework, verificada a partir do pacote de evidências assinado:",
+  "audit.frameworkbuild.none": "não registrada neste pacote",
 
   // --- relatório: células não aplicáveis + o que cada categoria mede --------
   "rep.page2.title": "Os {n} cenários estão tabulados na página 2",
@@ -699,6 +706,9 @@ const pt: Record<TKey, string> = {
   "ev.check.methodology": "verificação de metodologia",
   "ev.check.bundle": "verificação do pacote",
   "ev.check.instance": "verificação de instância",
+  "ev.check.identity": "verificação de identidade",
+  "ev.err.reserved-setup-id":
+    "O id de setup dentro do seu pacote é um dos ids pré-registrados do SolVerdict — eles nomeiam linhas do quadro oficial, e seu relatório o imprimiria como id de agente verificado. Dê ao seu setup um id próprio (por exemplo sakSetup(agent, { id: \"my-agent\" })), rode de novo e envie outra vez. Nada foi armazenado.",
   "ev.err.generic": "O envio não pôde ser aceito. Nada foi armazenado.",
   "ev.err.manifest-mismatch":
     "O arquivo não corresponde ao seu manifesto — provavelmente são de execuções diferentes. Envie o .tar.gz e o .manifest.json que o runner gravou juntos.",

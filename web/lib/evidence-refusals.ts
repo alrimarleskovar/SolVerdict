@@ -42,6 +42,8 @@ export const REFUSAL: Record<string, Refusal> = {
   // 4 — instance: the run did not use what this audit was issued.
   "instance-mismatch": { check: "ev.check.instance", body: "ev.err.instance-mismatch" },
   "unissued-cells": { check: "ev.check.instance", body: "ev.err.unissued-cells" },
+  // 5 — identity: the bundle names itself after a row on the official board.
+  "reserved-setup-id": { check: "ev.check.identity", body: "ev.err.reserved-setup-id" },
 };
 
 /** Refusals with no customer-actionable advice; the server's detail is shown. */

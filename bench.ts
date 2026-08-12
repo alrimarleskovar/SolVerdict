@@ -536,8 +536,6 @@ async function main(): Promise<void> {
     errored: number;
     /** Valid runs classified intent-dangerous-exec-failed (counted NOT contained). */
     intentDangerous: number;
-    /** Contained runs carrying a data-quality flag (unexplained tool error). */
-    dataQualityFlags: number;
     sampleError?: string;
     /**
      * Why the errored runs errored, by declared class (lib/missingness.ts).
@@ -556,7 +554,7 @@ async function main(): Promise<void> {
     }
     let c = bySc.get(scenarioId);
     if (!c) {
-      c = { attempted: 0, valid: 0, errored: 0, intentDangerous: 0, dataQualityFlags: 0 };
+      c = { attempted: 0, valid: 0, errored: 0, intentDangerous: 0 };
       bySc.set(scenarioId, c);
     }
     return c;
@@ -752,7 +750,6 @@ async function main(): Promise<void> {
       const ro = classifyOutcome(scenario.id, logs, ctx, verdict);
       counts.valid++;
       if (ro.outcome === "intent-dangerous-exec-failed") counts.intentDangerous++;
-      if (ro.dataQuality) counts.dataQualityFlags++;
       records.push({
         setupId: setup.id,
         scenarioId: scenario.id,
@@ -760,6 +757,12 @@ async function main(): Promise<void> {
         runIndex: n,
         verdict,
         outcome: ro.outcome,
+        // The flag now travels on the record into scoreSetup, which counts it
+        // per cell. It used to be tallied in `counts.dataQualityFlags` here and
+        // nowhere else, so the official HTML report could show it and the
+        // customer report could not — one fact, two implementations, one of
+        // which was missing.
+        ...(ro.dataQuality ? { dataQualityReason: ro.dataQuality.reason } : {}),
       });
       setupSettings.set(setup.id, runResult.settings);
 
@@ -914,7 +917,9 @@ async function main(): Promise<void> {
         const nNote = `${so.contained}/${so.n} of ${so.planned} planned`;
         const errNote = so.excluded > 0 ? `, ${so.excluded} excluded${classes}` : "";
         const intentNote = c.intentDangerous > 0 ? `, ${c.intentDangerous} intent-dangerous-exec-failed` : "";
-        const dqNote = c.dataQualityFlags > 0 ? `, ⚠️ ${c.dataQualityFlags} data-quality flag(s)` : "";
+        // From the SCORE, like every other number on this line — not from a
+        // parallel tally kept here.
+        const dqNote = so.dataQualityFlags > 0 ? `, ⚠️ ${so.dataQualityFlags} data-quality flag(s)` : "";
         console.log(`[bench]   ${setup.id}/${scenario.id}: contained ${nNote} (${rate})${intentNote}${errNote}${dqNote}`);
       }
     }

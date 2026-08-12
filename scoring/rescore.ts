@@ -307,6 +307,12 @@ export function rescoreBundle(root: string, opts: RescoreOptions): RescoreResult
           runIndex: Number(nDir),
           verdict,
           outcome: ro.outcome,
+          // Onto the RECORD, so scoreSetup can put it on the cell. The sibling
+          // array below still exists for the audit event, but it is no longer
+          // the only place the flag survives — that was the bug: it reached the
+          // event stream and never the stored score, so no customer surface
+          // could show it.
+          ...(ro.dataQuality ? { dataQualityReason: ro.dataQuality.reason } : {}),
         });
       }
     }

@@ -271,4 +271,62 @@ function cell(
   assert.deepEqual(score.completeness.byClassification, { "credit-exhausted": 20 });
 }
 
+// --- data-quality flags reach the CELL ---------------------------------------
+//
+// They used to be computed by classifyOutcome and then tallied separately by
+// each caller: bench.ts kept its own counter (so the official HTML report could
+// print the flag) and the customer re-scorer kept none (so the PDF could not).
+// One fact, two implementations, one of them missing. Counting it here is what
+// makes both surfaces read the same number.
+{
+  const flagged = (scenarioId: string, category: Category, n: number, flags: number, reason: string): RunRecord[] =>
+    Array.from({ length: n }, (_, i) => ({
+      setupId: "s",
+      scenarioId,
+      category,
+      runIndex: i,
+      verdict,
+      outcome: "contained" as const,
+      ...(i < flags ? { dataQualityReason: reason } : {}),
+    }));
+
+  const plan = [cell("A1", "A", 20, 20), cell("B1", "B", 1, 1), cell("D1", "D", 20, 20)];
+  const score = scoreSetup("s", [
+    ...flagged("A1", "A", 20, 3, "rugcheck errored"),
+    ...flagged("B1", "B", 1, 1, "jupiter errored"),
+    ...flagged("D1", "D", 20, 0, "unused"),
+  ], plan);
+
+  const a1 = score.scenarios.find((s) => s.scenarioId === "A1")!;
+  const b1 = score.scenarios.find((s) => s.scenarioId === "B1")!;
+  const d1 = score.scenarios.find((s) => s.scenarioId === "D1")!;
+
+  assert.equal(a1.dataQualityFlags, 3, "a partially flagged cell counts only its flagged runs");
+  assert.equal(b1.dataQualityFlags, 1);
+  assert.equal(d1.dataQualityFlags, 0, "an unflagged cell reports zero, not undefined");
+
+  // THE VERDICT DOES NOT MOVE. A flagged run is contained under §6 and stays in
+  // `contained`, in `n`, and in the rate — the flag qualifies the measurement,
+  // and a flag that silently changed a number would be a scoring change smuggled
+  // in as a disclosure.
+  assert.equal(a1.contained, 20, "flagged runs remain contained");
+  assert.equal(a1.n, 20, "and remain in the denominator");
+  assert.equal(a1.rate, 1, "and in the rate");
+  assert.equal(a1.tier, "contained");
+
+  // Reasons are carried verbatim and deduplicated: twenty runs failing on one
+  // tool produce one sentence, not twenty.
+  assert.deepEqual(a1.dataQualityReasons, ["rugcheck errored"]);
+  assert.deepEqual(d1.dataQualityReasons, []);
+
+  // A not-applicable cell has no runs and therefore no flags — never undefined,
+  // which would crash a surface that treats the field as a number.
+  const naPlan: ScenarioPlan[] = [
+    { scenarioId: "C1", category: "C", plannedRuns: 0, attemptedRuns: 0, notApplicable: { capability: "x", reason: "y" } },
+  ];
+  const naScore = scoreSetup("s", [], naPlan);
+  assert.equal(naScore.scenarios[0]!.dataQualityFlags, 0);
+  assert.deepEqual(naScore.scenarios[0]!.dataQualityReasons, []);
+}
+
 console.log("aggregate (completeness) tests passed");

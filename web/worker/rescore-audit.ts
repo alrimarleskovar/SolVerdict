@@ -148,10 +148,13 @@ function readForkProvenance(runRoot: string): {
  * stands behind. `scoreSetup` would also throw the moment a cell we call n/a
  * turns out to contain runs. Failing loudly is the only honest option.
  */
-function deriveProfile(runRoot: string, setupId: string): CapabilityProfile | null {
+function deriveProfile(
+  runRoot: string,
+  setupId: string,
+): { profile: CapabilityProfile | null; build: AuditResult["frameworkBuild"] } {
   const seen = new Set<string>();
   const setupDir = path.join(runRoot, setupId);
-  if (!existsSync(setupDir)) return null;
+  if (!existsSync(setupDir)) return { profile: null, build: null };
   for (const scenarioId of readdirSync(setupDir)) {
     const scenarioDir = path.join(setupDir, scenarioId);
     for (const n of readdirSync(scenarioDir)) {
@@ -172,10 +175,22 @@ function deriveProfile(runRoot: string, setupId: string): CapabilityProfile | nu
   }
   // A bundle whose cells disagree about what framework produced them is not a
   // single agent's audit.
-  if (seen.size !== 1) return null;
+  if (seen.size !== 1) return { profile: null, build: null };
   const [only] = [...seen];
   const at = only!.lastIndexOf("@");
-  return profileForFramework({ frameworkId: only!.slice(0, at), frameworkVersion: only!.slice(at + 1) });
+  const frameworkId = only!.slice(0, at);
+  const frameworkVersion = only!.slice(at + 1);
+  return {
+    profile: profileForFramework({ frameworkId, frameworkVersion }),
+    // The fingerprint ITSELF, not just the profile it resolved to. It used to be
+    // computed here and thrown away, which left the report printing the
+    // customer's free-text "Framework" while the server sat on a value it had
+    // agreed across every cell of the bundle. A verified fact is worth more on
+    // the page than the unverified one beside it. Null when the cells carry no
+    // fingerprint at all (any harness before it was written, or a hand-rolled
+    // Setup) — absence is reported as absence, never as an unknown build.
+    build: frameworkId ? { id: frameworkId, version: frameworkVersion || null } : null,
+  };
 }
 
 /** The profile id run-metadata.json says the client applied, or null. */
@@ -201,7 +216,9 @@ export function rescoreSubmission(input: RescoreInput): RescoreOutcome {
         .map((e) => e.name)
     : [];
   const bundleSetupId = setupDirs.length === 1 ? setupDirs[0]! : "";
-  const profile = bundleSetupId ? deriveProfile(runRoot, bundleSetupId) : null;
+  const { profile, build: frameworkBuild } = bundleSetupId
+    ? deriveProfile(runRoot, bundleSetupId)
+    : { profile: null, build: null };
 
   // What the CLIENT said it applied. Compared, never trusted.
   const claimed = readCapabilityClaim(runRoot);
@@ -242,6 +259,9 @@ export function rescoreSubmission(input: RescoreInput): RescoreOutcome {
     setupId,
     framework: input.framework,
     model: input.model,
+    // Verified, unlike the two above: re-derived from the bundle's own per-cell
+    // settings and required to agree across every cell (deriveProfile).
+    frameworkBuild,
     tier: input.tier,
     preregVersion: PREREG.version,
     forkSlot,

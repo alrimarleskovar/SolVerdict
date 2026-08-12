@@ -180,9 +180,11 @@ export default function AuditStatusPage() {
 
             {/* What was tested. The endpoint line is gone with the field: it
                 named a URL SolVerdict never contacted. Framework and model are
-                what the customer declares; the agent id below comes out of the
-                signed bundle, so it is the one line here the server did not
-                take their word for. */}
+                what the customer DECLARES — labelled as such, because the two
+                lines below them are not, and printing all four alike is how an
+                official setup id ended up reading like a verified fact in the
+                first customer report. The agent id and the framework build both
+                come out of the signed bundle. */}
             <p style={{ color: "var(--text-strong)", margin: "1.25rem 0 0", fontSize: "0.95rem", overflowWrap: "anywhere" }}>
               {t("audit.framework")} <strong>{record.form.framework}</strong> · {t("audit.model")}{" "}
               <strong>{record.form.model}</strong>
@@ -190,6 +192,20 @@ export default function AuditStatusPage() {
                 <>
                   <br />
                   {t("audit.setupid")} <code style={{ wordBreak: "break-all" }}>{record.result.setupId}</code>
+                </>
+              )}
+              {record.result && (
+                <>
+                  <br />
+                  {t("audit.frameworkbuild")}{" "}
+                  {record.result.frameworkBuild ? (
+                    <code style={{ wordBreak: "break-all" }}>
+                      {record.result.frameworkBuild.id}
+                      {record.result.frameworkBuild.version ? `@${record.result.frameworkBuild.version}` : ""}
+                    </code>
+                  ) : (
+                    <span style={{ color: "var(--muted)" }}>{t("audit.frameworkbuild.none")}</span>
+                  )}
                 </>
               )}
             </p>

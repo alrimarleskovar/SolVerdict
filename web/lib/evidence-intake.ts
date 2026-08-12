@@ -18,6 +18,10 @@
  *                  cell is covered, so a bundle carrying runs the audit never
  *                  issued an instance for is refused rather than partly
  *                  checked (see issuance/verify.ts).
+ *   5. IDENTITY    the setup id the bundle declares is not one the OFFICIAL
+ *                  board owns. Everything above establishes that the evidence is
+ *                  this customer's; this establishes that it does not CLAIM to
+ *                  be someone else's. See the check for why it belongs here.
  *
  * FAILS CLOSED. Every check is a hard reject with a machine-readable reason.
  * There is no "accept and flag": a bundle we cannot fully validate is a bundle
@@ -31,7 +35,7 @@
  * refuses everything until part 2 supplies a real gate.
  */
 import { createHash } from "node:crypto";
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { extractBundle } from "./bundle-extract";
 import path from "node:path";
 import { verifySignature } from "./wallet-auth";
@@ -41,6 +45,7 @@ import { verifyIssuedParams, describeViolations } from "../../issuance/verify";
 import { ALLOWLIST_LABELS, DENYLIST } from "../../scenarios/fixtures";
 import { SCENARIOS } from "../../scenarios";
 import { PREREG } from "../../config/prereg";
+import { isReservedSetupId } from "../../config/roster";
 import { PROTOCOL_VERSION } from "./audit-protocol";
 
 
@@ -56,6 +61,8 @@ export type IntakeFailure =
   | "prereg-mismatch"
   | "instance-mismatch"
   | "unissued-cells"
+  /** The bundle's setup id is an identity the official board owns. */
+  | "reserved-setup-id"
   /** Unreadable: not a gzip, corrupt headers, truncated. */
   | "malformed-bundle"
   /** Readable, but past the size or entry ceiling. */
@@ -268,6 +275,42 @@ export async function acceptEvidence(req: IntakeRequest, ports: IntakePorts): Pr
     return fail(REASON[extracted.reason], extracted.detail);
   }
 
+  // 5. IDENTITY — the bundle may not declare itself one of the official setups.
+  //
+  // WHY HERE AND NOT AT SCORING. The setup id is the one identifier the report
+  // prints as "from signed bundle", i.e. the one thing on that page the server
+  // does NOT take the submitter's word for. A bundle built with
+  // `sakSetup(agent, { id: "sak+claude" })` would put a pre-registered roster
+  // name into precisely that field, and every downstream surface would then
+  // truthfully report a verified id that means something it does not mean. The
+  // signature checks above prove the evidence is THIS customer's; none of them
+  // prove it is not claiming to be someone else's.
+  //
+  // REFUSED, NOT RENAMED. Rewriting the id to something safe would silently make
+  // the bundle say something its author did not sign, and the customer would
+  // never learn their id was taken. Failing closed matches the header's rule:
+  // there is no "accept and flag" at intake.
+  //
+  // Not proof of anything — a customer picks their own id and always could. This
+  // makes an official name cost a modified harness rather than one string.
+  let bundleSetupIds: string[];
+  try {
+    bundleSetupIds = readdirSync(extracted.runRoot, { withFileTypes: true })
+      .filter((e) => e.isDirectory())
+      .map((e) => e.name);
+  } catch {
+    return fail("malformed-bundle", "the bundle's run tree could not be listed");
+  }
+  const reserved = bundleSetupIds.filter((s) => isReservedSetupId(s));
+  if (reserved.length > 0) {
+    return fail(
+      "reserved-setup-id",
+      `the bundle declares setup id ${reserved.map((s) => `"${s}"`).join(", ")}, which names a row on the ` +
+        `official pre-registered board. A user audit reports under its own id — re-run with a different ` +
+        `\`id\` in your setup (e.g. sakSetup(agent, { id: "my-agent" })) and resubmit.`,
+    );
+  }
+
   let verified = { cells: 0, comparisons: 0 };
   if (row.instance_seed) {
     const issuance = deriveIssuance({
@@ -330,6 +373,7 @@ export const INTAKE_STATUS: Record<IntakeFailure, number> = {
   "prereg-mismatch": 422,
   "instance-mismatch": 422,
   "unissued-cells": 422,
+  "reserved-setup-id": 422,
   "malformed-bundle": 422,
   "bundle-too-large": 422,
   "bundle-unsafe": 422,

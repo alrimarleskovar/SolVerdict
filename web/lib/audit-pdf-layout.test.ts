@@ -35,15 +35,38 @@ interface Drawn {
   text: string;
 }
 
-/** Every drawn string with its DOCUMENT-space y, recovered per page. */
+/**
+ * Every drawn string with its DOCUMENT-space y, recovered per page.
+ *
+ * WRAPPED LINES COUNT. jsPDF emits the first line of a paragraph as
+ * `x y Td (…) Tj` and every CONTINUATION line as `T* (…) Tj`, advancing the
+ * baseline by the leading set with `TL`. The earlier parser matched only the
+ * `Td` form, so it saw one line per draw call and was blind to the rest — which
+ * is a hole in exactly the guarantee this file exists to provide: a paragraph
+ * whose last line lands under the strip looked identical to one that fits. So
+ * this walks the operators and tracks the baseline itself.
+ *
+ * PDF string literals also escape `(`, `)` and `\`, so "FRAMEWORK (DECLARED)"
+ * appears as `FRAMEWORK \(DECLARED\)`. Undone here rather than at each call
+ * site: a test that has to know about content-stream escaping is one that will
+ * quietly stop matching the first time a string acquires a bracket.
+ */
 function drawnText(pdf: Buffer): Drawn[] {
   const src = pdf.toString("latin1");
   const out: Drawn[] = [];
+  const unescape = (s: string): string => s.replace(/\\([()\\])/g, "$1");
   const streams = [...src.matchAll(/stream\r?\n([\s\S]*?)endstream/g)].map((m) => m[1]!);
   streams.forEach((s, idx) => {
-    const re = /([\d.-]+)\.?\s+([\d.-]+)\s+Td\s*\((.*?)\)\s*Tj/g;
+    let leading = 0;
+    let baseline = 0;
+    const re = /([\d.-]+)\s+TL|([\d.-]+)\.?\s+([\d.-]+)\s+Td|(T\*)|\(((?:[^()\\]|\\.)*)\)\s*Tj/g;
     let m: RegExpExecArray | null;
-    while ((m = re.exec(s))) out.push({ page: idx + 1, y: H - Number(m[2]), text: m[3]! });
+    while ((m = re.exec(s))) {
+      if (m[1] !== undefined) leading = Number(m[1]);
+      else if (m[3] !== undefined) baseline = Number(m[3]);
+      else if (m[4] !== undefined) baseline -= leading;
+      else if (m[5] !== undefined) out.push({ page: idx + 1, y: H - baseline, text: unescape(m[5]) });
+    }
   });
   return out;
 }
@@ -277,6 +300,194 @@ for (const ids of [["A2"], ["A1", "B2", "D1", "F1"]]) {
   const { drawn } = render(["A2"], 7);
   assert.ok(!drawn.some((d) => d.text === t("en", "rep.cat.title")), "a single-category board needs no glossary");
   assert.ok(!drawn.some((d) => norm(d.text).includes(norm(t("en", "rep.na.title")))));
+}
+
+// --- identity: what is declared must not read like what is verified ----------
+{
+  // The first real customer report printed `Model: sak+claude` — an official
+  // setup id — in the same weight as the row below it that the page calls
+  // verified. Intake now refuses a roster id; these labels are the other half.
+  const result = {
+    setupId: "my-agent",
+    framework: "Solana Agent Kit",
+    model: "claude-sonnet-4-6",
+    frameworkBuild: { id: "solana-agent-kit", version: "2.0.10" },
+    tier: "paid", preregVersion: "v0.3.0", forkSlot: 438616926,
+    official: false, n: 20, scenarios: ALL, score: board(ALL, 20),
+  } as unknown as AuditResult;
+  const drawn = drawnText(Buffer.from(buildAuditPdf("id", result, "2026-08-11T12:00:00.000Z")));
+  const labels = drawn.map((d) => d.text);
+
+  assert.ok(labels.includes("FRAMEWORK (DECLARED)"), "the framework label must say it is declared");
+  assert.ok(labels.includes("MODEL (DECLARED)"), "the model label must say it is declared");
+  assert.ok(labels.includes("AGENT ID (FROM SIGNED BUNDLE)"), "the verified id row must survive");
+
+  // The verified fingerprint the server already derives, now PRINTED. It was
+  // computed to resolve the capability profile and then discarded, which left
+  // the page showing a declared framework name and no verified one.
+  assert.ok(labels.includes("FRAMEWORK BUILD (VERIFIED)"), "the verified build row is missing");
+  const buildRow = drawn.find((d) => d.text === "solana-agent-kit@2.0.10");
+  assert.ok(buildRow && isVisible(buildRow), "the verified build value must be drawn and visible");
+
+  // Absence is reported as absence. Falling back to the declared string would
+  // launder free text into a row labelled verified.
+  const noBuild = drawnText(
+    Buffer.from(buildAuditPdf("id", { ...result, frameworkBuild: null } as AuditResult, "2026-08-11T12:00:00.000Z")),
+  );
+  assert.ok(noBuild.some((d) => d.text === "not recorded"), "a bundle with no fingerprint must say so");
+  assert.ok(
+    !noBuild.some((d) => d.text === "Solana Agent Kit" && d.y > 0 && noBuild.indexOf(d) > 0 && false),
+    "sanity: the declared name is never promoted into the verified row",
+  );
+}
+
+// --- data-quality: the flag must reach the page, and read differently at N=1 --
+{
+  const REASON_A = "Contained, but write tool(s) errored without a matched dangerous attempt: RUGCHECK.";
+  const REASON_B = "Contained, but write tool(s) errored without a matched dangerous attempt: TRADE.";
+
+  /** A board where `flags` runs of each named scenario carry a reason. */
+  const flaggedBoard = (ids: string[], perScenario: number, flags: Record<string, [number, string]>) => {
+    const chosen = SCENARIOS.filter((s) => ids.includes(s.id));
+    const records: RunRecord[] = [];
+    for (const s of chosen) {
+      const [count, reason] = flags[s.id] ?? [0, ""];
+      for (let i = 0; i < perScenario; i++) {
+        records.push({
+          setupId: "agent", scenarioId: s.id, category: s.category, runIndex: i,
+          verdict: { contained: true } as never, outcome: "contained",
+          ...(i < count ? { dataQualityReason: reason } : {}),
+        });
+      }
+    }
+    const plan: ScenarioPlan[] = chosen.map((s) => ({
+      scenarioId: s.id, category: s.category, plannedRuns: perScenario, attemptedRuns: perScenario,
+    }));
+    return scoreSetup("agent", records, plan);
+  };
+
+  const renderFlagged = (perScenario: number, flags: Record<string, [number, string]>) => {
+    const result = {
+      setupId: "agent", framework: "Solana Agent Kit", model: "claude-sonnet-4-6",
+      tier: perScenario === 1 ? "free" : "paid", preregVersion: "v0.3.0", forkSlot: 438616926,
+      official: false, n: perScenario, scenarios: ALL,
+      score: flaggedBoard(ALL, perScenario, flags),
+    } as unknown as AuditResult;
+    return drawnText(Buffer.from(buildAuditPdf("id", result, "2026-08-11T12:00:00.000Z")));
+  };
+
+  // THE REAL CASE: the free tier, N=1, A1 and B1 flagged off a third party's
+  // HTTP error. Every scored run in those cells is flagged, because there is
+  // only one — which is exactly why it cannot read like "3 of 20".
+  {
+    const drawn = renderFlagged(1, { A1: [1, REASON_A], B1: [1, REASON_B] });
+    const all = norm(drawn.map((d) => d.text).join(" "));
+
+    // The mark is on the rows, and only on the flagged rows.
+    const marked = drawn.filter((d) => /^(A1|B1) \*\*$/.test(d.text));
+    assert.equal(marked.length, 2, "both flagged rows must carry the ** mark");
+    assert.ok(marked.every(isVisible), "a mark drawn under the strip is not a disclosure");
+    assert.ok(!drawn.some((d) => /^D1 \*/.test(d.text)), "an unflagged row must not be marked");
+
+    // The footnote says what the mark means AND that the verdict is unchanged.
+    assert.ok(all.includes("a contained run here showed a write-tool error"), "footnote lead missing");
+    assert.ok(
+      all.includes("not that the verdict is wrong"),
+      "the footnote must not let a reader downgrade the cell — a flagged cell is still contained",
+    );
+
+    // The N=1 wording. This is the whole point of the split: one flagged run in
+    // twenty is a footnote; the only run being flagged is the entire cell.
+    assert.ok(all.includes("At N=1 that run IS the cell"), "the N=1 wording is missing");
+    assert.ok(all.includes("with no unflagged run behind it"));
+    assert.ok(!all.includes("of the 1 scored runs"), "N=1 must not borrow the plural phrasing");
+
+    // Reasons QUOTED verbatim — the same text the audit was scored under.
+    for (const [ids, reason] of [["A1", REASON_A], ["B1", REASON_B]] as const) {
+      assert.ok(all.includes(norm(reason)), `the declared reason for ${ids} must be quoted verbatim`);
+    }
+    // …and visible, not merely present. This is the assertion the ‡ footnote
+    // never had, and the reason strings are long enough to need it.
+    const lastReasonLine = drawn.filter((d) => norm(d.text).includes("RUGCHECK"));
+    assert.ok(lastReasonLine.length > 0 && lastReasonLine.every(isVisible), "quoted reasons drawn under the footer");
+  }
+
+  // The paid tier, partially flagged: a different sentence, and the counts named.
+  {
+    const drawn = renderFlagged(20, { A1: [3, REASON_A] });
+    const all = norm(drawn.map((d) => d.text).join(" "));
+    assert.ok(all.includes("A1 (3 of 20 scored runs)"), "a partial flag must print its own denominator");
+    assert.ok(all.includes("contained without a flag"), "…and say what the unflagged runs were");
+    assert.ok(!all.includes("At N=1"), "the N=1 wording must not appear on a 20-run cell");
+  }
+
+  // Every run of a 20-run cell flagged — the third wording. Still not N=1.
+  {
+    const drawn = renderFlagged(20, { A1: [20, REASON_A] });
+    const all = norm(drawn.map((d) => d.text).join(" "));
+    assert.ok(all.includes("A1 (all 20 scored runs)"), "a fully flagged multi-run cell names its N");
+    assert.ok(all.includes("no unflagged run stands behind the rate"));
+    assert.ok(!all.includes("At N=1"));
+  }
+
+  // No flags → no footnote at all. A report that explains a mark it never
+  // printed is noise, and every existing audit is in this state.
+  {
+    const drawn = renderFlagged(20, {});
+    const all = norm(drawn.map((d) => d.text).join(" "));
+    assert.ok(!all.includes("a contained run here showed a write-tool error"), "unflagged board must print no ** note");
+    assert.ok(!drawn.some((d) => /^[A-F]\d+ \*/.test(d.text)), "…and no mark on any row");
+  }
+}
+
+// --- footnote MARKERS must be glyphs the PDF can actually draw ---------------
+//
+// THE BUG THIS EXISTS FOR. The row mark was "‡" (U+2021) and jsPDF's standard
+// Helvetica is Latin-1: every codepoint above U+00FF is dropped SILENTLY. So
+// `E1 ‡` reached the content stream as "E1 " and the ‡ footnote below it
+// referred to a symbol that had never been drawn — for the whole life of the
+// feature, on every report issued. `pdf.includes("‡")` would not have caught it
+// either; only reading the drawn bytes does.
+//
+// Markers are load-bearing in a way ordinary prose is not: a dropped em dash
+// costs a space, a dropped marker breaks the reference the footnote depends on.
+{
+  const marked: RunRecord[] = SCENARIOS.map((s) => ({
+    setupId: "agent", scenarioId: s.id, category: s.category, runIndex: 0,
+    verdict: { contained: s.id !== "E1" } as never,
+    outcome: s.id === "E1" ? ("intent-dangerous-exec-failed" as const) : ("contained" as const),
+    ...(s.id === "A1" ? { dataQualityReason: "Contained, but write tool(s) errored: RUGCHECK." } : {}),
+  }));
+  const plan: ScenarioPlan[] = SCENARIOS.map((s) => ({
+    scenarioId: s.id, category: s.category, plannedRuns: 1, attemptedRuns: 1,
+  }));
+  const result = {
+    setupId: "agent", framework: "F", model: "m", tier: "free", preregVersion: "v0.3.0",
+    forkSlot: 1, official: false, n: 1, scenarios: ALL, score: scoreSetup("agent", marked, plan),
+  } as unknown as AuditResult;
+  const drawn = drawnText(Buffer.from(buildAuditPdf("id", result, "2026-08-11T12:00:00.000Z")));
+
+  // The TABLE row, not the prose on page 1 that happens to open "A1 through F3".
+  const row = (id: string) => drawn.find((d) => new RegExp(`^${id}(\\s|$)`).test(d.text) && d.text.length <= 8);
+  const e1 = row("E1");
+  assert.equal(e1?.text, "E1 *", "the intent-dangerous marker was dropped by the font encoder");
+  const a1 = row("A1");
+  assert.equal(a1?.text, "A1 **", "the data-quality marker was dropped by the font encoder");
+
+  // The footnote must open with the same marker its row carries, or the
+  // reference is broken from the other end.
+  const lead = drawn.find((d) => d.text.includes("agent attempted the dangerous action"));
+  assert.ok(lead?.text.startsWith("* "), `exec footnote must open with its marker, got ${JSON.stringify(lead?.text)}`);
+  const dqLead = drawn.find((d) => d.text.includes("a contained run here showed"));
+  assert.ok(dqLead?.text.startsWith("** "), "the data-quality footnote must open with its marker");
+
+  // No codepoint the encoder silently eats, in the marks or their footnote
+  // leads. Scoped there deliberately: the rest of the document still uses em
+  // dashes, which degrade to a space rather than breaking a reference.
+  for (const d of [e1!, a1!, lead!, dqLead!]) {
+    const bad = [...d.text].filter((c) => c.codePointAt(0)! > 0xff);
+    assert.deepEqual(bad, [], `${JSON.stringify(d.text)} carries un-encodable codepoint(s): ${bad.join("")}`);
+  }
 }
 
 console.log(`audit-pdf layout tests passed (${SCENARIOS.length}-scenario board renders every row)`);

@@ -22,6 +22,7 @@ import { deriveIssuance } from "../../issuance/derive";
 import { ALLOWLIST, ALLOWLIST_LABELS, DENYLIST, FIXTURES } from "../../scenarios/fixtures";
 import { SCENARIOS } from "../../scenarios";
 import { PREREG } from "../../config/prereg";
+import { CORE_SETUP_IDS } from "../../config/roster";
 import { PROTOCOL_VERSION } from "./audit-protocol";
 
 const sha256 = (b: Buffer) => createHash("sha256").update(b).digest("hex");
@@ -60,9 +61,15 @@ const tmp = (prefix: string): string => {
 function validSubmission(
   auditId: string,
   wallet: Keypair,
-  opts: { n?: number; extraCells?: Array<{ scenarioId: string; runIndex: number; params: Record<string, string | number> }> } = {},
+  opts: {
+    n?: number;
+    extraCells?: Array<{ scenarioId: string; runIndex: number; params: Record<string, string | number> }>;
+    /** The setup id the bundle declares — the top-level directory of the run tree. */
+    setupId?: string;
+  } = {},
 ) {
   const n = opts.n ?? 1;
+  const setupId = opts.setupId ?? "agent";
   const issuance = deriveIssuance({
     auditId,
     serverSeed: SEED,
@@ -79,7 +86,7 @@ function validSubmission(
     const params: Record<string, string | number> = { ...(issuance.instances[cell]!.values ?? {}) };
     const mint = issuance.expectedMints[cell];
     if (mint) params.maliciousMint = mint;
-    const dir = path.join(runDir, "agent", scenarioId, "0");
+    const dir = path.join(runDir, setupId, scenarioId, "0");
     mkdirSync(dir, { recursive: true });
     writeFileSync(path.join(dir, "ctx.json"), JSON.stringify({ params, overlayTools: [] }));
     writeFileSync(path.join(dir, "txs.json"), "[]");
@@ -89,7 +96,7 @@ function validSubmission(
 
   // Cells the caller adds verbatim — used to plant the mixed-instance attack.
   for (const c of opts.extraCells ?? []) {
-    const dir = path.join(runDir, "agent", c.scenarioId, String(c.runIndex));
+    const dir = path.join(runDir, setupId, c.scenarioId, String(c.runIndex));
     mkdirSync(dir, { recursive: true });
     writeFileSync(path.join(dir, "ctx.json"), JSON.stringify({ params: c.params, overlayTools: [] }));
     writeFileSync(path.join(dir, "txs.json"), "[]");
@@ -452,6 +459,48 @@ test("a non-archive payload is refused, not crashed on", async () => {
     baseRow(auditId, wallet.publicKey.toBase58()),
   );
   assert.equal(result.reason, "malformed-bundle");
+});
+
+// --- 5. IDENTITY — the bundle may not name itself after the official board ---
+//
+// This is the version of the sak+claude confusion that MATTERS. A roster id in
+// the submit form is a mislabelled free-text field; a roster id in the bundle
+// lands in `setupId`, which every surface prints as "from the signed bundle" —
+// i.e. as the one identifier the server did not take the submitter's word for.
+// The signature checks above all pass for such a bundle: it really is this
+// customer's evidence. What they do not check is whose name is on it.
+
+test("a bundle declaring an OFFICIAL setup id is refused", async () => {
+  for (const id of CORE_SETUP_IDS) {
+    const auditId = randomUUID();
+    const wallet = Keypair.generate();
+    const sub = validSubmission(auditId, wallet, { setupId: id });
+    const { result, enqueued } = await run(auditId, sub, baseRow(auditId, wallet.publicKey.toBase58()));
+    assert.equal(result.ok, false, `"${id}" must not be accepted as a bundle setup id`);
+    assert.equal(result.reason, "reserved-setup-id");
+    assert.match(result.detail ?? "", new RegExp(id.replace(/\+/g, "\\+")), "the refusal must name the id");
+    assert.equal(enqueued.length, 0, "a refused bundle must not reach the worker");
+  }
+});
+
+test("the identity check is case- and whitespace-insensitive", async () => {
+  const auditId = randomUUID();
+  const wallet = Keypair.generate();
+  const sub = validSubmission(auditId, wallet, { setupId: "SAK+Claude" });
+  const { result } = await run(auditId, sub, baseRow(auditId, wallet.publicKey.toBase58()));
+  assert.equal(result.reason, "reserved-setup-id", "a case variant is the same claim");
+});
+
+test("an ordinary setup id still passes — the check reserves four names, not all of them", async () => {
+  // The guard must not become a reason customers cannot submit. `sak-agent` is
+  // @solverdict/sak-adapter's own default id and has to keep working.
+  for (const id of ["sak-agent", "my-agent", "sak+claude-fork", "agent"]) {
+    const auditId = randomUUID();
+    const wallet = Keypair.generate();
+    const sub = validSubmission(auditId, wallet, { setupId: id });
+    const { result } = await run(auditId, sub, baseRow(auditId, wallet.publicKey.toBase58()));
+    assert.equal(result.ok, true, `"${id}" is not reserved and must be accepted`);
+  }
 });
 
 test("nothing is stored or enqueued when a check fails", async () => {

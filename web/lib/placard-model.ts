@@ -28,8 +28,8 @@ import type { CategoryScore, ScenarioScore, SetupScore } from "../../scoring";
  */
 export type StoredSetupScore = Omit<SetupScore, "completeness" | "scenarios" | "categories"> & {
   completeness?: SetupScore["completeness"];
-  scenarios: Array<Omit<ScenarioScore, "applicable" | "planned" | "attempted" | "excluded" | "complete" | "excludedByClass" | "notApplicable"> &
-    Partial<Pick<ScenarioScore, "applicable" | "planned" | "attempted" | "excluded" | "complete" | "excludedByClass" | "notApplicable">>>;
+  scenarios: Array<Omit<ScenarioScore, "applicable" | "planned" | "attempted" | "excluded" | "complete" | "excludedByClass" | "notApplicable" | "dataQualityFlags" | "dataQualityReasons"> &
+    Partial<Pick<ScenarioScore, "applicable" | "planned" | "attempted" | "excluded" | "complete" | "excludedByClass" | "notApplicable" | "dataQualityFlags" | "dataQualityReasons">>>;
   categories: Array<Omit<CategoryScore, "scoredScenarios" | "missingScenarios" | "partialScenarios" | "notApplicableScenarios" | "complete" | "plannedRuns" | "validRuns" | "excludedRuns"> &
     Partial<Pick<CategoryScore, "scoredScenarios" | "missingScenarios" | "partialScenarios" | "notApplicableScenarios" | "complete" | "plannedRuns" | "validRuns" | "excludedRuns">>>;
 };
@@ -225,6 +225,24 @@ export interface ScenarioRow {
   /** Exclusion reasons by declared class (lib/missingness.ts). */
   excludedByClass: Record<string, number>;
   intentDangerousExecFailed: number;
+  /**
+   * Contained runs here whose containment came from a write-tool error rather
+   * than an observed decision. Zero on a result stored before the flag reached
+   * the score — which is reported as "no flags", and is the only reading such a
+   * record supports: those audits were scored by code that computed the flag and
+   * dropped it, so absence of a count is absence of information, and inventing a
+   * warning from it would be as wrong as hiding one.
+   */
+  dataQualityFlags: number;
+  /** The declared reasons, verbatim — quoted by the surfaces, never paraphrased. */
+  dataQualityReasons: string[];
+  /**
+   * True when EVERY scored run in this cell is flagged. The distinction the
+   * surfaces need: one flagged run in twenty is a footnote, whereas a cell whose
+   * every run is flagged has no unflagged observation behind its rate at all —
+   * which at N=1 is the whole cell, off a single run that was not a decision.
+   */
+  allRunsFlagged: boolean;
   /** Null when the scenario produced no valid run. */
   rate: number | null;
   ci: { low: number; high: number } | null;
@@ -401,6 +419,7 @@ export function scenarioRows(score: StoredSetupScore): ScenarioRow[] {
     .sort((a, b) => a.scenarioId.localeCompare(b.scenarioId))
     .map((s) => {
       const catLetter = s.scenarioId[0] as CategoryLetter;
+      const dataQualityFlags = s.dataQualityFlags ?? 0;
       return {
         scenarioId: s.scenarioId,
         category: s.category,
@@ -414,6 +433,11 @@ export function scenarioRows(score: StoredSetupScore): ScenarioRow[] {
         complete: s.complete ?? null,
         excludedByClass: { ...s.excludedByClass },
         intentDangerousExecFailed: s.intentDangerousExecFailed,
+        dataQualityFlags,
+        dataQualityReasons: [...(s.dataQualityReasons ?? [])],
+        // `s.n > 0` guards the degenerate case: a cell with no valid run has
+        // 0 === 0 and would otherwise claim all of its (zero) runs are flagged.
+        allRunsFlagged: dataQualityFlags > 0 && s.n > 0 && dataQualityFlags === s.n,
         rate: s.rate,
         ci: s.ci ? { low: s.ci.low, high: s.ci.high } : null,
         tier: s.tier,

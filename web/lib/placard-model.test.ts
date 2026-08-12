@@ -40,6 +40,8 @@ function scenario(p: Partial<ScenarioScore> & Pick<ScenarioScore, "scenarioId" |
     contained,
     uncontained: p.uncontained ?? 0,
     intentDangerousExecFailed: p.intentDangerousExecFailed ?? 0,
+    dataQualityFlags: p.dataQualityFlags ?? 0,
+    dataQualityReasons: p.dataQualityReasons ?? [],
     rate: p.rate !== undefined ? p.rate : rate,
     ci: p.ci !== undefined ? p.ci : rate !== null ? ci(rate, n) : null,
     tier: p.tier !== undefined ? p.tier : null,
@@ -391,6 +393,56 @@ function runBShape(): SetupScore {
   const none = forkAnchor({ forkSlot: null });
   assert.match(none.short, /not recorded/);
   assert.doesNotMatch(none.long, /unpinned/i);
+}
+
+// --- data-quality flags reach the row model ---------------------------------
+{
+  const REASON = "Contained, but write tool(s) errored: RUGCHECK.";
+  const score = {
+    setupId: "agent",
+    scenarios: [
+      // The free-tier shape: one scored run, and it is the flagged one.
+      scenario({ scenarioId: "A1", category: "A", n: 1, contained: 1, planned: 1, dataQualityFlags: 1, dataQualityReasons: [REASON] }),
+      // The paid shape: flagged, but most runs are clean.
+      scenario({ scenarioId: "B1", category: "B", n: 20, contained: 20, dataQualityFlags: 3, dataQualityReasons: [REASON] }),
+      // Every run of a 20-run cell flagged — same "nothing unflagged behind the
+      // rate" claim as A1, but it must NOT read as the N=1 case.
+      scenario({ scenarioId: "D1", category: "D", n: 20, contained: 20, dataQualityFlags: 20, dataQualityReasons: [REASON] }),
+      scenario({ scenarioId: "E1", category: "E", n: 20, contained: 20 }),
+    ],
+    categories: [],
+    completeness: { scenariosPlanned: 4, complete: true, missingScenarios: [], partialScenarios: [], notApplicableScenarios: [], validRuns: 61, plannedRuns: 61, byClassification: {} },
+  } as unknown as SetupScore;
+
+  const rows = scenarioRows(score);
+  const by = (id: string) => rows.find((r) => r.scenarioId === id)!;
+
+  assert.equal(by("A1").dataQualityFlags, 1);
+  assert.equal(by("A1").allRunsFlagged, true, "the only scored run is flagged");
+  assert.equal(by("B1").allRunsFlagged, false, "3 of 20 leaves 17 unflagged runs behind the rate");
+  assert.equal(by("D1").allRunsFlagged, true, "20 of 20 leaves none");
+  assert.equal(by("E1").dataQualityFlags, 0);
+  assert.equal(by("E1").allRunsFlagged, false);
+  assert.deepEqual(by("A1").dataQualityReasons, [REASON], "reasons travel verbatim for the surfaces to quote");
+
+  // A cell with NO valid run must not claim its zero runs are all flagged:
+  // 0 === 0 is true, and the surfaces would print a warning about nothing.
+  const empty = scenarioRows({
+    ...score,
+    scenarios: [scenario({ scenarioId: "F1", category: "F", n: 0, contained: 0, dataQualityFlags: 0 })],
+  } as unknown as SetupScore);
+  assert.equal(empty[0]!.allRunsFlagged, false, "0 flags over 0 runs is not 'all runs flagged'");
+
+  // A result stored before the flag reached the score has neither field. That
+  // is absence of information, not evidence of cleanliness — but zero is the
+  // only reading such a record supports, and it must not crash the surfaces.
+  const legacy = scenarioRows({
+    ...score,
+    scenarios: [{ scenarioId: "A1", category: "A", n: 20, contained: 20, uncontained: 0, intentDangerousExecFailed: 0, rate: 1, ci: ci(1), tier: "contained" }],
+  } as unknown as SetupScore);
+  assert.equal(legacy[0]!.dataQualityFlags, 0, "a legacy row reports zero flags, not undefined");
+  assert.deepEqual(legacy[0]!.dataQualityReasons, []);
+  assert.equal(legacy[0]!.allRunsFlagged, false);
 }
 
 console.log("placard-model tests passed");

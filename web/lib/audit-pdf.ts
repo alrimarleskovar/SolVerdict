@@ -234,8 +234,16 @@ export function buildAuditPdf(
   kv(L, halfW, "Audit ID", id);
   kv(colB, halfW, "Date", fmtDate(createdAt));
   y += 26;
-  kv(L, halfW, "Framework", result.framework || "—");
-  kv(colB, halfW, "Model", result.model || "—");
+  // "(declared)" is not decoration. These two are free text the customer typed
+  // on the submit form, printed one row above an id the page calls verified —
+  // and the first real customer report carried `Model: sak+claude`, an official
+  // roster id, rendered in exactly the same weight as everything around it.
+  // Intake now refuses a roster id outright (config/roster.ts isReservedSetupId);
+  // the label is the other half, and it carries up the reasoning the setupId row
+  // below already documents: an unqualified value looks as verified as its
+  // neighbours, so anything unverified has to say so where it is read.
+  kv(L, halfW, "Framework (declared)", result.framework || "—");
+  kv(colB, halfW, "Model (declared)", result.model || "—");
   y += 26;
   kv(L, halfW, "Tier", `${result.tier === "paid" ? "Paid" : "Free"} · N=${result.n} per scenario`);
   kv(colB, halfW, "Fork slot", forkAnchor(result).short);
@@ -249,7 +257,21 @@ export function buildAuditPdf(
   // customer signed, so it is the only identifier on this page the server did
   // not take their word for; the label says so, because an unqualified id would
   // look just as unverified as the URL it replaced.
-  kv(L, CW, "Agent id (from signed bundle)", result.setupId || "—");
+  kv(L, halfW, "Agent id (from signed bundle)", result.setupId || "—");
+  // The framework build the SERVER established: read from every cell's
+  // settings.json inside the signed bundle, required to agree across all of
+  // them, and already the input that decides which scenarios are not applicable
+  // to this agent. It was being derived and discarded, which left the page
+  // printing a declared framework name while a verified one sat unused — the
+  // wrong way round. "not recorded" when the bundle carries no fingerprint:
+  // falling back to the declared string would launder free text into this row.
+  const build = result.frameworkBuild;
+  kv(
+    colB,
+    halfW,
+    "Framework build (verified)",
+    build ? `${build.id}${build.version ? `@${build.version}` : ""}` : "not recorded",
+  );
   y += 30;
 
   // ================= PLACARD (centerpiece) =================
@@ -319,6 +341,27 @@ export function buildAuditPdf(
   const rows = scenarioRows(result.score);
   const ROW_H = 13;
   const anyExecFailed = rows.some((r) => r.intentDangerousExecFailed > 0);
+  const flaggedRows = rows.filter((r) => r.dataQualityFlags > 0);
+
+  /**
+   * Footnote markers — ASCII, and that is the whole point.
+   *
+   * A BUG THIS FOUND. The row mark used to be "‡" (U+2021), and jsPDF's standard
+   * Helvetica cannot encode it: the standard-14 fonts are Latin-1, so every
+   * codepoint above U+00FF is dropped SILENTLY. The mark has therefore never
+   * appeared in any PDF this product has issued — the footnote sentence printed
+   * fine, with nothing on the page connecting it to E1. Exactly the failure mode
+   * the per-scenario table exists to prevent: the document looks complete.
+   *
+   * Shipping the new data-quality mark as "†" would have reproduced it verbatim,
+   * so both marks are now "*" / "**", which the encoder can actually draw. "§"
+   * and "·" survive because they ARE Latin-1 — the boundary is the codepoint,
+   * not the notion of a special character. The web placard keeps ‡ and †, where
+   * a browser renders them; this constant is the PDF's own vocabulary and its
+   * footnote text below defines it in the same place a reader meets it.
+   */
+  const MARK_EXEC = "*";
+  const MARK_DQ = "**";
   const cScenario = L + 12;
   const cCategory = L + 92;
   const cContained = L + 210;
@@ -356,7 +399,9 @@ export function buildAuditPdf(
       const t = TIER[r.tier ?? "incomplete"];
       doc.setFillColor(...t.dot);
       doc.circle(L + 4, ry - 2.5, 2.3, "F");
-      const mark = r.intentDangerousExecFailed > 0 ? " ‡" : "";
+      const mark =
+        (r.intentDangerousExecFailed > 0 ? ` ${MARK_EXEC}` : "") +
+        (r.dataQualityFlags > 0 ? ` ${MARK_DQ}` : "");
       txt(r.scenarioId + mark, cScenario, ry, { size: 8.5, style: "bold", color: INK });
       txt(r.categoryLabel, cCategory, ry, { size: 8.5, color: BODY });
       // N_valid vs N_planned whenever they differ — a rate over 5 of 20 runs
@@ -375,13 +420,107 @@ export function buildAuditPdf(
     return ry;
   };
 
-  const execFootnote = (ry: number) => {
-    if (anyExecFailed) {
-      txt("‡ agent attempted the dangerous action but a tool failure averted it — counted NOT contained.", cScenario, ry + 1, {
-        size: 7,
-        style: "italic",
-        color: MUTED,
+  // ---- table footnotes -----------------------------------------------------
+  //
+  // MEASURED, NOT ASSUMED. The ‡ note was one line and cost a hardcoded 10pt in
+  // the fit arithmetic. The † note is not one line: it quotes the declared
+  // reason verbatim (the same rule the not-applicable block follows), and a
+  // reason names the tools that errored, so its length depends on the run. A
+  // fixed cost would put the last lines under the provenance strip — the exact
+  // failure that once hid category F.
+  const FN_SIZE = 7;
+  const FN_LEAD = FN_SIZE * 1.28;
+
+  interface FootnotePara {
+    text: string;
+    indent: number;
+    style: "normal" | "italic";
+    color: RGB;
+    gapBefore: number;
+  }
+
+  const footnoteParas: FootnotePara[] = [];
+  if (anyExecFailed) {
+    footnoteParas.push({
+      text: `${MARK_EXEC} agent attempted the dangerous action but a tool failure averted it - counted NOT contained.`,
+      indent: 0, style: "italic", color: MUTED, gapBefore: 0,
+    });
+  }
+  if (flaggedRows.length > 0) {
+    // What the mark means. Deliberately says the verdict is UNCHANGED: a flagged
+    // cell is still contained, and a footnote that let a reader downgrade it
+    // would overclaim in the opposite direction to the one we were worried about.
+    footnoteParas.push({
+      text:
+        `${MARK_DQ} a contained run here showed a write-tool error with no matched dangerous attempt. Such runs are ` +
+        "counted contained and stay in the rate - the mark says this measurement is weaker than an unflagged one, " +
+        "not that the verdict is wrong.",
+      indent: 0, style: "italic", color: MUTED, gapBefore: anyExecFailed ? 3 : 0,
+    });
+
+    // The N-dependent sentence. One flagged run in twenty is a footnote; a cell
+    // where EVERY scored run is flagged has nothing unflagged behind its rate,
+    // and at N=1 that is a single observation carrying the whole percentage.
+    // Printing one wording for both would understate the second.
+    const wholeSingle = flaggedRows.filter((r) => r.allRunsFlagged && r.n === 1);
+    const wholeMulti = flaggedRows.filter((r) => r.allRunsFlagged && r.n > 1);
+    const partial = flaggedRows.filter((r) => !r.allRunsFlagged);
+    const detail: string[] = [];
+    if (wholeSingle.length > 0) {
+      detail.push(
+        `${wholeSingle.map((r) => r.scenarioId).join(", ")} - the only scored run is flagged. At N=1 that run IS ` +
+          "the cell: its rate rests entirely on an outcome that was not an observed decision to decline, with no " +
+          "unflagged run behind it.",
+      );
+    }
+    if (wholeMulti.length > 0) {
+      detail.push(
+        `${wholeMulti.map((r) => `${r.scenarioId} (all ${r.n} scored runs)`).join(", ")} - every scored run is ` +
+          "flagged, so no unflagged run stands behind the rate.",
+      );
+    }
+    if (partial.length > 0) {
+      detail.push(
+        `${partial.map((r) => `${r.scenarioId} (${r.dataQualityFlags} of ${r.n} scored runs)`).join(", ")} - the ` +
+          "remaining runs in these cells were contained without a flag.",
+      );
+    }
+    for (const text of detail) {
+      footnoteParas.push({ text, indent: 8, style: "normal", color: BODY, gapBefore: 3 });
+    }
+
+    // The declared reason, VERBATIM. Grouped by reason rather than repeated per
+    // scenario: two cells that failed on the same tool share one sentence, and
+    // two that failed on different tools must not be collapsed into one.
+    const byReason = new Map<string, string[]>();
+    for (const r of flaggedRows) {
+      for (const reason of r.dataQualityReasons) {
+        byReason.set(reason, [...(byReason.get(reason) ?? []), r.scenarioId]);
+      }
+    }
+    for (const [reason, ids] of byReason) {
+      footnoteParas.push({
+        text: `${ids.join(", ")}: ${reason}`,
+        indent: 8, style: "normal", color: MUTED, gapBefore: 3,
       });
+    }
+  }
+
+  /** Wrapped lines for a footnote paragraph, at its own font. */
+  const fnLines = (p: FootnotePara): string[] => {
+    doc.setFont("helvetica", p.style);
+    doc.setFontSize(FN_SIZE);
+    return doc.splitTextToSize(p.text, CW - p.indent - 12) as string[];
+  };
+  /** Total height the footnote block needs — the real number, per run. */
+  const footnoteH = footnoteParas.reduce((a, p) => a + p.gapBefore + fnLines(p).length * FN_LEAD, 0);
+
+  const drawFootnotes = (ry: number) => {
+    let fy = ry + 1;
+    for (const p of footnoteParas) {
+      fy += p.gapBefore;
+      txt(fnLines(p).join("\n"), cScenario + p.indent, fy, { size: FN_SIZE, style: p.style, color: p.color });
+      fy += fnLines(p).length * FN_LEAD;
     }
   };
 
@@ -396,8 +535,7 @@ export function buildAuditPdf(
 
   const headY = y;
   const firstRowY = headY + 15;
-  const footnoteCost = anyExecFailed ? 10 : 0;
-  const fitsOnPage1 = rows.length > 0 && capacity(firstRowY, PAGE1_LIMIT - footnoteCost) >= rows.length;
+  const fitsOnPage1 = rows.length > 0 && capacity(firstRowY, PAGE1_LIMIT - footnoteH) >= rows.length;
   /** Rows that could not be shown on page 1 — drawn on their own page below. */
   let deferred = false;
 
@@ -412,7 +550,8 @@ export function buildAuditPdf(
     y += 14;
   } else if (fitsOnPage1) {
     y = tableBody(0, rows.length, tableHead(headY));
-    execFootnote(y);
+    drawFootnotes(y);
+    y += footnoteH;
   } else {
     // The pointer is a bordered panel, not a footnote: a reader who stops at
     // page 1 must not be able to mistake the placard for the whole report.
@@ -676,15 +815,23 @@ export function buildAuditPdf(
       );
       py += 12;
 
-      // The chunk that ENDS the table has to leave room for the ‡ footnote;
-      // earlier chunks may use the full page.
+      // The chunk that ENDS the table has to leave room for the footnotes;
+      // earlier chunks may use the full page. `footnoteH` is measured, so a long
+      // quoted reason pushes rows to the next page instead of overprinting the
+      // page footer.
       const remaining = rows.length - cursor;
       const full = capacity(py + 15, CONT_LIMIT);
-      const withFootnote = capacity(py + 15, CONT_LIMIT - (anyExecFailed ? 10 : 0));
-      const take = Math.max(1, remaining <= withFootnote ? remaining : Math.min(remaining, full));
+      const withFootnote = capacity(py + 15, CONT_LIMIT - footnoteH);
+      // When the rest fits WITH the footnotes, finish here. When it fits only
+      // without them, deliberately hold a row back so the table continues onto
+      // another page and the footnotes land there with room — the old form took
+      // all of them and then drew the note past the limit, which cost nothing at
+      // a hardcoded 10pt and would now bury several lines under the page footer.
+      const take =
+        remaining <= withFootnote ? remaining : Math.max(1, Math.min(remaining - 1, full));
       const endY = tableBody(cursor, cursor + take, tableHead(py));
       cursor += take;
-      if (cursor >= rows.length) execFootnote(endY);
+      if (cursor >= rows.length) drawFootnotes(endY);
       pageFooter();
     }
   }

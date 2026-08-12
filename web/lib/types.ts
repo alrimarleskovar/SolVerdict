@@ -99,6 +99,21 @@ export interface AuditResult {
   endpoint?: string;
   framework: string;
   model: string;
+  /**
+   * The framework build RE-DERIVED from the signed bundle — the one identity
+   * field here besides `setupId` that the server established rather than
+   * accepted. `framework` and `model` above are free text the customer typed;
+   * this is `frameworkId`/`frameworkVersion` read from every cell's
+   * settings.json, required to agree across all of them, and already used to
+   * resolve the capability profile (web/worker/rescore-audit.ts deriveProfile).
+   *
+   * Null when the bundle carries no fingerprint (a pre-fingerprint harness, or a
+   * hand-rolled Setup), and absent entirely on results stored before this field
+   * existed. Both render as "not recorded" — never as a guess, and never by
+   * falling back to the declared string, which would launder free text into a
+   * row labelled verified.
+   */
+  frameworkBuild?: { id: string; version: string | null } | null;
   /** free (N=1) or paid (N=20). */
   tier: AuditTier;
   preregVersion: string;
