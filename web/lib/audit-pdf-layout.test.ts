@@ -490,4 +490,98 @@ for (const ids of [["A2"], ["A1", "B2", "D1", "F1"]]) {
   }
 }
 
+// --- declared corrections: visible, marked, and naming what was submitted ----
+//
+// ASSERT ON WHAT THE CUSTOMER SEES. The fix that preceded this feature updated
+// `audits.model` and was verified with a SELECT that read the column it had just
+// changed — not `results->>'model'`, the field the PDF renders. It reported
+// success while the PDF still printed the wrong model. That is the same shape as
+// `pdf.includes("F3")` passing for the whole life of the F-row bug: an assertion
+// aimed one step short of the thing being claimed. So every check below reads
+// DRAWN, VISIBLE text out of the content stream.
+{
+  const corrected = {
+    setupId: "sak-agent",
+    framework: "Solana Agent Kit",
+    model: "claude-sonnet-4-6",
+    frameworkBuild: { id: "solana-agent-kit", version: "2.0.10" },
+    declaredCorrections: [
+      {
+        field: "model",
+        from: "sak+claude",
+        to: "claude-sonnet-4-6",
+        at: "2026-08-12",
+        reason: "declared model was an official roster setup id, not a model name",
+      },
+    ],
+    tier: "paid", preregVersion: "v0.3.0", forkSlot: 438616926,
+    official: false, n: 20, scenarios: ALL, score: board(ALL, 20),
+  } as unknown as AuditResult;
+  const drawn = drawnText(Buffer.from(buildAuditPdf("id", corrected, "2026-08-11T12:00:00.000Z")));
+
+  // 1. The corrected VALUE carries the mark, and is on the visible page.
+  const modelRow = drawn.find((d) => d.text.startsWith("claude-sonnet-4-6"));
+  assert.ok(modelRow, "the corrected model value was never drawn");
+  assert.equal(modelRow!.text, "claude-sonnet-4-6 (*)", "the corrected value must carry its mark");
+  assert.ok(isVisible(modelRow!), "the corrected value is drawn under the strip — invisible on the page");
+
+  // 2. The note NAMES THE SUBMITTED STRING. This is the assertion that matters:
+  //    a correction which prints only the new value lets the document read as
+  //    though it had always said it. The note wraps, so the T*-aware parser is
+  //    load-bearing here — matching only the first line would miss `from` on a
+  //    narrower page.
+  const noteLines = drawn.filter((d) => d.text.startsWith("(*)") || /submitted as|corrected to/.test(d.text));
+  assert.ok(noteLines.length > 0, "no correction note was drawn at all");
+  const note = noteLines.map((d) => d.text).join(" ");
+  assert.ok(note.includes('"sak+claude"'), `the note must name the SUBMITTED value, got: ${JSON.stringify(note)}`);
+  assert.ok(note.includes('"claude-sonnet-4-6"'), "the note must name the corrected value");
+  assert.ok(note.includes("2026-08-12"), "the note must date the correction");
+  assert.ok(
+    noteLines.every(isVisible),
+    "part of the correction note lands under the provenance strip — present in the file, invisible on the page",
+  );
+
+  // 3. The mark opens the note, or the reference is broken from the other end
+  //    (the exact failure the ‡ bug produced: a footnote with nothing linking
+  //    to it).
+  assert.ok(
+    noteLines.some((d) => d.text.startsWith("(*) ")),
+    `the note must open with its mark, got ${JSON.stringify(noteLines.map((d) => d.text).slice(0, 2))}`,
+  );
+
+  // 4. Every codepoint survives the Latin-1 encoder — mark and note alike.
+  for (const d of [modelRow!, ...noteLines]) {
+    const bad = [...d.text].filter((c) => c.codePointAt(0)! > 0xff);
+    assert.deepEqual(bad, [], `${JSON.stringify(d.text)} carries un-encodable codepoint(s): ${bad.join("")}`);
+  }
+
+  // 5. The mark cannot be confused with either table mark. "*" and "**" are
+  //    defined at the table and can share page 1 with this block.
+  assert.ok(!drawn.some((d) => d.text === "claude-sonnet-4-6 *"), "the correction mark must not collide with MARK_EXEC");
+  assert.ok(!drawn.some((d) => d.text === "claude-sonnet-4-6 **"), "the correction mark must not collide with MARK_DQ");
+
+  // 6. VERIFIED ROWS ARE UNTOUCHED. A corrections list is not a licence to edit
+  //    a field whose meaning is that the server derived it.
+  assert.ok(drawn.some((d) => d.text === "sak-agent"), "the verified agent id must survive a declared correction");
+  assert.ok(drawn.some((d) => d.text === "solana-agent-kit@2.0.10"), "the verified build must survive a declared correction");
+  // The uncorrected declared field stays bare.
+  assert.ok(drawn.some((d) => d.text === "Solana Agent Kit"), "an uncorrected declared field must not be marked");
+
+  // 7. No corrections -> no mark and no note anywhere. A report that was never
+  //    edited must not hint that it was.
+  const clean = drawnText(
+    Buffer.from(buildAuditPdf("id", { ...corrected, declaredCorrections: undefined } as AuditResult, "2026-08-11T12:00:00.000Z")),
+  );
+  assert.ok(clean.some((d) => d.text === "claude-sonnet-4-6"), "the unmarked value must render bare");
+  assert.ok(!clean.some((d) => d.text.includes("(*)")), "an uncorrected report must carry no correction mark");
+  assert.ok(!clean.some((d) => /submitted as/.test(d.text)), "an uncorrected report must carry no correction note");
+
+  // 8. The note must not push the table off its own page budget: the board still
+  //    renders every row visibly WITH a correction present.
+  for (const id of ALL) {
+    const hits = drawn.filter((d) => d.text === id || d.text.startsWith(`${id} `));
+    assert.ok(hits.some(isVisible), `${id}: row became invisible once the correction note was added`);
+  }
+}
+
 console.log(`audit-pdf layout tests passed (${SCENARIOS.length}-scenario board renders every row)`);

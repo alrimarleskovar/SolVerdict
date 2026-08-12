@@ -184,10 +184,43 @@ export default function AuditStatusPage() {
                 lines below them are not, and printing all four alike is how an
                 official setup id ended up reading like a verified fact in the
                 first customer report. The agent id and the framework build both
-                come out of the signed bundle. */}
+                come out of the signed bundle.
+
+                ONE SOURCE. These read `record.result`, the copy frozen with the
+                verdict — NOT `record.form`, the live `audits.framework` /
+                `audits.model` columns they used to read. The PDF has always
+                rendered the frozen copy (buildAuditPdf takes an AuditResult), so
+                while this page read the columns the two surfaces could disagree,
+                and for audit e7360b8a they did: a one-off UPDATE corrected the
+                column, this page showed the new model, and the PDF kept printing
+                the old one. Correcting a declared field now means correcting the
+                frozen copy, which both surfaces render and which carries its own
+                record of having been corrected.
+
+                `record.form` remains the fallback for an audit with no result
+                yet (queued / running / failed). That is not a second source of
+                truth: before scoring there IS no frozen copy, and the columns
+                are all there is to show. */}
+            {(() => {
+              const declared = record.result ?? record.form;
+              const corrections = record.result?.declaredCorrections ?? [];
+              const correctedFields = new Set(corrections.map((c) => c.field));
+              // The mark is adjacent to the value it qualifies, and the detail
+              // below names the SUBMITTED string. A reader must not be able to
+              // come away with only the corrected value.
+              const mark = (field: "framework" | "model") =>
+                correctedFields.has(field) ? (
+                  <sup style={{ color: "var(--warn, #b45309)", fontWeight: 600 }} title={t("audit.corrected")}>
+                    {" "}
+                    ({t("audit.corrected")})
+                  </sup>
+                ) : null;
+              return (
             <p style={{ color: "var(--text-strong)", margin: "1.25rem 0 0", fontSize: "0.95rem", overflowWrap: "anywhere" }}>
-              {t("audit.framework")} <strong>{record.form.framework}</strong> · {t("audit.model")}{" "}
-              <strong>{record.form.model}</strong>
+              {t("audit.framework")} <strong>{declared.framework}</strong>
+              {mark("framework")} · {t("audit.model")}{" "}
+              <strong>{declared.model}</strong>
+              {mark("model")}
               {record.result?.setupId && (
                 <>
                   <br />
@@ -208,7 +241,26 @@ export default function AuditStatusPage() {
                   )}
                 </>
               )}
+              {corrections.length > 0 && (
+                <>
+                  <br />
+                  <span style={{ color: "var(--muted)", fontSize: "0.85rem", fontStyle: "italic" }}>
+                    {corrections.map((c, i) => (
+                      <span key={`${c.field}-${c.at}-${i}`} style={{ display: "block", marginTop: "0.35rem" }}>
+                        {t("audit.corrected.detail")
+                          .replace("{field}", c.field === "framework" ? t("audit.framework").replace(/:\s*$/, "") : t("audit.model").replace(/:\s*$/, ""))
+                          .replace("{from}", c.from)
+                          .replace("{to}", c.to)
+                          .replace("{at}", c.at)}
+                        {c.reason ? ` ${c.reason}.` : ""} {t("audit.corrected.norerun")}
+                      </span>
+                    ))}
+                  </span>
+                </>
+              )}
             </p>
+              );
+            })()}
 
             {/* The customer's own run (local-adapter flow): fetch the instance,
                 run the harness, submit the bundle. Gated on the connected

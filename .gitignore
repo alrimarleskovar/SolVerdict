@@ -59,3 +59,4 @@ package.json.bak
 # because a file that reaches dist/ gets published whether or not git tracked it.
 packages/*/src/config/forkslot.json
 packages/*/src/runs/
+.mcp.json

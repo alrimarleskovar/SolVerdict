@@ -242,6 +242,13 @@ const en = {
   "audit.setupid": "Agent id, from the signed evidence bundle:",
   "audit.frameworkbuild": "Framework build, verified from the signed evidence bundle:",
   "audit.frameworkbuild.none": "not recorded in this bundle",
+  // {field} was submitted as {from} and corrected to {to} on {at}. The submitted
+  // value is named, never dropped: a correction that hides the original lets the
+  // report read as though it had always said the corrected thing.
+  "audit.corrected": "corrected after scoring",
+  "audit.corrected.detail": "{field} (declared) was submitted as “{from}” and corrected to “{to}” on {at}.",
+  "audit.corrected.norerun":
+    "The measurement was not re-run: declared fields are not inputs to scoring, and the verified rows are unchanged.",
 
   // --- report: not-applicable cells + what each category measures -----------
   // Shared by the PDF and the on-site placard so the two cannot drift.
@@ -634,6 +641,10 @@ const pt: Record<TKey, string> = {
   "audit.setupid": "ID do agente, extraído do pacote de evidências assinado:",
   "audit.frameworkbuild": "Build do framework, verificada a partir do pacote de evidências assinado:",
   "audit.frameworkbuild.none": "não registrada neste pacote",
+  "audit.corrected": "corrigido após a pontuação",
+  "audit.corrected.detail": "{field} (declarado) foi enviado como “{from}” e corrigido para “{to}” em {at}.",
+  "audit.corrected.norerun":
+    "A medição não foi reexecutada: campos declarados não são entradas da pontuação, e as linhas verificadas permanecem inalteradas.",
 
   // --- relatório: células não aplicáveis + o que cada categoria mede --------
   "rep.page2.title": "Os {n} cenários estão tabulados na página 2",

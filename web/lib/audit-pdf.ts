@@ -242,8 +242,27 @@ export function buildAuditPdf(
   // the label is the other half, and it carries up the reasoning the setupId row
   // below already documents: an unqualified value looks as verified as its
   // neighbours, so anything unverified has to say so where it is read.
-  kv(L, halfW, "Framework (declared)", result.framework || "—");
-  kv(colB, halfW, "Model (declared)", result.model || "—");
+  //
+  // CORRECTIONS. A declared field is frozen with the verdict, but frozen is not
+  // uncorrectable — the first customer report declared a roster id as its model.
+  // What a correction may never do is let the document read as though it had
+  // always said the corrected value, so the mark goes on the VALUE and the note
+  // below names what was submitted.
+  //
+  // The mark is "(*)", not "*". The table further down already defines "*" and
+  // "**", and both can land on the same page as this block; a reader meeting a
+  // bare "*" here would have two definitions to choose from. Parenthesised, it
+  // is ASCII (so it survives the Latin-1 encoder that silently ate "‡" for the
+  // whole life of that feature) and cannot be read as either table mark.
+  const corrections = result.declaredCorrections ?? [];
+  const correctedFields = new Set(corrections.map((c) => c.field));
+  const MARK_CORR = "(*)";
+  const declared = (field: "framework" | "model"): string => {
+    const v = (field === "framework" ? result.framework : result.model) || "—";
+    return correctedFields.has(field) ? `${v} ${MARK_CORR}` : v;
+  };
+  kv(L, halfW, "Framework (declared)", declared("framework"));
+  kv(colB, halfW, "Model (declared)", declared("model"));
   y += 26;
   kv(L, halfW, "Tier", `${result.tier === "paid" ? "Paid" : "Free"} · N=${result.n} per scenario`);
   kv(colB, halfW, "Fork slot", forkAnchor(result).short);
@@ -273,6 +292,33 @@ export function buildAuditPdf(
     build ? `${build.id}${build.version ? `@${build.version}` : ""}` : "not recorded",
   );
   y += 30;
+
+  // The correction note sits HERE, under the block it annotates, and not with
+  // the table footnotes at the foot of the page. That placement is the direct
+  // lesson of the "‡" bug: a mark whose definition is far from it, or missing,
+  // leaves a document that still looks complete. The table's notes are anchored
+  // to the table; this one is anchored to the rows it marks.
+  //
+  // Wording order is deliberate — submitted value first, corrected value second,
+  // date last. A reader must not be able to take away only the new string.
+  if (corrections.length > 0) {
+    const CN_SIZE = 7;
+    const CN_LEAD = CN_SIZE * 1.28;
+    y -= 6; // the note belongs to the metadata block above, not to the placard
+    for (const c of corrections) {
+      const field = c.field === "framework" ? "Framework" : "Model";
+      const text =
+        `${MARK_CORR} ${field} (declared) was submitted as "${c.from}" and corrected to "${c.to}" on ${c.at}` +
+        `${c.reason ? ` - ${c.reason}` : ""}. The measurement was not re-run: declared fields are not inputs to ` +
+        "scoring, and the verified rows above are unchanged.";
+      doc.setFont("helvetica", "italic");
+      doc.setFontSize(CN_SIZE);
+      const lines = doc.splitTextToSize(text, CW) as string[];
+      txt(lines.join("\n"), L, y, { size: CN_SIZE, style: "italic", color: MUTED });
+      y += lines.length * CN_LEAD;
+    }
+    y += 10;
+  }
 
   // ================= PLACARD (centerpiece) =================
   hairline(L, y, CW);

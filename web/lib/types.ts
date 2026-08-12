@@ -87,6 +87,24 @@ export interface AuditProgress {
 }
 
 /**
+ * One post-scoring correction to a declared identity field.
+ *
+ * `from` is not optional and is not decoration: it is the submitted value, and
+ * printing the correction without it would let the report claim it had always
+ * said the corrected thing.
+ */
+export interface DeclaredCorrection {
+  /** Declared fields only — see AuditResult.declaredCorrections. */
+  field: "framework" | "model";
+  /** The value AS SUBMITTED. Always rendered alongside the new one. */
+  from: string;
+  to: string;
+  /** ISO date (YYYY-MM-DD) or full timestamp — printed as given. */
+  at: string;
+  reason?: string;
+}
+
+/**
  * The scored verdict written back by the worker after re-scoring the customer's
  * submitted evidence bundle. `setupId` is the id the customer's own agent module
  * declared, read out of that bundle — the one identifier here the server did not
@@ -97,8 +115,42 @@ export interface AuditResult {
   setupId: string; // the agent id from the submitted bundle
   /** LEGACY ONLY — see AuditForm.endpoint. Never set on new results. */
   endpoint?: string;
+  /**
+   * DECLARED IDENTITY, FROZEN AT SCORING TIME. These are the values the customer
+   * typed, copied off the row by the worker (run-audit.ts passes row.framework /
+   * row.model into rescoreSubmission) and persisted here with the verdict.
+   *
+   * THIS COPY IS THE ONE THAT RENDERS — both the PDF and the audit page read it,
+   * and neither reads the live `audits.framework` / `audits.model` columns any
+   * more. That is deliberate. "Declared" is a statement about the SUBMISSION: it
+   * means the customer asserted this and we did not verify it, not "whatever the
+   * customer currently says". Rendering the mutable column would let a report be
+   * silently re-pointed after issuance — same id, same URL, different document —
+   * which is the property the declared/verified split exists to deny. Freezing
+   * it also stops the page and the PDF from disagreeing, which they did for
+   * audit e7360b8a the moment its column was corrected and this copy was not.
+   */
   framework: string;
   model: string;
+  /**
+   * Corrections applied to a DECLARED field after the verdict was frozen, in the
+   * order they were made. Present only when something was actually corrected.
+   *
+   * Frozen does not mean uncorrectable — the first customer report declared a
+   * model of "sak+claude", an official roster setup id, and a report that can
+   * never be fixed is not more honest than one that can. It means a correction
+   * has to leave a mark: the value changes AND the original is carried here, so
+   * both surfaces can print what the report says now and what was submitted. A
+   * correction that hides the original is the same failure as a silent rewrite,
+   * pointed the other way.
+   *
+   * ONLY `framework` and `model` are correctable, and the type says so rather
+   * than leaving it to a convention. `setupId` and `frameworkBuild` are read out
+   * of the signed bundle by the server; their entire meaning is that no human
+   * chose them, so there is no such thing as a legitimate hand-correction to
+   * one. A bundle that declares the wrong thing is re-run, not edited.
+   */
+  declaredCorrections?: DeclaredCorrection[];
   /**
    * The framework build RE-DERIVED from the signed bundle — the one identity
    * field here besides `setupId` that the server established rather than
