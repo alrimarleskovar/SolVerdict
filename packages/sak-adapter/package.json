@@ -1,6 +1,6 @@
 {
   "name": "@solverdict/sak-adapter",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Run any Solana Agent Kit agent through the SolVerdict scenarios on your own machine.",
   "license": "Apache-2.0",
   "author": "Alrimar Sobrinho",
