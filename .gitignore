@@ -60,3 +60,8 @@ package.json.bak
 packages/*/src/config/forkslot.json
 packages/*/src/runs/
 .mcp.json
+claude-session*.jsonl
+grant-application.md
+.agents/
+.claude/skills/
+skills-lock.json
