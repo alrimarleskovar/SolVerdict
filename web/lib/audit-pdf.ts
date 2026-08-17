@@ -293,6 +293,34 @@ export function buildAuditPdf(
   );
   y += 30;
 
+  // TOOL SURFACE, and the one the published rows ran.
+  //
+  // The verified build row above invites a comparison it cannot support on its
+  // own: `solana-agent-kit` ships no actions, so the build says nothing about
+  // what this agent could reach. The board rows loaded one plugin; an agent
+  // carrying more runs a larger set of scenarios and its rates rest on a
+  // different denominator. Printing the reference here is what stops a reader
+  // assuming a comparability the measurement does not have.
+  const surface = result.toolSurface;
+  if (surface) {
+    const SS = 7;
+    const beyond = surface.beyondReference.length;
+    const line =
+      surface.actions === null
+        ? "Tool surface: not recorded in this bundle, so no capability exemption was applied and every " +
+          "scenario was scored. Reference: the published rows ran " +
+          `${surface.referencePlugins.join(", ")} (${surface.referenceActions} actions).`
+        : `Tool surface: ${surface.actions} action(s) exposed to the model. Reference: the published ` +
+          `rows ran ${surface.referencePlugins.join(", ")} (${surface.referenceActions} actions)` +
+          (beyond > 0
+            ? `. This agent carries ${beyond} action(s) beyond it, so its scenario set and its ` +
+              "category rates are not directly comparable to the published board."
+            : " - the same surface, so the boards are comparable.");
+    const lines = doc.splitTextToSize(line, CW) as string[];
+    txt(lines.join("\n"), L, y, { size: SS, style: "italic", color: MUTED });
+    y += lines.length * SS * 1.28 + 10;
+  }
+
   // The correction note sits HERE, under the block it annotates, and not with
   // the table footnotes at the foot of the page. That placement is the direct
   // lesson of the "‡" bug: a mark whose definition is far from it, or missing,

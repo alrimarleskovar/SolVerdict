@@ -584,4 +584,97 @@ for (const ids of [["A2"], ["A1", "B2", "D1", "F1"]]) {
   }
 }
 
+// --- THE TOOL SURFACE IS STATED, AND SO IS THE BASELINE IT IS COMPARED TO ---
+//
+// The "Framework build (verified)" row prints `solana-agent-kit@2.0.10`, and a
+// reader will set that beside the published board row. `solana-agent-kit` ships
+// no actions — the surface comes from whichever plugins were loaded, and the
+// published rows loaded exactly one. An agent carrying more runs a larger
+// scenario set, so its category rates rest on a different denominator. The PDF
+// must therefore never print the build without printing what the reference was.
+{
+  const base = {
+    setupId: "sak-agent",
+    framework: "Solana Agent Kit",
+    model: "claude-sonnet-4-6",
+    frameworkBuild: { id: "solana-agent-kit", version: "2.0.10" },
+    tier: "paid", preregVersion: "v0.3.0", forkSlot: 438616926,
+    official: false, n: 20, scenarios: ALL, score: board(ALL, 20),
+  };
+  const REFERENCE = { referencePlugins: ["@solana-agent-kit/plugin-token@2.0.9"], referenceActions: 26 };
+  const render = (toolSurface: unknown) =>
+    drawnText(Buffer.from(buildAuditPdf("id", { ...base, toolSurface } as unknown as AuditResult, "2026-08-11T12:00:00.000Z")));
+  const joined = (d: ReturnType<typeof drawnText>) => d.filter(isVisible).map((x) => x.text).join(" ");
+
+  // 1. A matching surface says so — and still names the reference, because
+  //    "comparable" is a claim and a claim needs its basis on the page.
+  const same = joined(render({ actions: 26, beyondReference: [], ...REFERENCE }));
+  assert.match(same, /26 action/, "the agent's own surface size must be printed");
+  assert.match(same, /plugin-token@2\.0\.9/, "the reference roster must be named even when the surfaces match");
+  // Asserted as a POSITIVE substring including its ASCII punctuation, not by
+  // scanning the rendered text for codepoints > U+00FF. Scanning cannot work:
+  // Helvetica drops those characters during encoding, so by the time the
+  // content stream can be parsed they are already gone and the scan sees clean
+  // Latin-1. Only checking that the expected bytes ARRIVED can catch a drop.
+  assert.match(
+    same,
+    /- the same surface, so the boards are comparable\./,
+    "the matching-surface sentence must arrive intact, ASCII punctuation included",
+  );
+
+  // 2. A LARGER surface must say the boards are NOT comparable. This is the
+  //    case the whole change exists for: plugin-defi adds Token-2022 builders,
+  //    so F1-F3 are scored for this agent and were n/a for the board row.
+  const bigger = joined(
+    render({ actions: 95, beyondReference: ["CREATE_ORCA_SINGLE_SIDED_WHIRLPOOL", "LULO_LEND"], ...REFERENCE }),
+  );
+  assert.match(bigger, /2 action\(s\) beyond/, "the excess must be quantified, not just hinted");
+  assert.match(bigger, /not directly comparable/, "a larger surface must refuse the comparison in words");
+  assert.ok(!/— the same surface/.test(bigger), "a larger surface must not claim comparability");
+
+  // 3. NO roster recorded must read as absence of evidence, and must say that
+  //    no exemption was applied — otherwise a full 20-cell board looks like a
+  //    pricing error rather than the conservative default it is.
+  const none = joined(render({ actions: null, beyondReference: [], ...REFERENCE }));
+  assert.match(none, /not recorded/, "an absent roster must be reported as absent");
+  assert.match(none, /no capability exemption/, "…and must explain that nothing was excused");
+  assert.ok(!/\bcomparable\b/.test(none), "an unrecorded surface must not claim comparability either way");
+
+  // 4. Latin-1 only, ON EVERY BRANCH. jsPDF's standard Helvetica silently DROPS
+  //    every codepoint above U+00FF, which is how the "\u2021" table marker
+  //    reached the content stream as nothing at all for the whole life of that
+  //    feature. The first version of THIS check ran over one fixture and passed
+  //    while the comparable-surface branch shipped an em dash that never
+  //    rendered — the same defect, caught only because a mutation run asked
+  //    whether the assertion could fail. Each branch produces different prose,
+  //    so each branch has to be encoded and inspected.
+  const BRANCHES = [
+    { actions: 26, beyondReference: [], ...REFERENCE },
+    { actions: 95, beyondReference: ["CREATE_ORCA_SINGLE_SIDED_WHIRLPOOL", "LULO_LEND"], ...REFERENCE },
+    { actions: null, beyondReference: [], ...REFERENCE },
+  ];
+  for (const branch of BRANCHES) {
+    for (const d of render(branch)) {
+      for (const ch of d.text) {
+        assert.ok(
+          ch.codePointAt(0)! <= 0xff,
+          `tool-surface text carries U+${ch.codePointAt(0)!.toString(16)} ("${d.text}"), which Helvetica drops`,
+        );
+      }
+    }
+  }
+
+  // 5. The board still renders every row with the note present.
+  const drawn = render({ actions: 95, beyondReference: ["LULO_LEND"], ...REFERENCE });
+  for (const id of ALL) {
+    const hits = drawn.filter((d) => d.text === id || d.text.startsWith(`${id} `));
+    assert.ok(hits.some(isVisible), `${id}: row became invisible once the tool-surface note was added`);
+  }
+
+  // 6. A result with no toolSurface at all (stored before the field existed)
+  //    renders nothing rather than an empty label.
+  const legacy = joined(render(undefined));
+  assert.ok(!/Tool surface/.test(legacy), "a pre-field result must not render an empty tool-surface line");
+}
+
 console.log(`audit-pdf layout tests passed (${SCENARIOS.length}-scenario board renders every row)`);

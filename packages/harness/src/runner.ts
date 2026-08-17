@@ -52,7 +52,7 @@ import { buildRunPlan, cellKey, makeSeed, type ExecutionOrder } from "./lib/sche
 import { issuedKey, type IssuedInstances } from "./lib/instance.js";
 import { classifyFailure } from "./lib/missingness.js";
 import { PREREG } from "./config/prereg.js";
-import { applicabilityForProfile, profileForFramework } from "./config/capabilities.js";
+import { applicabilityForProfile, profileForAgent } from "./config/capabilities.js";
 import { N_RUNS } from "./config/params.js";
 import type { RunLogs, ScenarioClient, ScenarioContext, Setup } from "./lib/types.js";
 
@@ -139,11 +139,18 @@ export async function runLocalCampaign(opts: LocalRunOptions): Promise<LocalRunS
    */
   // Mapped into the WIRE shape the server also reads out of the bundle's
   // per-cell settings, so both sides resolve from identical inputs.
-  const profile = profileForFramework(
+  const resolution = profileForAgent(
     opts.setup.framework
-      ? { frameworkId: opts.setup.framework.id, frameworkVersion: opts.setup.framework.version }
+      ? {
+          frameworkId: opts.setup.framework.id,
+          frameworkVersion: opts.setup.framework.version,
+          // The tool surface, not just the build. `solana-agent-kit` ships no
+          // actions, so the build alone cannot say what this agent can express.
+          actionRoster: opts.setup.actionRoster ?? null,
+        }
       : null,
   );
+  const profile = resolution.profile;
   const notApplicable = new Map<string, { capability: string; reason: string }>();
   for (const sc of scenarios) {
     const a = applicabilityForProfile(profile, sc.id);
@@ -151,7 +158,19 @@ export async function runLocalCampaign(opts: LocalRunOptions): Promise<LocalRunS
   }
   const runnable = scenarios.filter((sc) => !notApplicable.has(sc.id));
   if (profile) {
-    log(`[harness] capability profile ${profile.id} (${opts.setup.framework?.id}@${opts.setup.framework?.version})`);
+    log(
+      `[harness] capability profile ${profile.id} (${opts.setup.framework?.id}@${opts.setup.framework?.version}, ` +
+        `${opts.setup.actionRoster?.length ?? 0} action(s))`,
+    );
+  } else if (resolution.reason) {
+    // Said out loud, because "every scenario ran" is the expensive outcome and a
+    // customer is entitled to know which gate refused rather than discovering a
+    // 20-cell bill. Never silent: this branch used to produce no line at all.
+    const detail =
+      resolution.unclassified.length > 0
+        ? `: ${resolution.unclassified.slice(0, 5).join(", ")}${resolution.unclassified.length > 5 ? ", …" : ""}`
+        : "";
+    log(`[harness] no capability profile (${resolution.reason}${detail}) — all scenarios applicable`);
   }
   for (const [scenarioId, na] of notApplicable) {
     log(`[harness] ${scenarioId}: n/a — ${na.capability} capability absent (not run, not scored, not in N)`);
@@ -306,6 +325,12 @@ export async function runLocalCampaign(opts: LocalRunOptions): Promise<LocalRunS
       forkShims: appliedForkShims(),
       capability: {
         framework: opts.setup.framework ?? null,
+        // The tool surface the setup reported, recorded as a CLAIM like the rest
+        // of this block. The authoritative copy is the one in every cell's
+        // settings.json, which the server re-derives and requires to agree; this
+        // one exists so a human reading the bundle can see what the client
+        // believed it was running without walking 400 cells.
+        actionRoster: opts.setup.actionRoster ?? null,
         profileId: profile?.id ?? null,
         notApplicable: Object.fromEntries([...notApplicable.entries()]),
       },

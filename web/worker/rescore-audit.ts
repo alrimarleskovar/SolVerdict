@@ -31,7 +31,8 @@ import { SCENARIOS } from "../../scenarios";
 import { PREREG } from "../../config/prereg";
 import {
   applicabilityForProfile,
-  profileForFramework,
+  profileForAgent,
+  REFERENCE_ROSTER,
   type CapabilityProfile,
 } from "../../config/capabilities";
 import { readdirSync } from "node:fs";
@@ -151,10 +152,23 @@ function readForkProvenance(runRoot: string): {
 function deriveProfile(
   runRoot: string,
   setupId: string,
-): { profile: CapabilityProfile | null; build: AuditResult["frameworkBuild"] } {
+): {
+  profile: CapabilityProfile | null;
+  build: AuditResult["frameworkBuild"];
+  toolSurface: AuditResult["toolSurface"];
+} {
   const seen = new Set<string>();
+  /**
+   * The tool surface, held to the SAME all-cells-must-agree rule as the build.
+   *
+   * A bundle whose cells carry different rosters is not one agent's audit any
+   * more than one whose cells carry different frameworks — and a client that
+   * could vary it per cell could present a small roster on the six cells that
+   * decide applicability and its real one everywhere else.
+   */
+  const rosters = new Set<string>();
   const setupDir = path.join(runRoot, setupId);
-  if (!existsSync(setupDir)) return { profile: null, build: null };
+  if (!existsSync(setupDir)) return { profile: null, build: null, toolSurface: null };
   for (const scenarioId of readdirSync(setupDir)) {
     const scenarioDir = path.join(setupDir, scenarioId);
     for (const n of readdirSync(scenarioDir)) {
@@ -164,24 +178,35 @@ function deriveProfile(
         const st = JSON.parse(readFileSync(file, "utf8")) as {
           frameworkId?: unknown;
           frameworkVersion?: unknown;
+          actionRoster?: unknown;
         };
         const id = typeof st.frameworkId === "string" ? st.frameworkId : "";
         const version = typeof st.frameworkVersion === "string" ? st.frameworkVersion : "";
         seen.add(`${id}@${version}`);
+        rosters.add(
+          Array.isArray(st.actionRoster)
+            ? JSON.stringify([...st.actionRoster].filter((a) => typeof a === "string").sort())
+            : "",
+        );
       } catch {
         seen.add("@");
+        rosters.add("");
       }
     }
   }
   // A bundle whose cells disagree about what framework produced them is not a
   // single agent's audit.
-  if (seen.size !== 1) return { profile: null, build: null };
+  if (seen.size !== 1) return { profile: null, build: null, toolSurface: null };
   const [only] = [...seen];
   const at = only!.lastIndexOf("@");
   const frameworkId = only!.slice(0, at);
   const frameworkVersion = only!.slice(at + 1);
+  // Disagreement resolves to no roster, which resolves to no profile — every
+  // scenario applicable. The conservative direction, as everywhere else here.
+  const rosterJson = rosters.size === 1 ? [...rosters][0]! : "";
+  const actionRoster = rosterJson ? (JSON.parse(rosterJson) as string[]) : null;
   return {
-    profile: profileForFramework({ frameworkId, frameworkVersion }),
+    profile: profileForAgent({ frameworkId, frameworkVersion, actionRoster }).profile,
     // The fingerprint ITSELF, not just the profile it resolved to. It used to be
     // computed here and thrown away, which left the report printing the
     // customer's free-text "Framework" while the server sat on a value it had
@@ -190,6 +215,17 @@ function deriveProfile(
     // fingerprint at all (any harness before it was written, or a hand-rolled
     // Setup) — absence is reported as absence, never as an unknown build.
     build: frameworkId ? { id: frameworkId, version: frameworkVersion || null } : null,
+    // What this agent could reach, beside what the published rows could. Both
+    // halves are needed: the count alone invites the comparison it should be
+    // qualifying, and the reference alone says nothing about THIS agent.
+    toolSurface: {
+      actions: actionRoster ? actionRoster.length : null,
+      beyondReference: actionRoster
+        ? actionRoster.filter((a) => !REFERENCE_ROSTER.actions.includes(a))
+        : [],
+      referencePlugins: REFERENCE_ROSTER.plugins,
+      referenceActions: REFERENCE_ROSTER.actions.length,
+    },
   };
 }
 
@@ -216,9 +252,9 @@ export function rescoreSubmission(input: RescoreInput): RescoreOutcome {
         .map((e) => e.name)
     : [];
   const bundleSetupId = setupDirs.length === 1 ? setupDirs[0]! : "";
-  const { profile, build: frameworkBuild } = bundleSetupId
+  const { profile, build: frameworkBuild, toolSurface } = bundleSetupId
     ? deriveProfile(runRoot, bundleSetupId)
-    : { profile: null, build: null };
+    : { profile: null, build: null, toolSurface: null };
 
   // What the CLIENT said it applied. Compared, never trusted.
   const claimed = readCapabilityClaim(runRoot);
@@ -262,6 +298,7 @@ export function rescoreSubmission(input: RescoreInput): RescoreOutcome {
     // Verified, unlike the two above: re-derived from the bundle's own per-cell
     // settings and required to agree across every cell (deriveProfile).
     frameworkBuild,
+    toolSurface,
     tier: input.tier,
     preregVersion: PREREG.version,
     forkSlot,

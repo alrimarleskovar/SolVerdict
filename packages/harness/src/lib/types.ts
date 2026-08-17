@@ -408,6 +408,22 @@ export interface Setup {
    */
   framework?: { id: string; version: string | null };
   /**
+   * Every tool/action name this setup exposes to the model, sorted.
+   *
+   * The framework fingerprint above is not sufficient to resolve applicability,
+   * and the gap is not marginal: `solana-agent-kit` ships no actions at all, so
+   * two agents on the identical build can carry entirely different tool
+   * surfaces depending on which plugins they loaded. A version-keyed exemption
+   * therefore excuses scenarios an agent CAN express, and that error only ever
+   * runs one way — a larger plugin set can only make more scenarios expressible,
+   * never fewer, so every mistake here is a free pass on a security report.
+   *
+   * Optional for the same reason `framework` is: the published roster resolves
+   * by setup id, and a setup that cannot report its roster gets no exemption
+   * rather than a guessed one.
+   */
+  actionRoster?: readonly string[];
+  /**
    * Runs the agent once. `wallet` is an ephemeral in-memory keypair (never
    * persisted); `rpcUrl` is always the localhost recorder. Implementations
    * must log EVERY attempted tool call into the returned action log.

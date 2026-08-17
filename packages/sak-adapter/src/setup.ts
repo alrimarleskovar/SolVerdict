@@ -57,6 +57,23 @@ export interface HarnessSetup {
    * agent that omits it simply gets no profile, and every scenario runs.
    */
   framework?: { id: string; version: string | null };
+  /**
+   * Every action name this agent exposes to the model, deduplicated and sorted.
+   *
+   * WHY THIS EXISTS ALONGSIDE `framework`. The fingerprint above names the CORE
+   * package, and `solana-agent-kit` ships no actions at all — every action comes
+   * from a separately-versioned plugin the customer chooses. So the fingerprint
+   * cannot tell `2.0.10 + plugin-token` from `2.0.10 + plugin-token +
+   * plugin-defi`, and those are different agents: plugin-defi's Orca, FluxBeam
+   * and Voltr tools build against arbitrary Token-2022 mints, which the token
+   * plugin alone cannot do. Applicability is a property of the tool surface, so
+   * the tool surface is what has to be recorded.
+   *
+   * Like `framework`, this is produced by our code from the customer's live
+   * object rather than typed into a form, and the server re-derives it from the
+   * bundle rather than trusting what run-metadata.json claims.
+   */
+  actionRoster?: readonly string[];
   run(
     input: { task: string; context: Array<{ source: string; content: string }> },
     wallet: Keypair,
@@ -125,9 +142,44 @@ function installedSakVersion(): string | null {
   return null;
 }
 
+/**
+ * The action names this agent will hand to the model, deduplicated and sorted.
+ *
+ * Read off `agent.actions` — the SAME array `runSakAudit` passes to
+ * `createVercelAITools` (runner.ts), so this is the tool surface the model
+ * actually sees rather than a declaration about it. That identity is the whole
+ * value: a roster recorded from somewhere else could disagree with what ran.
+ *
+ * Sorted and deduplicated so the value is byte-stable across cells, which is
+ * what lets the server require every cell to agree before it resolves anything
+ * from it — the same agreement rule `deriveProfile` already applies to the
+ * framework fingerprint.
+ *
+ * Defensive about the shape despite the type: `SakAgentLike` is declared
+ * structurally so a hand-rolled agent can satisfy it, and one that passes no
+ * actions should record an EMPTY roster rather than throw mid-audit. An empty
+ * roster is also the safe value — it can express nothing, so it can earn no
+ * exemption once anything resolves from it.
+ */
+function actionRosterOf(agent: SakAgentLike): string[] {
+  const actions: unknown = (agent as { actions?: unknown }).actions;
+  if (!Array.isArray(actions)) return [];
+  const names = new Set<string>();
+  for (const action of actions) {
+    const name = (action as { name?: unknown } | null)?.name;
+    if (typeof name === "string" && name.length > 0) names.add(name);
+  }
+  return [...names].sort();
+}
+
 export function sakSetup(agent: SakAgentLike, opts: SakSetupOptions = {}): HarnessSetup {
   const { id = "sak-agent", anthropicApiKey, ...overrides } = opts;
   const frameworkVersion = installedSakVersion();
+  // Resolved ONCE, at construction: `createAuditView` proxies `actions` straight
+  // through to the underlying agent, so the roster cannot change between cells,
+  // and reading it here means an agent that fails on its first run still records
+  // what it was carrying.
+  const actionRoster = actionRosterOf(agent);
 
   // Benchmark-identical wiring unless the caller says otherwise. You are
   // auditing YOUR agent, so the model and prompt you ship are the right ones;
@@ -144,6 +196,7 @@ export function sakSetup(agent: SakAgentLike, opts: SakSetupOptions = {}): Harne
   return {
     id,
     framework: { id: "solana-agent-kit", version: frameworkVersion },
+    actionRoster,
     async run(input, wallet, rpcUrl, _ctx) {
       const result = await runSakAudit(
         agent,
@@ -168,6 +221,10 @@ export function sakSetup(agent: SakAgentLike, opts: SakSetupOptions = {}): Harne
             framework: "solana-agent-kit",
             frameworkId: "solana-agent-kit",
             frameworkVersion,
+            // Recorded on the failed path too. An excluded cell still carries
+            // evidence, and a bundle whose cells disagree about the roster is
+            // exactly what the server's agreement check needs to be able to see.
+            actionRoster,
             adapter: "@solverdict/sak-adapter",
             usage: result.usage,
           },
@@ -183,9 +240,11 @@ export function sakSetup(agent: SakAgentLike, opts: SakSetupOptions = {}): Harne
         finalText: result.finalText,
         settings: {
           framework: "solana-agent-kit",
-          // Re-derived server-side from these two fields; see config/capabilities.ts.
+          // Re-derived server-side from these three fields; see config/capabilities.ts.
+          // `framework` above is the customer-facing label; these are evidence.
           frameworkId: "solana-agent-kit",
           frameworkVersion,
+          actionRoster,
           adapter: "@solverdict/sak-adapter",
           // What this run cost, in the same shape the official runs record.
           usage: result.usage,

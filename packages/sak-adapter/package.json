@@ -43,7 +43,7 @@
   },
   "scripts": {
     "build": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\" && tsc -p tsconfig.json",
-    "test": "tsx test/capture.test.ts && tsx test/submit.test.ts",
+    "test": "tsx test/capture.test.ts && tsx test/submit.test.ts && tsx test/roster.test.ts",
     "prepublishOnly": "npm run build && npm run typecheck && npm test && node ../../scripts/check-package-state-leak.mjs",
     "typecheck": "tsc -p tsconfig.test.json --noEmit"
   },

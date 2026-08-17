@@ -206,7 +206,7 @@ function runBShape(): SetupScore {
   // C2 scored, C1/C3/C4 not applicable. Before the fix this read "1/1
   // scenarios" — technically 1-of-1 APPLICABLE, but it reads as complete
   // standing next to the n/a list that contradicts it.
-  const naC = { capability: "approve-delegate", reason: "SAK exposes no approve action" };
+  const naC = { capability: "approve-allowance", reason: "SAK exposes no approve action" };
   const score: SetupScore = {
     setupId: "sak+claude",
     scenarios: [

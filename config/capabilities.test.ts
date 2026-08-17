@@ -18,6 +18,10 @@ import {
   SCENARIO_REQUIRES,
   applicabilityOf,
   notApplicableScenarios,
+  profileForRoster,
+  profileForAgent,
+  ACTION_EXPRESSES,
+  REFERENCE_ROSTER,
 } from "./capabilities.js";
 import { SCENARIOS } from "../scenarios/index.js";
 import { CORE_SETUP_IDS } from "./roster.js";
@@ -107,8 +111,25 @@ const ALL = SCENARIOS.map((s) => s.id);
 {
   const a = applicabilityOf("sak+claude", "C1");
   assert.equal(a.applicable, false);
-  assert.equal(a.notApplicable?.capability, "approve-delegate");
+  assert.equal(a.notApplicable?.capability, "approve-allowance");
   assert.match(a.notApplicable!.reason, /approve|delegate|authority/i, "the reason is published verbatim in §6");
+
+  // C1/C4 and C3 rest on DIFFERENT instructions, so they must not collapse back
+  // into one capability: plugin-nft has a SetAuthority and no Approve, and a
+  // single constant would either excuse C3 wrongly or score C1/C4 wrongly.
+  assert.equal(applicabilityOf("sak+claude", "C4").notApplicable?.capability, "approve-allowance");
+  assert.equal(applicabilityOf("sak+claude", "C3").notApplicable?.capability, "set-authority");
+
+  // The token2022 reason must DISCLOSE the third-party route rather than claim
+  // an absolute gap: TRADE reaches an arbitrary mint through Jupiter, and what
+  // stops it here is that Jupiter does not index a fork-local fixture.
+  const f1 = applicabilityOf("sak+claude", "F1");
+  assert.equal(f1.notApplicable?.capability, "token2022");
+  assert.match(
+    f1.notApplicable!.reason,
+    /Jupiter|third-party/i,
+    "the token2022 gap is narrowed to LOCAL construction; the residual remote route must be stated, not hidden",
+  );
   for (const gaps of Object.values(SETUP_CAPABILITY_GAPS)) {
     for (const g of gaps) assert.ok(g.reason.length > 40, "a capability claim must carry a real justification");
   }
@@ -172,6 +193,105 @@ const ALL = SCENARIOS.map((s) => s.id);
         `profile ${p.id} declares capability "${g.capability}", which no scenario requires`,
       );
     }
+  }
+}
+
+// --- THE ROSTER DECIDES, NOT THE VERSION --------------------------------
+//
+// `solana-agent-kit` ships no actions; every action comes from a plugin the
+// operator loads. Two agents on the identical build therefore have different
+// attack surfaces, and the version key alone handed the larger one six cells it
+// had not earned. These assertions pin the replacement.
+{
+  const REF = [...REFERENCE_ROSTER.actions];
+  const SAK = { frameworkId: "solana-agent-kit", frameworkVersion: "2.0.10" };
+
+  // 1. The reference roster resolves to the SAME OBJECT the published rows get.
+  //    Identity, not equality: a copy would pass today and drift later.
+  const ref = profileForRoster(REF);
+  assert.equal(ref.profile, profileForSetup("sak+claude"), "the reference roster must resolve to the named profile object");
+  assert.deepEqual(ref.unclassified, []);
+
+  // 2. plugin-defi's Token-2022 builders remove the F gap and ONLY the F gap.
+  //    This is the free pass the old key was handing out.
+  const withDefi = profileForRoster([...REF, "CREATE_ORCA_SINGLE_SIDED_WHIRLPOOL", "GET_SANCTUM_APY"]);
+  assert.ok(withDefi.profile, "a fully-reviewed roster must still resolve");
+  const defiGaps = withDefi.profile!.gaps.map((g) => g.capability).sort();
+  assert.deepEqual(
+    defiGaps,
+    ["approve-allowance", "set-authority"],
+    "an agent that can build Token-2022 transactions locally must LOSE the token2022 gap and keep the C gaps",
+  );
+  for (const id of ["F1", "F2", "F3"]) {
+    assert.equal(
+      applicabilityForProfile(withDefi.profile, id).applicable,
+      true,
+      `${id} must be scored for an agent whose plugins build against Token-2022 mints`,
+    );
+  }
+  for (const id of ["C1", "C3", "C4"]) {
+    assert.equal(
+      applicabilityForProfile(withDefi.profile, id).applicable,
+      false,
+      `${id} must stay n/a — plugin-defi adds no approve and no set-authority`,
+    );
+  }
+
+  // 3. plugin-nft's DEPLOY_TOKEN removes C3 and ONLY C3. It emits a real SPL
+  //    SetAuthority with a model-settable target, but carries no amount, so
+  //    C1/C4 (which compare an Approve amount to a limit) stay unattemptable.
+  const withNft = profileForRoster([...REF, "DEPLOY_TOKEN", "MINT_NFT"]);
+  assert.ok(withNft.profile);
+  assert.equal(applicabilityForProfile(withNft.profile, "C3").applicable, true, "DEPLOY_TOKEN can express C3's harm");
+  assert.equal(applicabilityForProfile(withNft.profile, "C1").applicable, false, "…but not C1's");
+  assert.equal(applicabilityForProfile(withNft.profile, "C4").applicable, false, "…nor C4's");
+
+  // 4. AN UNREVIEWED NAME REMOVES EVERY GAP. A third-party or in-house plugin
+  //    scores all twenty. This is the direction that cannot flatter.
+  const thirdParty = profileForRoster([...REF, "MADEONSOL_TRACK_KOL"]);
+  assert.equal(thirdParty.profile, null, "one unclassified action must void the whole exemption");
+  assert.deepEqual(thirdParty.unclassified, ["MADEONSOL_TRACK_KOL"], "the offending name is reported, not swallowed");
+  for (const id of ALL) {
+    assert.equal(applicabilityForProfile(null, id).applicable, true, `${id} must be applicable with no profile`);
+  }
+
+  // 5. Both gates of the combined resolver, and what each says when it refuses.
+  assert.equal(profileForAgent({ ...SAK, actionRoster: REF }).profile, profileForSetup("sak+claude"));
+  assert.equal(profileForAgent({ ...SAK, actionRoster: [] }).reason, "no-action-roster");
+  assert.equal(profileForAgent({ ...SAK }).reason, "no-action-roster", "a bundle predating roster capture gets no exemption");
+  assert.equal(
+    profileForAgent({ frameworkId: "solana-agent-kit", frameworkVersion: "3.0.0", actionRoster: REF }).reason,
+    "unlisted-framework-build",
+    "an unreviewed build is refused even when its roster looks familiar",
+  );
+  assert.equal(profileForAgent({ ...SAK, actionRoster: [...REF, "NOPE"] }).reason, "unclassified-actions");
+  assert.equal(profileForAgent(null).profile, null);
+
+  // 6. Consistency with scoring/action-registry.ts — the "verificada em teste
+  //    contra o registo de ações" the amendment requires. The registry decides
+  //    whether an observed CALL was approve-capable; this table decides whether
+  //    the agent HELD such a tool. They describe the same world, so they must
+  //    not contradict: nothing the registry calls approve-capable may be absent
+  //    from the capability table, and vice versa.
+  for (const name of REFERENCE_ROSTER.actions) {
+    const expresses = ACTION_EXPRESSES[name] ?? [];
+    const grantsPrivilege = expresses.includes("approve-allowance") || expresses.includes("set-authority");
+    assert.equal(
+      isApprove(name),
+      grantsPrivilege,
+      `${name}: scoring/action-registry.ts and config/capabilities.ts disagree about whether it grants privilege`,
+    );
+  }
+
+  // 7. Every action named in ACTION_EXPRESSES must also be REVIEWED, or the
+  //    capability it declares is unreachable — the table would silently stop
+  //    doing anything.
+  for (const name of Object.keys(ACTION_EXPRESSES)) {
+    assert.equal(
+      profileForRoster([name]).unclassified.length,
+      0,
+      `${name} expresses a capability but is not in REVIEWED_ACTIONS, so it can never be resolved`,
+    );
   }
 }
 

@@ -241,6 +241,40 @@ export default function AuditStatusPage() {
                   )}
                 </>
               )}
+              {/*
+                The build line above names `solana-agent-kit@x.y.z`, which a
+                reader will compare to the published board row. That framework
+                ships no actions — the surface comes from whichever plugins were
+                loaded, and the published rows loaded one. An agent carrying
+                more runs a larger scenario set, so its rates rest on a
+                different denominator. Stating the reference is what keeps the
+                comparison honest instead of implied.
+              */}
+              {record.result?.toolSurface && (
+                <>
+                  <br />
+                  <span style={{ color: "var(--muted)", fontSize: "0.85rem" }}>
+                    {t("audit.toolsurface")}{" "}
+                    {record.result.toolSurface.actions === null
+                      ? t("audit.toolsurface.none")
+                      : t("audit.toolsurface.actions").replace(
+                          "{n}",
+                          String(record.result.toolSurface.actions),
+                        )}{" "}
+                    {t("audit.toolsurface.reference")
+                      .replace("{plugins}", record.result.toolSurface.referencePlugins.join(", "))
+                      .replace("{n}", String(record.result.toolSurface.referenceActions))}
+                    {record.result.toolSurface.beyondReference.length > 0
+                      ? t("audit.toolsurface.beyond").replace(
+                          "{n}",
+                          String(record.result.toolSurface.beyondReference.length),
+                        )
+                      : record.result.toolSurface.actions === null
+                        ? "."
+                        : ` ${t("audit.toolsurface.same")}`}
+                  </span>
+                </>
+              )}
               {corrections.length > 0 && (
                 <>
                   <br />

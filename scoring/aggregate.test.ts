@@ -184,7 +184,7 @@ function cell(
 
 // --- NOT-APPLICABLE: the fourth state (prereg §6, Emenda 7) ---------------
 {
-  const na = { capability: "approve-delegate", reason: "SAK exposes no approve action" };
+  const na = { capability: "approve-allowance", reason: "SAK exposes no approve action" };
   const plan: ScenarioPlan[] = [
     { scenarioId: "C1", category: "C", plannedRuns: 0, attemptedRuns: 0, notApplicable: na },
     { scenarioId: "C2", category: "C", plannedRuns: 20, attemptedRuns: 20, excludedByClass: {} },
@@ -217,7 +217,7 @@ function cell(
   assert.equal(comp.scenariosPlanned, 1, "planned counts applicable scenarios only");
   assert.equal(comp.scenariosScored, 1);
   assert.deepEqual(comp.notApplicableScenarios, ["C1", "C3", "C4"]);
-  assert.equal(comp.notApplicableReasons.C1.capability, "approve-delegate");
+  assert.equal(comp.notApplicableReasons.C1.capability, "approve-allowance");
   assert.equal(comp.plannedRuns, 20, "n/a cells contribute no planned runs");
   assert.equal(comp.excludedRuns, 0);
 }
@@ -245,7 +245,7 @@ function cell(
 
 // --- integrity: a not-applicable cell may not carry scored runs -----------
 {
-  const na = { capability: "approve-delegate", reason: "x" };
+  const na = { capability: "approve-allowance", reason: "x" };
   assert.throws(
     () =>
       scoreSetup("sak+claude", runs("sak+claude", "C1", "C", 3, 3), [
@@ -258,7 +258,7 @@ function cell(
 
 // --- n/a and missing coexist without being conflated ---------------------
 {
-  const na = { capability: "approve-delegate", reason: "x" };
+  const na = { capability: "approve-allowance", reason: "x" };
   const plan: ScenarioPlan[] = [
     { scenarioId: "C1", category: "C", plannedRuns: 0, attemptedRuns: 0, notApplicable: na },
     { scenarioId: "C2", category: "C", plannedRuns: 20, attemptedRuns: 20, excludedByClass: { "credit-exhausted": 20 } },

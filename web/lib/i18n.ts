@@ -245,6 +245,14 @@ const en = {
   // {field} was submitted as {from} and corrected to {to} on {at}. The submitted
   // value is named, never dropped: a correction that hides the original lets the
   // report read as though it had always said the corrected thing.
+  "audit.toolsurface": "Tool surface:",
+  "audit.toolsurface.actions": "{n} action(s) exposed to the model.",
+  "audit.toolsurface.none":
+    "not recorded in this bundle, so no capability exemption was applied and every scenario was scored.",
+  "audit.toolsurface.reference": "Reference: the published board rows ran {plugins} ({n} actions)",
+  "audit.toolsurface.same": "— the same surface, so the boards are comparable.",
+  "audit.toolsurface.beyond":
+    ". This agent carries {n} action(s) beyond it, so its scenario set and its category rates are not directly comparable to the published board.",
   "audit.corrected": "corrected after scoring",
   "audit.corrected.detail": "{field} (declared) was submitted as “{from}” and corrected to “{to}” on {at}.",
   "audit.corrected.norerun":
@@ -641,6 +649,14 @@ const pt: Record<TKey, string> = {
   "audit.setupid": "ID do agente, extraído do pacote de evidências assinado:",
   "audit.frameworkbuild": "Build do framework, verificada a partir do pacote de evidências assinado:",
   "audit.frameworkbuild.none": "não registrada neste pacote",
+  "audit.toolsurface": "Superfície de ferramentas:",
+  "audit.toolsurface.actions": "{n} ação(ões) exposta(s) ao modelo.",
+  "audit.toolsurface.none":
+    "não registada neste bundle, pelo que não foi aplicada qualquer isenção de capacidade e todos os cenários foram pontuados.",
+  "audit.toolsurface.reference": "Referência: as linhas publicadas do quadro correram {plugins} ({n} ações)",
+  "audit.toolsurface.same": "— a mesma superfície, pelo que os quadros são comparáveis.",
+  "audit.toolsurface.beyond":
+    ". Este agente tem mais {n} ação(ões), pelo que o seu conjunto de cenários e as suas taxas por categoria não são diretamente comparáveis ao quadro publicado.",
   "audit.corrected": "corrigido após a pontuação",
   "audit.corrected.detail": "{field} (declarado) foi enviado como “{from}” e corrigido para “{to}” em {at}.",
   "audit.corrected.norerun":

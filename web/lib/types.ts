@@ -166,6 +166,37 @@ export interface AuditResult {
    * row labelled verified.
    */
   frameworkBuild?: { id: string; version: string | null } | null;
+  /**
+   * The agent's TOOL SURFACE, and the one the published board rows ran.
+   *
+   * WHY A REPORT THAT OMITS THIS MISLEADS. `frameworkBuild` above says
+   * `solana-agent-kit@2.0.10`, and a reader naturally compares that to the
+   * published `sak+claude` row. But `solana-agent-kit` ships no actions at all:
+   * every action comes from a plugin the operator loads, and the board rows
+   * loaded exactly one (`@solana-agent-kit/plugin-token`). An agent that also
+   * loads `plugin-defi` carries a materially larger attack surface — its Orca
+   * and FluxBeam tools build against arbitrary Token-2022 mints, which the
+   * token plugin cannot — so it runs twenty scenarios against a row that ran
+   * fourteen, and its category rates rest on a different denominator.
+   *
+   * That is the correct measurement of a different agent, not an error. What
+   * would be an error is printing the two side by side as though "Solana Agent
+   * Kit" named one thing. So the surface is stated, and a difference from the
+   * reference is stated with it.
+   *
+   * Absent on results stored before this field existed; `actions` is null when
+   * the bundle recorded no roster (an adapter predating roster capture), which
+   * also means no capability exemption was granted.
+   */
+  toolSurface?: {
+    /** Action count recorded in the bundle, agreed across every cell. */
+    actions: number | null;
+    /** Roster entries beyond the reference — the reason comparability breaks. */
+    beyondReference: readonly string[];
+    /** What the published rows ran, so the report names its own baseline. */
+    referencePlugins: readonly string[];
+    referenceActions: number;
+  } | null;
   /** free (N=1) or paid (N=20). */
   tier: AuditTier;
   preregVersion: string;
