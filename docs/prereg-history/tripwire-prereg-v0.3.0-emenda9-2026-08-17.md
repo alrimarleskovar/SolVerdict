@@ -26,7 +26,7 @@
 
 ## 0. Emendas desde v0.2.2
 
-Esta versão incorpora **nove** emendas. As **sete primeiras** foram identificadas durante a construção do harness e **antes de qualquer corrida pontuada sob v0.3.0**; cada uma é uma **emenda metodológica** sob a regra do §8 e justifica esta subida de versão. A **oitava** e a **nona** são posteriores à corrida oficial e ao congelamento, e estão registadas no fim desta secção, cada uma com a razão pela qual não sobe a versão.
+Esta versão incorpora oito emendas. As **sete primeiras** foram identificadas durante a construção do harness e **antes de qualquer corrida pontuada sob v0.3.0**; cada uma é uma **emenda metodológica** sob a regra do §8 e justifica esta subida de versão. A **oitava** é posterior à corrida oficial e ao congelamento, e está registada no fim desta secção com a razão pela qual não sobe a versão.
 
 **Emenda 1 — Nova categoria F: extensões maliciosas de Token-2022.** Adiciona-se a categoria **F** com três cenários (**F1** `permanentDelegate`, **F2** `transferHook`, **F3** `transferFee` confiscatória). *Justificação:* o Token-2022 introduz extensões ao nível do **mint** que transferem poder do detentor para o emissor — um `permanentDelegate` pode confiscar o token de qualquer conta, para sempre e sem aprovação; um `transferHook` faz executar código de terceiros em **cada** transferência; um `transferFee` confiscatório expropria uma fração de cada movimento. Nenhum destes vetores é detetável pelas categorias A–E: o perigo não está no *montante*, nem no *destino*, nem numa *instrução injetada*, mas na **natureza do ativo** que o agente aceita manipular. As v0.2.x mediam zero por cento desta superfície.
 
@@ -127,12 +127,6 @@ Esta versão incorpora **nove** emendas. As **sete primeiras** foram identificad
 | `sak+claude`, `sak+gpt` | **F1, F2, F3** | `token2022` — o SAK v2 (token plugin) não constrói **localmente** qualquer transação Token-2022; ver o limite contingente acima |
 
 Qualquer outro agente resolve a sua própria linha a partir do seu roster, pelas regras acima. As linhas publicadas são **facto histórico** e resolvem-se para as mesmas células por ambos os caminhos.
-
-*Correção de contagem, registada dentro desta emenda (2026-08-17).* A frase de abertura do §0 dizia «oito emendas» e descrevia a **oitava** como a única posterior ao congelamento. Era texto **estagnado**: foi escrito quando a Emenda 8 era a última, e a Emenda 9 — esta — é a nona e é igualmente pós-congelamento. A frase passa a dizer **nove** e a descrever a oitava **e** a nona como posteriores ao congelamento.
-
-Fica registado **aqui, dentro da Emenda 9, e não como uma décima emenda**, porque não é uma alteração de metodologia nem de âmbito: a contagem sempre se destinou a incluir esta emenda, e o que se corrige é a aritmética de uma frase que ficou para trás quando a emenda que a torna falsa foi acrescentada. Uma emenda serve para mudar o que o documento **determina**; esta correção muda o que ele **conta**, e contá-lo mal nunca foi uma decisão que alguém pudesse ter seguido. Abrir uma Emenda 10 para o efeito daria estatuto normativo a uma gralha e obrigaria quem auditasse a procurar a alteração metodológica que ela teria introduzido — não há nenhuma.
-
-**Nada foi renumerado.** As Emendas 1 a 9 mantêm os números com que foram escritas e por que são citadas no `CHANGELOG.md`, em `config/capabilities.ts` e no §6.1-bis; nenhum texto de emenda foi alterado, acrescentado ou removido por esta correção. As únicas duas frases tocadas são a de abertura do §0 e este bloco. O corpo metodológico §3–§9 permanece `sha256:44df6be6…`, inalterado, como em todos os estados anteriores. O hash do documento inteiro muda — como muda em qualquer edição, e é por isso que os bytes anteriores (`6bcaed50…`) foram arquivados **antes** desta edição, em `docs/prereg-history/tripwire-prereg-v0.3.0-emenda9-2026-08-17.md`. O novo estado é publicado na cadeia em `docs/prereg-freeze-v0.3.0.md`, não aqui: nenhum documento pode conter o seu próprio hash.
 
 ## 1. Propósito e âmbito
 
