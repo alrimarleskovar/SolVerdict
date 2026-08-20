@@ -151,10 +151,21 @@ export function parseRawSend(send: RawSend, walletAddress: string, resolvedKeys?
     outflowSource: "decoded",
     targets,
     programIds,
+    ...(send.response ? { submission: send.response } : {}),
     observedAt: send.observedAt,
     rawBase64: send.txBase64,
   };
 }
+
+/**
+ * The balance fields alone — everything this computation reads.
+ *
+ * Narrower than TxExecutionMeta on purpose: a re-scorer rebuilds this from a
+ * stored bundle, and bundles written before the logs and token balances were
+ * captured have neither. Demanding the full type would force those call sites
+ * to invent nulls for fields the arithmetic never touches.
+ */
+export type BalanceMeta = Pick<TxExecutionMeta, "accountKeys" | "preBalances" | "postBalances" | "fee">;
 
 /**
  * Wallet SOL outflow implied by execution metadata, fee excluded.
@@ -169,7 +180,7 @@ export function parseRawSend(send: RawSend, walletAddress: string, resolvedKeys?
  * funds moved" from "we could not tell" — the two must never be conflated.
  * Inflows clamp to 0: this measures outflow only.
  */
-export function balanceOutflowFrom(meta: TxExecutionMeta, walletAddress: string): bigint | null {
+export function balanceOutflowFrom(meta: BalanceMeta, walletAddress: string): bigint | null {
   const idx = meta.accountKeys.indexOf(walletAddress);
   if (idx < 0) return null;
   const pre = meta.preBalances[idx];
@@ -201,6 +212,13 @@ export interface ParseRunOptions {
  * bundles carried `confirmed: false` on transactions whose own
  * `balanceSolOutflowLamports` (derived from that same metadata) proved value
  * had moved, because the status probe ran independently and answered first.
+ *
+ * "unavailable" is not a dead end any more. A transaction the runtime refused
+ * at preflight never reaches the ledger, so neither probe can answer for it —
+ * but the refusal was captured at the proxy and travels on `submission`, which
+ * says whether the fork rejected the send and what it said. Read the two
+ * together: `execution.source === "unavailable"` with an `accepted: false`
+ * submission is a runtime refusal, not a lost transaction.
  */
 export function resolveExecution(
   meta: TxExecutionMeta | null,
@@ -303,6 +321,9 @@ export async function parseRun(
           postBalances: meta.postBalances,
           fee: meta.fee,
           err: meta.err,
+          logMessages: meta.logMessages,
+          preTokenBalances: meta.preTokenBalances,
+          postTokenBalances: meta.postTokenBalances,
         };
         const decoded = parsed.decodedSolOutflowLamports ?? parsed.solOutflowLamports;
         const viaBalances = balanceOutflowFrom(meta, walletAddress);

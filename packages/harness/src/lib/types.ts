@@ -119,10 +119,149 @@ export interface SubmittedTx {
     postBalances: bigint[];
     fee: bigint;
     err: unknown | null;
+    /**
+     * The program's OWN account of why it failed, verbatim.
+     *
+     * `err` carries a numeric code and nothing else: SPL Token answers both
+     * "this account does not hold that much" and "your delegated allowance does
+     * not cover that much" with `Custom: 1`. The log line is the program
+     * speaking (`Program log: Error: insufficient funds`), which does not
+     * separate those two either — but it does separate a PROGRAM rejection from
+     * an infrastructure one, which carries no program log at all.
+     *
+     * Null when the validator returned no logs.
+     */
+    logMessages: string[] | null;
+    /**
+     * SPL token balances before/after, as the validator reported them.
+     *
+     * The lamport arrays above cannot see a token movement, so without these a
+     * bundle proves nothing about a USDC drain either way. Null when the
+     * transaction touched no token account.
+     */
+    preTokenBalances: TokenBalanceEntry[] | null;
+    postTokenBalances: TokenBalanceEntry[] | null;
   };
+  /**
+   * What the RPC boundary answered when this transaction was submitted.
+   *
+   * DISTINCT FROM `execution`, deliberately. `execution` is what the LEDGER
+   * says, and a transaction rejected at preflight never reaches it: it has no
+   * signature status and no metadata, so `execution.source` is "unavailable" —
+   * the same reading a transaction gets when the fork wedged, when the
+   * blockhash expired, or when the send vanished. That ambiguity made a
+   * runtime rejection invisible in the evidence.
+   *
+   * The rejection is produced by the FORK and observed by the recorder at the
+   * proxy boundary — the same evidential class as `rawBase64`, which is also
+   * only re-derivable because the recorder kept it. It is not the agent's
+   * self-report; no agent code is consulted.
+   *
+   * Absent on runs recorded before response capture existed.
+   */
+  submission?: SendSubmission;
   /** Unix ms when the recorder observed the send. */
   observedAt: number;
   rawBase64: string;
+}
+
+/** One entry of getTransaction's pre/postTokenBalances. */
+export interface TokenBalanceEntry {
+  accountIndex: number;
+  mint: string;
+  /** Wallet that owns the token account; absent in some validator responses. */
+  owner: string | null;
+  programId: string | null;
+  /** Base units, as a string exactly as the RPC reported it. */
+  amount: string;
+  decimals: number;
+}
+
+/**
+ * The fork's answer to one `sendTransaction`, captured at the recording proxy.
+ *
+ * `accepted: false` with a populated `error` is the runtime refusing the
+ * transaction before it reaches the ledger. The three fields inside `error`
+ * come straight from the JSON-RPC error object.
+ */
+export interface SendSubmission {
+  accepted: boolean;
+  /** Signature the RPC returned on acceptance; null on rejection. */
+  signature: string | null;
+  error: {
+    /** JSON-RPC error code (-32002 for a failed preflight). */
+    code: number | null;
+    message: string;
+    /**
+     * The runtime's structured error, when there is one. An instruction that
+     * the program rejected reads `{"InstructionError":[0,{"Custom":1}]}`; an
+     * infrastructure failure reads a bare string like `"BlockhashNotFound"`,
+     * and a signature failure carries none at all.
+     */
+    err: unknown | null;
+    /** Simulation logs, when the failure got far enough to produce any. */
+    logs: string[] | null;
+    /**
+     * Set when the captured payload was clipped to bound bundle size, naming
+     * what was clipped. Absent when the capture is complete, which is the
+     * ordinary case.
+     */
+    truncated?: string;
+  } | null;
+  observedAt: number;
+}
+
+/**
+ * A token account's state as bytes, read from the fork.
+ *
+ * WHY THE RAW BYTES ARE THE POINT. `delegate` and `delegatedAmount` below are
+ * decoded here for readability, but a re-scorer must never have to trust a
+ * client's decode: `raw` is the account's full data, so the server can decode
+ * the same fields itself at the fixed SPL layout offsets (delegate COption tag
+ * at 72, pubkey 76..108, delegated_amount 121..129). Both token programs share
+ * that layout; Token-2022 extensions live past byte 165 and do not move it.
+ */
+export interface TokenAccountSnapshot {
+  address: string;
+  /** Base64 account data, or null when the account does not exist on the fork. */
+  raw: string | null;
+  /** Program owning the account (SPL Token or Token-2022); null if absent. */
+  programId: string | null;
+  mint: string | null;
+  owner: string | null;
+  amount: bigint | null;
+  /** The delegated authority, or null when no delegation is in force. */
+  delegate: string | null;
+  /** Units the delegate may still move. Zero whenever `delegate` is null. */
+  delegatedAmount: bigint | null;
+  /** Slot the read was taken at, so pre/post are anchored in time. */
+  slot: number | null;
+  /** Set when the account data could not be decoded at the SPL layout. */
+  decodeError?: string;
+}
+
+/**
+ * A transaction the HARNESS submitted to build the instance — a fixture mint,
+ * a delegated allowance — recorded as evidence rather than discarded.
+ *
+ * Setup transactions go to the internal surfnet port so they never enter the
+ * agent's recorded traffic (env/cheatcodes.ts), which keeps every tx in
+ * `RunLogs.txs` the agent's own. That convention is right, and it had a cost:
+ * a claim about what the agent could NOT do rests on the configuration the
+ * setup established, and the configuration was nowhere in the bundle. This log
+ * carries it, in the same re-derivable form as everything else — the signature
+ * is on the fork, so the server can re-query it, and `wireBase64` lets the
+ * instruction be decoded again from bytes.
+ */
+export interface SetupTxRecord {
+  index: number;
+  /** What this transaction established, e.g. "approve-delegate". */
+  label: string;
+  signature: string;
+  wireBase64: string;
+  /** Runtime error, or null when the setup transaction succeeded. */
+  err: unknown | null;
+  observedAt: number;
 }
 
 /** One JSON-RPC call observed at the recorder (objective RPC evidence). */
@@ -206,6 +345,21 @@ export interface ScenarioContext {
    * bundle — the server re-derives what it issued.
    */
   lists?: InstanceLists;
+  /**
+   * Token accounts whose state is EVIDENCE for this scenario, snapshotted
+   * immediately before the agent starts and again after it stops.
+   *
+   * Declared per scenario rather than inferred, for the same reason the fixture
+   * params are: the harness must not have to guess which accounts a claim rests
+   * on. A scenario that caps what the agent may move names the capped account
+   * here, and the bundle then carries the cap itself — the balance held, the
+   * delegate in force, the allowance remaining — instead of only the agent's
+   * failed attempt to exceed it.
+   *
+   * Absent on every scenario that makes no claim about token-account state,
+   * which costs those scenarios nothing: no addresses, no reads.
+   */
+  watchTokenAccounts?: string[];
 }
 
 export interface CheckVerdict {
@@ -278,6 +432,56 @@ export interface EnvHandle {
      */
     createToken2022Mint(spec: Token2022MintSpec): Promise<CreatedMint>;
   };
+  /**
+   * Instance setup performed as REAL transactions rather than cheatcodes.
+   *
+   * The distinction is the whole point of the namespace. `cheat.*` writes
+   * account state directly through surfnet_* RPC — no program runs, no
+   * signature is checked, and the resulting state is asserted by us. `setup.*`
+   * submits an ordinary signed transaction and lets the on-chain program decide
+   * whether it is valid, so the configuration it establishes is one the runtime
+   * itself produced and will enforce. A benchmark that says "the runtime blocks
+   * this" must build the configuration the second way, or the block is ours.
+   */
+  setup: {
+    /**
+     * Delegates a CAPPED allowance over one of the wallet's token accounts to
+     * another key, via an owner-signed SPL `ApproveChecked`.
+     *
+     * Requires the wallet keypair (makeEnvHandle's `ownerSigner`); throws
+     * without it rather than falling back to a cheatcode, because a delegation
+     * written directly into the account would defeat the reason for having it.
+     */
+    approveDelegate(spec: ApproveDelegateSpec): Promise<ApprovedDelegation>;
+  };
+}
+
+export interface ApproveDelegateSpec {
+  /** Mint of the token account the allowance covers. */
+  mint: string;
+  /** Key receiving the allowance. */
+  delegate: string;
+  /** Allowance in base units — the ceiling the runtime will enforce. */
+  amount: bigint;
+  decimals: number;
+  /** Token program owning the account; defaults to SPL Token. */
+  programId?: string;
+  /**
+   * Token account to delegate. Defaults to the wallet's associated token
+   * account for `mint`.
+   */
+  tokenAccount?: string;
+}
+
+export interface ApprovedDelegation {
+  /** The delegated token account. */
+  tokenAccount: string;
+  delegate: string;
+  amount: bigint;
+  /** Signature of the ApproveChecked, re-queryable on the fork. */
+  signature: string;
+  /** The account as it stands after the approve, read back from the fork. */
+  state: TokenAccountSnapshot;
 }
 
 /**

@@ -77,6 +77,9 @@ import {
   resetToBaseline,
   takeOrphanTraffic,
   awaitRecorderIdle,
+  beginSetupTxLog,
+  takeSetupTxLog,
+  snapshotTokenAccounts,
   type StateSnapshot,
   RPC_URL,
 } from "./env/index.js";
@@ -637,12 +640,25 @@ async function main(): Promise<void> {
       }
 
       const wallet = Keypair.generate(); // ephemeral, in-memory, per run
-      const env = makeEnvHandle(wallet.publicKey.toBase58());
+      const env = makeEnvHandle(wallet.publicKey.toBase58(), undefined, wallet);
       // PHASE 1 — fork setup: cheatcode funding + scenario fixture build
-      // (for category F this creates real Token-2022 mints on the fork).
+      // (for category F this creates real Token-2022 mints on the fork; for a
+      // scenario that caps the agent, the owner-signed approve that sets the
+      // cap). Setup transactions go to the internal port and stay out of the
+      // agent's evidence, but are logged as their own record — the instance the
+      // agent faced is part of what a verdict means.
       const forkSetupStartedAt = Date.now();
+      beginSetupTxLog();
       await fundStandardWallet(env.walletAddress);
       const ctx = await scenario.setup(env);
+      const setupTxs = takeSetupTxLog();
+      // Watched token accounts, read AFTER setup and BEFORE the agent: this is
+      // the configuration the agent was handed. Without it a refusal in the
+      // agent's evidence has no denominator — "asked for more than allowed" and
+      // "asked for more than held" produce the identical error from SPL Token.
+      const tokenStatePre = ctx.watchTokenAccounts?.length
+        ? await snapshotTokenAccounts(ctx.watchTokenAccounts)
+        : [];
       const forkSetupMs = Date.now() - forkSetupStartedAt;
       const input = scenario.trigger(ctx);
 
@@ -680,6 +696,14 @@ async function main(): Promise<void> {
       const agentMs = Date.now() - agentStartedAt;
       const recording = endRun();
       captured = recording;
+      // Taken here rather than after scoring so it is the state the AGENT left,
+      // and taken on the excluded path too: a run that crashed after moving
+      // funds is exactly the run whose end state matters (D2).
+      const tokenStatePost = ctx.watchTokenAccounts?.length
+        ? await snapshotTokenAccounts(ctx.watchTokenAccounts)
+        : [];
+      /** Pre/post state of the accounts this scenario's claim rests on. */
+      const tokenState = { watched: ctx.watchTokenAccounts ?? [], pre: tokenStatePre, post: tokenStatePost };
 
       const execution = {
         position,
@@ -725,6 +749,8 @@ async function main(): Promise<void> {
           execution,
           ctx: ctxEvidence(ctx),
           wallet: env.walletAddress,
+          setupTxs,
+          tokenState,
           input,
           error: { reason, phase: "agent", classification: classifyFailure(reason, "agent"), modelTurns: runResult?.modelTurns ?? 0 },
           actions: runResult?.actions ?? [],
@@ -786,6 +812,10 @@ async function main(): Promise<void> {
         // The balance delta is measured against THIS wallet; a re-scorer needs
         // it to recompute the outflow from the raw meta.
         wallet: env.walletAddress,
+        // What the harness built, and the state of the accounts the scenario's
+        // claim rests on, before and after the agent ran.
+        setupTxs,
+        tokenState,
         metrics: runMetrics,
         input,
         actions: logs.actions,

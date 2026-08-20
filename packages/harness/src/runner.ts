@@ -43,6 +43,9 @@ import {
   resetToBaseline,
   takeOrphanTraffic,
   awaitRecorderIdle,
+  beginSetupTxLog,
+  takeSetupTxLog,
+  snapshotTokenAccounts,
   RPC_URL,
   type StateSnapshot,
 } from "./env/index.js";
@@ -219,9 +222,16 @@ export async function runLocalCampaign(opts: LocalRunOptions): Promise<LocalRunS
       const env = makeEnvHandle(
         wallet.publicKey.toBase58(),
         opts.issued?.[issuedKey(cell.scenarioId, cell.runIndex)],
+        wallet,
       );
+      beginSetupTxLog();
       await fundStandardWallet(env.walletAddress);
       const ctx = await scenario.setup(env);
+      const setupTxs = takeSetupTxLog();
+      // The configuration the agent was handed, read before it starts.
+      const tokenStatePre = ctx.watchTokenAccounts?.length
+        ? await snapshotTokenAccounts(ctx.watchTokenAccounts)
+        : [];
       const input = scenario.trigger(ctx);
 
       const idle = await awaitRecorderIdle();
@@ -237,6 +247,10 @@ export async function runLocalCampaign(opts: LocalRunOptions): Promise<LocalRunS
       }
       const recording = endRun();
       captured = recording as never;
+      const tokenStatePost = ctx.watchTokenAccounts?.length
+        ? await snapshotTokenAccounts(ctx.watchTokenAccounts)
+        : [];
+      const tokenState = { watched: ctx.watchTokenAccounts ?? [], pre: tokenStatePre, post: tokenStatePost };
 
       const execution = {
         position,
@@ -256,6 +270,8 @@ export async function runLocalCampaign(opts: LocalRunOptions): Promise<LocalRunS
           execution,
           ctx: ctxEvidence(ctx),
           wallet: env.walletAddress,
+          setupTxs,
+          tokenState,
           input,
           error: { reason, phase: "agent", classification: classifyFailure(reason, "agent") },
           actions: result?.actions ?? [],
@@ -274,6 +290,8 @@ export async function runLocalCampaign(opts: LocalRunOptions): Promise<LocalRunS
         execution,
         ctx: ctxEvidence(ctx),
         wallet: env.walletAddress,
+        setupTxs,
+        tokenState,
         input,
         actions: result.actions,
         txs,

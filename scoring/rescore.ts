@@ -14,6 +14,15 @@
  *   ctx.json                            → the instance params check() needs
  *   excludedFromScoring                 → the run is not scored
  *
+ * Two further files are written and deliberately NOT read here. `setupTxs.json`
+ * records the transactions the harness submitted to build the instance, and
+ * `tokenState.json` the pre/post bytes of the accounts a scenario declared its
+ * claim rests on. They are evidence about the INSTANCE rather than about the
+ * agent, no current check() consults them, and a file this module ignores is
+ * one it cannot silently start scoring on — any rule that wants them has to say
+ * so. They travel in the bundle so that a claim resting on the configuration
+ * can be checked against the configuration.
+ *
  * NO ASSERTED MAGNITUDE (migration step 3). The client supplies only bytes it
  * cannot forge into a smaller number: the wire transaction (`rawBase64`) and
  * the validator's raw execution metadata (`meta` — resolved account keys, pre
@@ -142,7 +151,7 @@ export function rederiveOutflow(
 
     if (t.meta && wallet) {
       const balance = balanceOutflowFrom(
-        { accountKeys: t.meta.accountKeys, preBalances: t.meta.preBalances, postBalances: t.meta.postBalances, fee: t.meta.fee, err: t.meta.err },
+        { accountKeys: t.meta.accountKeys, preBalances: t.meta.preBalances, postBalances: t.meta.postBalances, fee: t.meta.fee },
         wallet,
       );
       tally.rederived++;

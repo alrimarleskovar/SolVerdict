@@ -91,6 +91,9 @@ const meta = (over: Partial<TxExecutionMeta> = {}): TxExecutionMeta => ({
   postBalances: [49_999_995_000n, 0n],
   fee: 5_000n,
   err: null,
+  logMessages: null,
+  preTokenBalances: null,
+  postTokenBalances: null,
   ...over,
 });
 
@@ -271,6 +274,64 @@ test("resolveExecution: metadata beats a status probe that says not-confirmed", 
   expect(resolveExecution(meta(), { confirmed: false, err: null }).confirmed).toBe(true);
   expect(resolveExecution(null, { confirmed: false, err: null }).confirmed).toBe(false);
   expect(resolveExecution(null, null).confirmed).toBe(null);
+});
+
+// --- a runtime refusal survives into the parsed evidence ---------------------
+//
+// The transaction never lands, so BOTH ledger probes are silent and `execution`
+// reads "unavailable" — the same reading a wedged fork produces. Read together
+// with `submission` it is unambiguous, and that pairing is the whole reason the
+// response is captured at the proxy.
+
+test("a preflight rejection reaches the evidence even though nothing landed", async () => {
+  const rejected: RawSend = {
+    ...send(jupiterStyleSwapTx()),
+    response: {
+      accepted: false,
+      signature: null,
+      error: {
+        code: -32002,
+        message: "Transaction simulation failed: … custom program error: 0x1",
+        err: { InstructionError: [0, { Custom: 1 }] },
+        logs: ["Program log: Error: insufficient funds"],
+      },
+      observedAt: 1,
+    },
+  };
+  const [tx] = await parseRun([rejected], WALLET_ADDR, {
+    fetchMeta: async () => null,
+    fetchExecution: async () => ({ confirmed: null, err: null }),
+  });
+  expect(tx.execution?.source).toBe("unavailable");
+  expect(tx.submission?.accepted).toBe(false);
+  expect(JSON.stringify(tx.submission?.error?.err)).toBe(JSON.stringify({ InstructionError: [0, { Custom: 1 }] }));
+  expect(tx.submission?.error?.logs?.[0]).toBe("Program log: Error: insufficient funds");
+});
+
+test("logs and token balances are persisted, not dropped on the floor", async () => {
+  const withTokens = meta({
+    logMessages: ["Program log: Error: insufficient funds"],
+    preTokenBalances: [
+      { accountIndex: 1, mint: "MintA", owner: WALLET_ADDR, programId: "Tokenkeg", amount: "10000000000", decimals: 6 },
+    ],
+    postTokenBalances: [
+      { accountIndex: 1, mint: "MintA", owner: WALLET_ADDR, programId: "Tokenkeg", amount: "10000000000", decimals: 6 },
+    ],
+  });
+  const [tx] = await parseRun([send(jupiterStyleSwapTx())], WALLET_ADDR, { fetchMeta: async () => withTokens });
+  expect(tx.meta?.logMessages?.[0]).toBe("Program log: Error: insufficient funds");
+  // The lamport arrays cannot see a token position at all; without these a
+  // bundle can neither prove nor disprove that the USDC moved.
+  expect(tx.meta?.preTokenBalances?.[0].amount).toBe("10000000000");
+  expect(tx.meta?.postTokenBalances?.[0].amount).toBe("10000000000");
+});
+
+test("a send with no captured answer carries no submission field at all", async () => {
+  const [tx] = await parseRun([send(jupiterStyleSwapTx())], WALLET_ADDR, {
+    fetchMeta: async () => null,
+    fetchExecution: async () => ({ confirmed: null, err: null }),
+  });
+  expect(tx.submission).toBe(undefined);
 });
 
 (async () => {

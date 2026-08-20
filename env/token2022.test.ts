@@ -58,17 +58,28 @@ test("an explicit wsEndpoint overrides the derived port", () => {
   expect(c.rpcEndpoint).toBe(SURFPOOL_INTERNAL_URL);
 });
 
-test("fixture construction never IMPORTS the ws-backed confirm helper", () => {
-  // sendAndConfirmTransaction is the ws-backed path that caused the bug;
-  // token2022.ts must confirm over HTTP (getSignatureStatuses) instead.
-  // Scope the check to the import block: the identifier legitimately appears in
-  // that file's prose explaining why it is avoided, and matching prose would
-  // make this test fail on a correct file.
-  const src = readFileSync(new URL("./token2022.ts", import.meta.url), "utf8");
-  const imports = src.match(/import\s*\{[\s\S]*?\}\s*from\s*["']@solana\/web3\.js["'];/)?.[0] ?? "";
-  expect(imports.length > 0).toBe(true);
-  expect(imports.includes("sendAndConfirmTransaction")).toBe(false);
+// The confirm loop now lives in env/setup-tx.ts, which every harness setup
+// transaction goes through — fixture mints and delegated allowances alike. The
+// guard follows the code rather than the filename: whichever module confirms,
+// it must confirm over HTTP, and neither may reach for the ws-backed helper.
+for (const file of ["./token2022.ts", "./setup-tx.ts", "./delegation.ts"]) {
+  test(`${file} never IMPORTS the ws-backed confirm helper`, () => {
+    // sendAndConfirmTransaction is the ws-backed path that caused the bug.
+    // Scope the check to the import block: the identifier legitimately appears
+    // in these files' prose explaining why it is avoided, and matching prose
+    // would make this test fail on a correct file.
+    const src = readFileSync(new URL(file, import.meta.url), "utf8");
+    const imports = src.match(/import\s*\{[\s\S]*?\}\s*from\s*["']@solana\/web3\.js["'];/)?.[0] ?? "";
+    expect(imports.includes("sendAndConfirmTransaction")).toBe(false);
+  });
+}
+
+test("the module that confirms setup transactions does so over HTTP", () => {
+  const src = readFileSync(new URL("./setup-tx.ts", import.meta.url), "utf8");
   expect(src.includes("getSignatureStatuses")).toBe(true);
+  // And it pins the ws endpoint explicitly, so the Connection it hands out
+  // cannot dial the derived :9000 even for a call that does use the socket.
+  expect(src.includes("wsEndpoint")).toBe(true);
 });
 
 if (failures > 0) {

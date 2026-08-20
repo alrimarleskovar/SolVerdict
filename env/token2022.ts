@@ -23,11 +23,14 @@
  *    be ROTATED on re-runs. A mainnet mint cannot be rotated.
  *
  * Like every other cheatcode (see env/cheatcodes.ts) these transactions are
- * submitted to the INTERNAL surfnet port, so mint construction is harness
- * state-setup and never appears in the agent's run evidence.
+ * submitted to the INTERNAL surfnet port, so mint construction never enters the
+ * recorder and every transaction in `RunLogs.txs` remains the agent's own. They
+ * are, however, RECORDED — as setup transactions, in their own log beside the
+ * agent's (env/setup-tx.ts). Building a fixture with real instructions and then
+ * keeping no trace of it left the bundle unable to show what the agent was
+ * actually facing.
  */
 import {
-  Connection,
   Keypair,
   PublicKey,
   SystemProgram,
@@ -49,8 +52,8 @@ import {
 import bs58 from "bs58";
 import { LAMPORTS_PER_SOL } from "../config/params.js";
 import type { CreatedMint, Token2022MintSpec } from "../lib/types.js";
-import { SURFPOOL_INTERNAL_URL, SURFPOOL_WS_URL } from "./rpc.js";
 import { setAccountLamports } from "./cheatcodes.js";
+import { sendSetupTransaction, surfnetConnection } from "./setup-tx.js";
 
 /** The Token-2022 program id, exported so scenarios can assert on evidence. */
 export const TOKEN_2022_PROGRAM = TOKEN_2022_PROGRAM_ID.toBase58();
@@ -58,73 +61,6 @@ export const TOKEN_2022_PROGRAM = TOKEN_2022_PROGRAM_ID.toBase58();
 export type { CreatedMint, MaliciousExtension, Token2022MintSpec } from "../lib/types.js";
 
 const PAYER_FUNDING_SOL = 10;
-/** Confirmation budget for one fixture tx. Surfpool advances a slot every 400ms. */
-const CONFIRM_TIMEOUT_MS = 30_000;
-const CONFIRM_POLL_MS = 300;
-
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
-/**
- * The surfnet connection used for fixture construction.
- *
- * `wsEndpoint` is pinned explicitly: web3.js would otherwise derive it as
- * http-port + 1 (:9000), where nothing listens, because surfpool binds its
- * WebSocket to its own default (:8900) — `env/surfpool.ts` passes `--port` but
- * never `--ws-port`. See env/rpc.ts.
- */
-function surfnetConnection(): Connection {
-  return new Connection(SURFPOOL_INTERNAL_URL, {
-    commitment: "confirmed",
-    wsEndpoint: SURFPOOL_WS_URL,
-  });
-}
-
-/**
- * Sign, submit and confirm one fixture transaction over HTTP ONLY.
- *
- * `sendAndConfirmTransaction` confirms via `signatureSubscribe`, i.e. over the
- * WebSocket. Fixture construction is harness state-setup and must not depend on
- * surfpool's ws server being reachable, so confirmation is polled with
- * `getSignatureStatuses` — the same plain JSON-RPC-over-HTTP shape every other
- * cheatcode uses (env/cheatcodes.ts). Blockheight is compared against
- * `lastValidBlockHeight` so a genuinely expired tx reports that, rather than
- * silently timing out.
- */
-async function sendAndConfirmOverHttp(
-  connection: Connection,
-  tx: Transaction,
-  signers: Keypair[],
-  label: string,
-): Promise<string> {
-  const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash("confirmed");
-  tx.recentBlockhash = blockhash;
-  tx.feePayer = signers[0].publicKey;
-  tx.sign(...signers);
-
-  const signature = await connection.sendRawTransaction(tx.serialize(), {
-    skipPreflight: false, // surface a malformed fixture immediately
-    preflightCommitment: "confirmed",
-  });
-
-  const deadline = Date.now() + CONFIRM_TIMEOUT_MS;
-  while (Date.now() < deadline) {
-    const { value } = await connection.getSignatureStatuses([signature]);
-    const status = value[0];
-    if (status) {
-      if (status.err) {
-        throw new Error(`${label} failed on-chain: ${JSON.stringify(status.err)} (sig ${signature})`);
-      }
-      if (status.confirmationStatus === "confirmed" || status.confirmationStatus === "finalized") {
-        return signature;
-      }
-    }
-    if ((await connection.getBlockHeight("confirmed")) > lastValidBlockHeight) {
-      throw new Error(`${label} expired before confirmation (blockheight > ${lastValidBlockHeight}, sig ${signature})`);
-    }
-    await sleep(CONFIRM_POLL_MS);
-  }
-  throw new Error(`${label} not confirmed within ${CONFIRM_TIMEOUT_MS}ms (sig ${signature})`);
-}
 
 /**
  * Creates a real Token-2022 mint carrying exactly one malicious extension.
@@ -173,7 +109,7 @@ export async function createToken2022Mint(spec: Token2022MintSpec): Promise<Crea
     initIx,
     createInitializeMint2Instruction(mint.publicKey, decimals, payer.publicKey, null, TOKEN_2022_PROGRAM_ID),
   );
-  await sendAndConfirmOverHttp(connection, tx, [payer, mint], `create ${spec.extension} mint`);
+  await sendSetupTransaction(connection, tx, [payer, mint], `create ${spec.extension} mint`);
 
   const created: CreatedMint = { mint: mint.publicKey.toBase58(), extension: spec.extension, decimals, config };
 
@@ -184,7 +120,7 @@ export async function createToken2022Mint(spec: Token2022MintSpec): Promise<Crea
       createAssociatedTokenAccountInstruction(payer.publicKey, ata, owner, mint.publicKey, TOKEN_2022_PROGRAM_ID),
       createMintToInstruction(mint.publicKey, ata, payer.publicKey, spec.mintTo.amount, [], TOKEN_2022_PROGRAM_ID),
     );
-    await sendAndConfirmOverHttp(connection, fundTx, [payer], `seed ${spec.extension} token account`);
+    await sendSetupTransaction(connection, fundTx, [payer], `seed ${spec.extension} token account`);
     created.tokenAccount = ata.toBase58();
   }
 

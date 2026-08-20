@@ -5,6 +5,7 @@
  * harness state-setup, not agent activity, so they bypass the recorder and
  * never appear in run evidence.
  */
+import type { TokenBalanceEntry } from "../lib/types.js";
 import { SURFPOOL_INTERNAL_URL } from "./rpc.js";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -218,6 +219,20 @@ export interface TxExecutionMeta {
   postBalances: bigint[];
   fee: bigint;
   err: unknown | null;
+  /**
+   * The runtime's log output, verbatim. `err` is a bare code — SPL Token
+   * reports both an over-balance transfer and an over-allowance one as
+   * `Custom: 1` — and the logs are the only place the program states anything
+   * in its own words. Null when the validator returned none.
+   */
+  logMessages: string[] | null;
+  /**
+   * SPL token balances before and after. The lamport arrays cannot see a token
+   * movement at all, so a bundle without these can neither prove nor disprove
+   * that a USDC position moved. Null when no token account was involved.
+   */
+  preTokenBalances: TokenBalanceEntry[] | null;
+  postTokenBalances: TokenBalanceEntry[] | null;
 }
 
 /**
@@ -226,12 +241,22 @@ export interface TxExecutionMeta {
  * than treating an absent meta as "no funds moved".
  */
 export async function getTransactionMeta(signature: string): Promise<TxExecutionMeta | null> {
+  interface RpcTokenBalance {
+    accountIndex?: number;
+    mint?: string;
+    owner?: string;
+    programId?: string;
+    uiTokenAmount?: { amount?: string; decimals?: number };
+  }
   interface RpcTx {
     meta?: {
       fee?: number;
       preBalances?: number[];
       postBalances?: number[];
       err?: unknown;
+      logMessages?: string[] | null;
+      preTokenBalances?: RpcTokenBalance[] | null;
+      postTokenBalances?: RpcTokenBalance[] | null;
       loadedAddresses?: { writable?: string[]; readonly?: string[] };
     } | null;
     transaction?: { message?: { accountKeys?: string[] } };
@@ -253,12 +278,33 @@ export async function getTransactionMeta(signature: string): Promise<TxExecution
   // loaded readonly. Instruction account indexes are resolved against this.
   const accountKeys = [...staticKeys, ...(loaded.writable ?? []), ...(loaded.readonly ?? [])];
 
+  /**
+   * Token balances are kept STRUCTURALLY — account index, mint, owner, program
+   * and the base-unit amount as the RPC wrote it. The amount stays a string
+   * because that is what the validator reports and re-serialising it through a
+   * number would be the one transformation capable of losing precision on a u64.
+   */
+  const tokenBalances = (entries: RpcTokenBalance[] | null | undefined): TokenBalanceEntry[] | null =>
+    Array.isArray(entries)
+      ? entries.map((e) => ({
+          accountIndex: e.accountIndex ?? -1,
+          mint: e.mint ?? "unknown",
+          owner: e.owner ?? null,
+          programId: e.programId ?? null,
+          amount: e.uiTokenAmount?.amount ?? "0",
+          decimals: e.uiTokenAmount?.decimals ?? 0,
+        }))
+      : null;
+
   return {
     accountKeys,
     preBalances: (res.meta.preBalances ?? []).map((n) => BigInt(n)),
     postBalances: (res.meta.postBalances ?? []).map((n) => BigInt(n)),
     fee: BigInt(res.meta.fee ?? 0),
     err: res.meta.err ?? null,
+    logMessages: Array.isArray(res.meta.logMessages) ? res.meta.logMessages : null,
+    preTokenBalances: tokenBalances(res.meta.preTokenBalances),
+    postTokenBalances: tokenBalances(res.meta.postTokenBalances),
   };
 }
 

@@ -17,14 +17,41 @@
 import http from "node:http";
 import { SURFPOOL_INTERNAL_URL, RECORDER_PORT } from "./rpc.js";
 import { shimRpcResponse, type ForkShim } from "./fork-shims.js";
-import type { RpcCallEntry } from "../lib/types.js";
+import type { RpcCallEntry, SendSubmission } from "../lib/types.js";
 
 export interface RawSend {
   index: number;
   /** base64 wire transaction as received in sendTransaction params. */
   txBase64: string;
   observedAt: number;
+  /**
+   * The fork's answer to THIS send, captured on the way back through the proxy.
+   *
+   * A transaction the runtime refuses at preflight never reaches the ledger, so
+   * `getTransaction` has nothing to say about it afterwards and the run
+   * evidence used to show a submission followed by silence — indistinguishable
+   * from an expired blockhash or a wedged fork. The refusal exists only in this
+   * response, and only for as long as it takes to forward it, so it is captured
+   * here or nowhere.
+   *
+   * Undefined when the upstream call failed outright (the proxy answered 502)
+   * or the response could not be parsed.
+   */
+  response?: SendSubmission;
 }
+
+/**
+ * Bounds on a captured error payload.
+ *
+ * Simulation logs are the useful part of a rejection and are normally a handful
+ * of lines, but an agent that submits hundreds of failing transactions carrying
+ * verbose program logs would put all of it in the evidence bundle. Clipping is
+ * disclosed on the record (`truncated`) rather than done silently — an
+ * unexplained gap in evidence is worse than a bounded one.
+ */
+const MAX_LOG_LINES = 64;
+const MAX_LOG_LINE_CHARS = 1_000;
+const MAX_MESSAGE_CHARS = 2_000;
 
 interface RunRecording {
   rpc: RpcCallEntry[];
@@ -68,23 +95,38 @@ let inFlight = 0;
 /** Unix ms of the last request body seen at the proxy (0 = none yet). */
 let lastActivityAt = 0;
 
+/** What one observed request body produced, for the response pass. */
+export interface ObservedCalls {
+  /** Indices into the run's rpc log, in arrival order. */
+  rpcIndices: number[];
+  /**
+   * Sends recorded from this body, held BY REFERENCE.
+   *
+   * The response arrives after the request is recorded, and by then the run may
+   * have ended — `endRun()` hands the array to the caller and clears `active`.
+   * Holding the record itself means a response that lands late still attaches to
+   * the send it belongs to, instead of to whatever now sits at that index.
+   */
+  sends: Array<{ send: RawSend; id: unknown; position: number }>;
+}
+
 /**
  * Records one JSON-RPC request body. Exported (rather than private to the
  * server handler) so the recording rules can be unit-tested without binding a
  * port or standing up a surfnet.
  */
-export function observeBody(bodyText: string): number[] {
-  const recorded: number[] = [];
+export function observeBody(bodyText: string): ObservedCalls {
+  const observed: ObservedCalls = { rpcIndices: [], sends: [] };
   let parsed: unknown;
   try {
     parsed = JSON.parse(bodyText);
   } catch {
-    return recorded;
+    return observed;
   }
   const calls = Array.isArray(parsed) ? parsed : [parsed];
-  for (const call of calls) {
-    const { method, params } = (call ?? {}) as { method?: string; params?: unknown[] };
-    if (typeof method !== "string") continue;
+  calls.forEach((call, position) => {
+    const { method, params, id } = (call ?? {}) as { method?: string; params?: unknown[]; id?: unknown };
+    if (typeof method !== "string") return;
     const observedAt = Date.now();
     const isSend =
       method === "sendTransaction" && Array.isArray(params) && typeof params[0] === "string";
@@ -94,20 +136,96 @@ export function observeBody(bodyText: string): number[] {
       orphan.firstAt ??= observedAt;
       orphan.lastAt = observedAt;
       if (isSend) orphan.sends++;
-      continue;
+      return;
     }
-    recorded.push(active.rpc.length);
+    observed.rpcIndices.push(active.rpc.length);
     active.rpc.push({ index: active.rpc.length, method, observedAt });
     if (isSend) {
       // web3.js sends base64 (with encoding option) or base58. Normalize later.
-      active.sends.push({
+      const send: RawSend = {
         index: active.sends.length,
         txBase64: (params as string[])[0],
         observedAt,
-      });
+      };
+      active.sends.push(send);
+      observed.sends.push({ send, id, position });
     }
+  });
+  return observed;
+}
+
+function clipLogs(logs: unknown): { logs: string[] | null; truncated: string | null } {
+  if (!Array.isArray(logs)) return { logs: null, truncated: null };
+  const lines = logs.filter((l): l is string => typeof l === "string");
+  const kept = lines.slice(0, MAX_LOG_LINES).map((l) => (l.length > MAX_LOG_LINE_CHARS ? l.slice(0, MAX_LOG_LINE_CHARS) : l));
+  const dropped = lines.length - kept.length;
+  const clippedLine = kept.some((l, i) => l.length < lines[i].length);
+  const notes: string[] = [];
+  if (dropped > 0) notes.push(`${dropped} log line(s) dropped`);
+  if (clippedLine) notes.push(`log line(s) clipped to ${MAX_LOG_LINE_CHARS} chars`);
+  return { logs: kept, truncated: notes.length > 0 ? notes.join("; ") : null };
+}
+
+/** Builds the record for one sendTransaction answer. */
+function toSubmission(entry: { result?: unknown; error?: unknown } | undefined): SendSubmission | null {
+  if (!entry) return null;
+  const observedAt = Date.now();
+  const error = entry.error as { code?: unknown; message?: unknown; data?: unknown } | undefined;
+  if (error && typeof error === "object") {
+    const data = (error.data ?? {}) as { err?: unknown; logs?: unknown };
+    const message = typeof error.message === "string" ? error.message : JSON.stringify(error.message ?? null);
+    const { logs, truncated } = clipLogs(data.logs);
+    const clippedMessage = message.length > MAX_MESSAGE_CHARS;
+    const notes = [truncated, clippedMessage ? `message clipped to ${MAX_MESSAGE_CHARS} chars` : null].filter(
+      (n): n is string => n !== null,
+    );
+    return {
+      accepted: false,
+      signature: null,
+      error: {
+        code: typeof error.code === "number" ? error.code : null,
+        message: clippedMessage ? message.slice(0, MAX_MESSAGE_CHARS) : message,
+        err: data.err ?? null,
+        logs,
+        ...(notes.length > 0 ? { truncated: notes.join("; ") } : {}),
+      },
+      observedAt,
+    };
   }
-  return recorded;
+  return {
+    accepted: true,
+    signature: typeof entry.result === "string" ? entry.result : null,
+    error: null,
+    observedAt,
+  };
+}
+
+/**
+ * Attaches the fork's answers to the sends recorded from the same request body.
+ *
+ * Pure apart from the mutation it performs, and separated from the socket
+ * handler so the matching rules — including batched requests answered out of
+ * order — are unit-testable without binding a port.
+ */
+export function attachSendResponses(responseText: string, observed: ObservedCalls): void {
+  if (observed.sends.length === 0) return;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(responseText);
+  } catch {
+    return; // an unparseable answer is left absent rather than guessed at
+  }
+  const entries = (Array.isArray(parsed) ? parsed : [parsed]) as Array<{ id?: unknown; result?: unknown; error?: unknown }>;
+  // A batch answer may be ordered by id rather than by position (same rule as
+  // env/fork-shims.ts), so match on id first and fall back to position.
+  const byId = new Map<string, (typeof entries)[number]>();
+  for (const e of entries) if (e && e.id !== undefined) byId.set(JSON.stringify(e.id), e);
+
+  for (const { send, id, position } of observed.sends) {
+    const entry = (id !== undefined ? byId.get(JSON.stringify(id)) : undefined) ?? entries[position];
+    const submission = toSubmission(entry);
+    if (submission) send.response = submission;
+  }
 }
 
 /**
@@ -139,7 +257,7 @@ export async function startRecorder(): Promise<void> {
       const body = Buffer.concat(chunks);
       lastActivityAt = Date.now();
       const requestText = body.toString("utf8");
-      const recordedIdx = observeBody(requestText);
+      const observed = observeBody(requestText);
       inFlight++;
       try {
         const upstream = await fetch(SURFPOOL_INTERNAL_URL, {
@@ -152,13 +270,24 @@ export async function startRecorder(): Promise<void> {
         // AFTER the upstream answer so a real one is never overridden, and
         // recorded on the affected calls so the bundle discloses it.
         const { body: shimmed, applied } = shimRpcResponse(requestText, respBody.toString("utf8"));
-        for (const shim of applied) noteShim(recordedIdx, shim.method, shim);
+        for (const shim of applied) noteShim(observed.rpcIndices, shim.method, shim);
         const out = applied.length > 0 ? Buffer.from(shimmed, "utf8") : respBody;
+        // Captured from the UPSTREAM answer, before any shim: what the evidence
+        // must carry is what the fork said, not what we forwarded. No shim
+        // touches sendTransaction today, so the two are identical — recording
+        // the fork's own words keeps that true if one ever does.
+        attachSendResponses(respBody.toString("utf8"), observed);
         res.writeHead(upstream.status, { "content-type": upstream.headers.get("content-type") ?? "application/json" });
         res.end(out);
       } catch (err) {
+        // The proxy itself failed to reach the surfnet. This is OUR failure, not
+        // a runtime rejection, and it is recorded as the same body the agent is
+        // about to receive — so a send with no fork answer reads as the
+        // infrastructure fault it was, rather than as a missing capture.
+        const failure = JSON.stringify({ jsonrpc: "2.0", id: null, error: { code: -32000, message: String(err) } });
+        attachSendResponses(failure, { rpcIndices: [], sends: observed.sends.map((s) => ({ ...s, id: undefined })) });
         res.writeHead(502, { "content-type": "application/json" });
-        res.end(JSON.stringify({ jsonrpc: "2.0", id: null, error: { code: -32000, message: String(err) } }));
+        res.end(failure);
       } finally {
         inFlight--;
         lastActivityAt = Date.now();

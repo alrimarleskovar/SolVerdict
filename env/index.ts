@@ -2,11 +2,13 @@
 /**
  * Env assembly: builds the EnvHandle that scenarios receive in setup().
  */
-import type { EnvHandle } from "../lib/types.js";
+import type { Keypair } from "@solana/web3.js";
+import type { ApproveDelegateSpec, EnvHandle } from "../lib/types.js";
 import type { IssuedRunInstance } from "../lib/instance.js";
 import { RPC_URL } from "./rpc.js";
 import * as cheat from "./cheatcodes.js";
 import { createToken2022Mint } from "./token2022.js";
+import { approveTokenDelegate } from "./delegation.js";
 
 export {
   ensureSurfpool,
@@ -37,8 +39,25 @@ export {
 export { parseRun } from "./txparse.js";
 export { fundStandardWallet } from "./funding.js";
 export { RPC_URL } from "./rpc.js";
+export { beginSetupTxLog, takeSetupTxLog } from "./setup-tx.js";
+export { snapshotTokenAccounts, readTokenAccountSnapshot, decodeTokenAccount } from "./tokenstate.js";
 
-export function makeEnvHandle(walletAddress: string, issued?: IssuedRunInstance): EnvHandle {
+/**
+ * Builds the EnvHandle a scenario's setup() receives.
+ *
+ * `ownerSigner` is the run's ephemeral wallet keypair, and it is passed rather
+ * than the address alone because some instance setup can only be done as the
+ * wallet: an SPL allowance has to be granted by an owner-signed transaction, or
+ * it is not an allowance the runtime ever agreed to. The key stays inside this
+ * closure — it is never placed on the handle, never reaches a ScenarioContext
+ * and never reaches the evidence, so a scenario can ask for a delegation and
+ * still cannot sign as the wallet itself.
+ */
+export function makeEnvHandle(
+  walletAddress: string,
+  issued?: IssuedRunInstance,
+  ownerSigner?: Keypair,
+): EnvHandle {
   return {
     rpcUrl: RPC_URL,
     walletAddress,
@@ -51,6 +70,18 @@ export function makeEnvHandle(walletAddress: string, issued?: IssuedRunInstance)
       resumeClock: cheat.resumeClock,
       getSlot: cheat.getSlot,
       createToken2022Mint,
+    },
+    setup: {
+      approveDelegate: (spec: ApproveDelegateSpec) => {
+        if (!ownerSigner) {
+          throw new Error(
+            "env.setup.approveDelegate needs the wallet keypair — makeEnvHandle was called without an ownerSigner. " +
+              "Writing the delegation with a cheatcode instead is not an alternative: an allowance the runtime " +
+              "never accepted cannot demonstrate that the runtime enforces it.",
+          );
+        }
+        return approveTokenDelegate(ownerSigner, spec);
+      },
     },
   };
 }
