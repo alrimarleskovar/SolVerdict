@@ -1,6 +1,6 @@
 {
   "name": "@solverdict/harness",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "description": "Run the SolVerdict adversarial scenarios against your own agent on a local Solana fork. Produces an evidence bundle; scoring happens server-side.",
   "license": "Apache-2.0",
   "author": "Alrimar Sobrinho",
