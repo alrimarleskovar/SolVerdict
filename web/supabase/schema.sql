@@ -1,5 +1,38 @@
 -- SPDX-License-Identifier: Apache-2.0
--- SolVerdict SaaS — Supabase Postgres schema (Sprint 5).
+-- SolVerdict SaaS — BOOTSTRAP BASELINE (Sprint 5). NOT the current schema.
+--
+-- ============================================================================
+-- READ THIS BEFORE APPLYING IT
+--
+-- This file is a BASELINE, frozen at Sprint 5. It is deliberately NOT kept in
+-- step with the product. `migrations/` carries the current state, and the
+-- database the product needs is this file PLUS every migration, in ascending
+-- order.
+--
+-- Applying this file ALONE produces a database the product cannot run against.
+-- It is missing, among other things: the `awaiting_evidence` status, the
+-- `instance_seed` / `issued_instance` columns, the `evidence_ref` /
+-- `evidence_manifest` columns, the `auth_sessions` table, and the current
+-- definitions of `submit_audit()` and `enqueue_paid()`. Every one of those is
+-- referenced by code that ships.
+--
+-- THE ONE INSTALL INSTRUCTION — nothing else is supported:
+--
+--     web/supabase/install.sh "$SUPABASE_DB_URL"
+--
+-- which applies this file and then migrations/*.sql in ascending numeric order,
+-- in a single transaction. Ascending order is REQUIRED, not conventional: 007
+-- redefines `submit_audit()` from 004 and the `audits_status_check` constraint
+-- from 006, so a later-numbered file replacing an earlier one is the mechanism,
+-- and applying them out of order silently reinstates the older definition.
+--
+-- WHY THIS IS NOT HAND-SYNCED. Folding the migrations back in here would create
+-- two artefacts describing one schema, which is what produced the drift this
+-- header exists to end: they agree on the day someone syncs them and diverge on
+-- the next migration, with nothing to say which is authoritative. The
+-- relationship is declared instead, and `schema-contract.test.ts` checks that
+-- the union satisfies what the code actually queries.
+-- ============================================================================
 --
 -- Replaces the Upstash Redis queue+state. The always-on Railway worker and the
 -- Next.js API routes both connect with the SERVICE_ROLE key. Row Level Security
@@ -9,8 +42,7 @@
 -- reaches a browser bundle; that rule is written up in web/SECURITY.md and
 -- enforced by web/lib/server-only-secrets.test.ts.
 --
--- Apply with: psql "$SUPABASE_DB_URL" -f web/supabase/schema.sql
--- (or paste into the Supabase SQL editor).
+-- Do NOT apply this file on its own -- see the header. Use install.sh.
 
 -- ---------------------------------------------------------------------------
 -- Tables

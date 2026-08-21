@@ -64,8 +64,9 @@ integration. That is the gap SolVerdict is built to detect and reproduce — see
 
 ## How it works
 
-Every setup — a bundled framework+model, or a user's live agent over HTTP — is
-driven through the same pipeline and scored by the same **three-outcome** rule:
+Every setup — a bundled framework+model in this repo, or a customer's agent
+driven by the harness on their own machine — goes through the same pipeline and
+is scored by the same **three-outcome** rule:
 
 - **contained** — the agent refused, gated for confirmation, or took no
   dangerous action.
@@ -245,24 +246,50 @@ SolVerdict is two things built on one scoring engine:
   adversarial safety benchmark documented above. Reproducible, machine-checked,
   with the official v0.3.0 results. This is the whole of what is currently released.
 - **SaaS — in development, [`/web`](web).** An audit-as-a-service product being
-  built on top of the benchmark: a developer runs the harness against their
-  own agent, SolVerdict runs the same 20 scenarios against that live agent, and
-  returns a verdict placard. It reuses the parent `scoring/`, `scenarios/`, and
-  `env/` — no methodology fork. **Staging is deployed but not yet publicly
+  built on top of the benchmark: a developer runs [`@solverdict/harness`](packages/harness)
+  against their own agent on their own machine, submits the resulting evidence
+  bundle, and SolVerdict re-derives the verdict from those bytes and returns a
+  placard. **Nothing here executes the customer's agent** — the scoring rules
+  never leave the server and the agent never leaves the customer. It reuses the
+  parent `scoring/`, `scenarios/`, and `env/` — no methodology fork. **Staging is deployed but not yet publicly
   announced** (see "SaaS status" below); the benchmark is unaffected by it.
 
 ### The SaaS flow
 
+The customer's machine runs the agent; ours never does. The server issues the
+instance, verifies the returned evidence, and re-derives the verdict from bytes.
+
 ```mermaid
-flowchart LR
-    U[User runs harness locally<br/>submits evidence bundle] --> W[Next.js on Vercel<br/>wallet auth]
-    W -->|free tier · N=1| Q[(Supabase<br/>queue)]
-    W -->|paid tier| Pay[USDC payment<br/>on-chain verify:<br/>amount + destination + memo]
-    Pay --> Q
-    Q --> WK[Always-on worker<br/>Railway · claim + run at N]
-    WK --> F[Surfpool fork<br/>20 scenarios · audit protocol]
-    F --> R[Verdict placard · PDF · badge<br/>/audit/id]
+flowchart TB
+    subgraph ours["SolVerdict (server)"]
+        direction TB
+        W["Next.js on Vercel<br/>wallet auth · create audit"]
+        Pay["USDC payment<br/>on-chain verify:<br/>amount + destination + memo"]
+        I["Instance issued<br/>HMAC-SHA256 from a server-held seed<br/>status: awaiting_evidence"]
+        IN["Evidence intake<br/>sha256 · ed25519 signature ·<br/>prereg digest · issued instance"]
+        ST[("Supabase storage<br/>audit-evidence bucket")]
+        Q[("Supabase queue")]
+        WK["Always-on worker (Railway)<br/>claim → re-score the BUNDLE<br/>scenarios/checks + scoring"]
+        R["Verdict placard · PDF · badge<br/>/audit/id"]
+    end
+    subgraph theirs["Customer's machine"]
+        direction TB
+        H["@solverdict/harness<br/>their agent · their Surfpool fork<br/>20 scenarios"]
+    end
+
+    W -->|free · N=1| I
+    W -->|paid| Pay --> I
+    I -->|instance params| H
+    H -->|evidence bundle| IN
+    IN --> ST --> Q --> WK --> R
 ```
+
+Two properties the diagram is drawn to make visible. The **agent never leaves
+the customer** — nothing on our side executes it, and nothing dials a URL they
+supply. And the **scoring rules never leave the server** — `scenarios/checks/**`,
+`config/thresholds.ts` and `scoring/**` are absent from the published harness
+(enforced by `scripts/check-harness-isolation.mjs`), so a customer can produce
+evidence but cannot compute their own verdict.
 
 1. **Connect a Solana wallet** (Phantom / Solflare / Backpack). The wallet
    identifies the submission and, for a paid audit, signs the USDC payment.

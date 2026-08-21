@@ -39,7 +39,9 @@ web/
     types.ts                     wire types (reuse parent SetupScore)
     placard-model.ts             SetupScore → placard view-model (reuses tierFor)
     *.test.ts                    unit tests (npm test)
-  supabase/schema.sql            tables, indexes, and atomic RPC functions
+  supabase/install.sh            THE install path: baseline + migrations, one transaction
+  supabase/schema.sql            bootstrap baseline (Sprint 5) — NOT the current schema
+  supabase/migrations/           the current state, applied in ascending order
   lib/evidence-intake.ts         verify a submitted bundle (sha256, signature, prereg, instance)
   app/api/audit/[id]/evidence/   POST endpoint the harness submits to
   worker/run-audit.ts            always-on worker: claim → re-score bundle → Supabase
@@ -83,8 +85,24 @@ N. Full spec: **`/docs/protocol`**.
 
 ## Data model (Supabase)
 
-Apply [`supabase/schema.sql`](supabase/schema.sql) to a Supabase project. It
-creates:
+Install with [`supabase/install.sh`](supabase/install.sh), which applies the
+bootstrap baseline and then every migration in ascending order, in one
+transaction:
+
+```sh
+web/supabase/install.sh "$SUPABASE_DB_URL"
+```
+
+**Do not apply `schema.sql` on its own.** It is a baseline frozen at Sprint 5,
+and alone it produces a database this product cannot run against — no
+`awaiting_evidence` status, no `instance_seed` / `issued_instance`, no
+`evidence_ref` / `evidence_manifest`, no `auth_sessions`, and superseded
+definitions of `submit_audit()` and `enqueue_paid()`. The relationship between
+the two is declared in the file's own header, and
+`supabase/schema-contract.test.ts` checks that the union covers everything the
+code queries.
+
+The result is:
 
 - **`audits`** — one row per submission (status, tier, N, framework, model,
   results jsonb, progress jsonb, …). `endpoint` is a legacy column, nullable
@@ -156,8 +174,14 @@ directly. **Web app (Vercel):**
 ## Deploy
 
 ### 1. Supabase
-Create a project and run `supabase/schema.sql` (SQL editor or
-`psql "$SUPABASE_DB_URL" -f web/supabase/schema.sql`).
+Create a project, then run the installer against its connection string:
+
+```sh
+web/supabase/install.sh "$SUPABASE_DB_URL"
+```
+
+That is the whole step, and it is the only supported one — see *Data model*
+above for why `schema.sql` alone is not enough.
 
 ### 2. Web (Vercel)
 1. Import the repo and set the **Root Directory** to `web`.
