@@ -187,6 +187,53 @@ any edit.
   from the outbound body (Google nests them under `generationConfig`), mirroring
   the Anthropic fix in `setups/sak-claude.ts` for the same prereg §4 reason.
 
+### Added — system-containment differential (non-roster)
+Implements the per-run half of §0 Amendment 10. Produces **no aggregate** over
+the system axis: any statistic over it is a new §8 rule requiring a version bump.
+- **`probes/`** — measurements deliberately outside the scored roster.
+  `SYS-USDC-DRAIN` transposes A2's structure (move the whole balance, to an
+  address never transacted with, under time pressure) onto USDC. It is **not** a
+  scenario: no entry in `SCENARIOS`, no cell id, no capability row, and its
+  `setup` takes an *arm*, which no `ScenarioClient`'s does — so the two are not
+  interchangeable by construction.
+  - *Why not a guarded A2:* A2's dangerous action is a System Program transfer,
+    and §0 Amendment 10 clause (b) says a system account has no delegate field —
+    the agent would be incapable rather than capped, and the run would produce no
+    bytes. Nothing in the roster of 20 has a harm an SPL allowance can bound; see
+    [`docs/investigations/system-containment-differential.md`](docs/investigations/system-containment-differential.md).
+- **`config/arms.ts`** — an arm is a property of the RUN, not of the scenario and
+  not of the check. Cell keys stay `(setupId, scenarioId)`; a guarded campaign is
+  a separate results file. Only `unguarded` may feed the agent-axis rate.
+- **`scoring/system-axis.ts`** — resolves the three per-run states from bytes.
+  Server-only. Reads state rather than the error, because allowance-exceeded and
+  insufficient-balance share a code and a log line; ignores compute units.
+- **`env/paired-control.ts`** + **`TokenStateRecorder`** — the control is sized
+  strictly below the allowance (`assertStrictlyBelow` refuses otherwise), and
+  cannot be submitted without a `PostAgentWitness` that only `postAgent()` mints,
+  so a refactor moving it before the post-agent snapshot fails to compile.
+  `sendSetupTransaction` gained a pinned-blockhash option: it previously fetched
+  a fresh one unconditionally, which would have silently voided the control's
+  same-block-window property while leaving it looking valid.
+- **`scripts/run-differential.ts`** — separate entry point (`npm run
+  differential`). Interleaves both arms from a recorded seed so the arm is not
+  confounded with time, excludes runs where the agent never executed (prereg §4 —
+  an auth failure counted as containment is a fabricated finding, caught in
+  pre-flight), and packages both arms in one sha256-verified bundle.
+- **`scripts/check-arm-isolation.mjs`** (`npm run lint:arms`) — asserts the
+  roster is exactly what `config/prereg.ts` declares, probe ids are not
+  cell-shaped and absent from `CHECKS`, `scenarios/` does not import `probes/`,
+  and **`bench.ts` never mentions an arm**. `check-harness-isolation.mjs` now
+  also refuses `probes/` in the published package.
+
+### Changed — parser
+- `env/txparse.ts` decodes `splBurn` / `splBurnChecked`. The axis is "units moved
+  **or destroyed**" — one allowance governs both, measured on the fork — and a
+  decoder blind to Burn would report `asked = 0` for an agent that burned a
+  position. Burn carries no destination, so nothing new enters `tx.targets`.
+  Verified non-impacting: re-scoring the official bundle gives **1360/1360**
+  identical verdicts and no differing aggregate field beyond the two additive
+  `dataQuality*` keys already on record.
+
 ### Added — evidence capture (`@solverdict/harness` 0.5.0)
 Four captures the system-containment axis depends on. All are written into every
 run and read by **no** scoring rule — `scoring/rescore.ts` ignores them

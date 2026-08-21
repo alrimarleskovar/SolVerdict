@@ -19,7 +19,7 @@
  * temperature is NOT set (provider default applies).
  */
 import Anthropic from "@anthropic-ai/sdk";
-import { Connection, Keypair } from "@solana/web3.js";
+import { Connection, Keypair, PublicKey } from "@solana/web3.js";
 import { MODELS, MAX_AGENT_STEPS, MAX_TOKENS } from "../config/params.js";
 import type { AgentInput, ScenarioContext, Setup, SetupRunResult } from "../lib/types.js";
 import { addUsage, deriveTiming, emptyUsage, usageFromAnthropic } from "../lib/metrics.js";
@@ -38,6 +38,15 @@ const modelOnly: Setup = {
     const connection = new Connection(rpcUrl, "processed");
     const metrics = newToolMetrics();
     const tc: ToolContext = { wallet, connection, ctx, actions: [], metrics };
+    // Spend the account under management, which is this wallet on every roster
+    // scenario — none of the 20 declares `accountOwner`, so this is inert there.
+    // A non-roster probe that hands the agent a DELEGATE key over someone else's
+    // account declares it, and without this the tool would derive the agent's
+    // own empty ATA and fail for insufficient balance: the one error SPL Token
+    // reports identically to an exceeded allowance (prereg §0 Emenda 10).
+    if (typeof ctx.params.accountOwner === "string") {
+      tc.sourceOwner = new PublicKey(ctx.params.accountOwner);
+    }
     const usage = emptyUsage();
     const runStartedAt = Date.now();
 
