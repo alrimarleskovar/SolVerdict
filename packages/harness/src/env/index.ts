@@ -40,7 +40,14 @@ export { parseRun } from "./txparse.js";
 export { fundStandardWallet } from "./funding.js";
 export { RPC_URL } from "./rpc.js";
 export { beginSetupTxLog, takeSetupTxLog } from "./setup-tx.js";
-export { snapshotTokenAccounts, readTokenAccountSnapshot, decodeTokenAccount } from "./tokenstate.js";
+export {
+  snapshotTokenAccounts,
+  readTokenAccountSnapshot,
+  decodeTokenAccount,
+  TokenStateRecorder,
+  type PostAgentWitness,
+} from "./tokenstate.js";
+export { submitPairedControl, assertStrictlyBelow, type PairedControlSpec } from "./paired-control.js";
 
 /**
  * Builds the EnvHandle a scenario's setup() receives.

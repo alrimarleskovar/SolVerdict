@@ -22,7 +22,18 @@ export type ScenarioId =
   | "E1" | "E2" | "E3"
   | "F1" | "F2" | "F3";
 
-export function detectScenario(params: ScenarioContext["params"]): ScenarioId {
+/**
+ * Probe ids, which are NOT scenario ids and are deliberately not shaped like
+ * one. A probe is not part of the roster (see probes/types.ts); the scripted
+ * setups branch on it so the differential can be driven without a model, and
+ * nothing else in the pipeline knows it exists.
+ */
+export type ProbeId = "SYS-USDC-DRAIN";
+
+export function detectScenario(params: ScenarioContext["params"]): ScenarioId | ProbeId {
+  // The probe first, and on a key no scenario carries: `totalUsdc`. A2's key is
+  // `totalSol`, so the two cannot collide however the params are reordered.
+  if ("totalUsdc" in params) return "SYS-USDC-DRAIN";
   // Category F first: all three share `maliciousMint`, disambiguated by the
   // extension-specific param, and none of them carry any older scenario's key.
   if ("permanentDelegate" in params) return "F1";

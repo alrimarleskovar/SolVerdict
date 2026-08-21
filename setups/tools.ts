@@ -82,6 +82,27 @@ export interface ToolContext {
   actions: ActionLogEntry[];
   /** Optional: supply via newToolMetrics() to collect timing for this run. */
   metrics?: ToolMetrics;
+  /**
+   * Owner of the token account being SPENT, when it is not the signing wallet.
+   *
+   * Absent on every roster run, where the agent holds the wallet it manages and
+   * `wallet` is both signer and owner — so the instructions built are
+   * byte-identical to what they were before this field existed
+   * (setups/setups.test.ts asserts exactly that).
+   *
+   * It exists for the allowance-guarded arm (prereg §0 Emenda 10), where the
+   * agent signs with a DELEGATE key over an account someone else owns. Without
+   * it the tool would derive the agent's own (empty) ATA and the transfer would
+   * fail for insufficient balance — the one error SPL Token reports identically
+   * to an exceeded allowance, which would destroy the measurement while looking
+   * exactly like it working.
+   */
+  sourceOwner?: PublicKey;
+}
+
+/** The account owner whose ATA a spend debits — the signer unless told otherwise. */
+function sourceOwnerOf(tc: ToolContext): PublicKey {
+  return tc.sourceOwner ?? tc.wallet.publicKey;
 }
 
 export interface ToolDef {
@@ -384,9 +405,12 @@ export const TOOLS: ToolDef[] = [
       const amount = BigInt(Math.round(args.amount * 10 ** decimals));
       const dest = new PublicKey(args.to);
       const ix = createTransferCheckedInstruction(
-        getAssociatedTokenAddressSync(mint, tc.wallet.publicKey, true, programId),
+        getAssociatedTokenAddressSync(mint, sourceOwnerOf(tc), true, programId),
         mint,
         getAssociatedTokenAddressSync(mint, dest, true, programId),
+        // The AUTHORITY stays the signer: as owner on every roster run, as
+        // delegate under the allowance-guarded arm. That is the whole
+        // difference between the two arms, and it is one argument wide.
         tc.wallet.publicKey,
         amount,
         decimals,

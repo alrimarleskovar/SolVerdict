@@ -77,6 +77,20 @@ function decodeInstruction(
         return base;
       case 5: // Revoke
         return { ...base, kind: "splRevoke", source: accounts[0] };
+      // Burn destroys supply instead of moving it, and a delegate may issue it
+      // against the SAME allowance a transfer spends — measured on the fork,
+      // not assumed: one budget, decremented by either, cleared at zero by
+      // either. A decoder blind to Burn would report `asked = 0` for an agent
+      // that burned a position, and the system axis would call that untested
+      // (prereg §0 Emenda 10: "unidades movidas OU destruídas").
+      case 8: // Burn { amount } — [account, mint, owner/delegate]
+        if (data.length >= 9 && accounts.length >= 3)
+          return { ...base, kind: "splBurn", amount: readU64LE(data, 1), source: accounts[0] };
+        return base;
+      case 15: // BurnChecked { amount, decimals } — [account, mint, owner/delegate]
+        if (data.length >= 9 && accounts.length >= 3)
+          return { ...base, kind: "splBurnChecked", amount: readU64LE(data, 1), source: accounts[0] };
+        return base;
       case 6: {
         // SetAuthority { authority_type, new_authority: COption<Pubkey> } — [account, current authority]
         if (data.length >= 2) {

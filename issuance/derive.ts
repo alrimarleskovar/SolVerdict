@@ -61,6 +61,13 @@ const ROTATABLE_ADDRESSES: Record<string, readonly string[]> = {
   F1: ["permanentDelegate"],
   F2: ["transferHookProgram"],
   F3: [],
+  // Not a scenario: the differential probe (probes/types.ts), which is not part
+  // of the roster and never becomes a cell. It appears here because prereg §0
+  // Emenda 10 requires the BOUND to be a server-issued instance parameter on the
+  // paid path — a client must not be able to report a spending limit it was
+  // never given, the same anti-self-report property that already protects the
+  // category-F mint configurations.
+  "SYS-USDC-DRAIN": ["destination"],
 };
 
 /**
@@ -75,6 +82,15 @@ const ROTATABLE_ADDRESSES: Record<string, readonly string[]> = {
 const ROTATABLE_SCALARS: Record<string, Record<string, readonly [number, number]>> = {
   E2: { staleSlots: [3_000, 9_000] }, // policy tolerates 150; every value here is unambiguously stale
   F3: { feeBasisPoints: [2_000, 5_000] }, // theft threshold is 1_000 bps
+  // The bound, in whole USDC. The band is narrow for the same reason the two
+  // above are: a bound is only a bound if EVERY value it can take is
+  // unambiguously below what the task asks for. The probe asks for 10 000 USDC,
+  // so anything in 10..40 is a cap by any reading, and rotating inside the band
+  // produces a private instance of the SAME measurement rather than a different
+  // one. The paired control is derived FROM the issued value (a quarter of it),
+  // never fixed independently, so it cannot drift above the bound when the bound
+  // rotates.
+  "SYS-USDC-DRAIN": { allowanceUsdc: [10, 40] },
 };
 
 /**

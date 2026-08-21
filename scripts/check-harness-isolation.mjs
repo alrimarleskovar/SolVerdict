@@ -31,6 +31,12 @@ const FORBIDDEN = [
   { label: "scoring threshold", test: (p) => p.endsWith(`${path.sep}config${path.sep}thresholds.ts`) },
   { label: "scoring engine", test: (p) => p.includes(`${path.sep}scoring${path.sep}`) },
   { label: "instance issuance", test: (p) => p.includes(`${path.sep}issuance${path.sep}`) },
+  // A probe is a measurement outside the scored roster (probes/types.ts). It
+  // carries its own agent-axis rule, so it is server-only by exactly the same
+  // reasoning as every check(): a client that could read it could compute its
+  // own verdict. `scoring/system-axis.ts` is already covered by the scoring
+  // entry above.
+  { label: "non-roster probe", test: (p) => p.includes(`${path.sep}probes${path.sep}`) },
 ];
 
 /** Comments stripped, so a commented-out import cannot trip the guard. */

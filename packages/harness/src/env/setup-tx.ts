@@ -70,6 +70,19 @@ export function surfnetConnection(): Connection {
   });
 }
 
+export interface SendSetupOptions {
+  /**
+   * Use THIS blockhash instead of fetching a fresh one.
+   *
+   * Only the paired control needs it (prereg §0 Emenda 10): it must be built in
+   * the same block window as the agent's refused attempt. When the pinned
+   * blockhash has already expired the fork answers `BlockhashNotFound`, the
+   * send throws, and the caller records a control that did not land — which is
+   * the honest outcome, since a control that did not land proves nothing.
+   */
+  blockhash?: string;
+}
+
 /**
  * Sign, submit and confirm one setup transaction over HTTP ONLY, recording it.
  *
@@ -91,8 +104,17 @@ export async function sendSetupTransaction(
   tx: Transaction,
   signers: Keypair[],
   label: string,
+  opts: SendSetupOptions = {},
 ): Promise<string> {
-  const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash("confirmed");
+  // A PINNED blockhash is not a detail: the paired control has to share the
+  // agent's block window, or its success stops excluding "the agent's blockhash
+  // had expired" — which is one of the confounds the control exists to remove.
+  // Fetching a fresh one here would defeat that silently, since the transaction
+  // would still land and still look like a valid control.
+  const latest = opts.blockhash
+    ? { blockhash: opts.blockhash, lastValidBlockHeight: Number.POSITIVE_INFINITY }
+    : await connection.getLatestBlockhash("confirmed");
+  const { blockhash, lastValidBlockHeight } = latest;
   tx.recentBlockhash = blockhash;
   tx.feePayer = signers[0].publicKey;
   tx.sign(...signers);

@@ -22,7 +22,7 @@
  * assertion. `raw` lets the server decode it again itself.
  */
 import { PublicKey } from "@solana/web3.js";
-import type { TokenAccountSnapshot } from "../lib/types.js";
+import type { TokenAccountSnapshot, TokenStateEvidence } from "../lib/types.js";
 import { SURFPOOL_INTERNAL_URL } from "./rpc.js";
 
 /**
@@ -170,4 +170,113 @@ export async function snapshotTokenAccounts(addresses: readonly string[]): Promi
     }
   }
   return out;
+}
+
+// ---------------------------------------------------------------------------
+// Ordered capture (prereg §0 Emenda 10)
+// ---------------------------------------------------------------------------
+
+/**
+ * Proof that the post-agent snapshot has already been taken.
+ *
+ * The paired control cannot be submitted without one of these, and only
+ * `TokenStateRecorder.postAgent()` produces one. That is the whole point: the
+ * ordering constraint lives in the TYPE of the control function rather than in
+ * a comment above the call site, so a refactor that moves the control earlier
+ * fails to compile instead of silently corrupting the evidence.
+ *
+ * The fact at stake is Emenda 10's fifth: `postAgent` must show that the AGENT
+ * moved nothing. The control moves something by design. If the control ran
+ * first, that snapshot would carry the control's own movement and the fifth
+ * fact would be false while looking exactly as it looks when it is true — the
+ * worst failure mode available, because nothing about the bundle would show it.
+ *
+ * The brand is a unique symbol, so a caller cannot fabricate a witness with an
+ * object literal or a cast from `{}`.
+ */
+declare const POST_AGENT_WITNESS: unique symbol;
+
+export interface PostAgentWitness {
+  readonly [POST_AGENT_WITNESS]: true;
+  /** The snapshots that were taken, so the caller need not re-read them. */
+  readonly snapshots: readonly TokenAccountSnapshot[];
+  /** Slot of the first successful read, for ordering assertions in evidence. */
+  readonly slot: number | null;
+}
+
+type Stage = "new" | "pre" | "postAgent" | "postControl";
+
+/**
+ * Captures the three snapshots Emenda 10 requires, in order, once each.
+ *
+ * Every transition is checked at runtime as well as in the types, because the
+ * type-level guard only protects the control call — it does not stop someone
+ * calling `pre()` twice and overwriting the configuration the agent actually
+ * faced with one read after the fact.
+ */
+export class TokenStateRecorder {
+  private stage: Stage = "new";
+  private preSnaps: TokenAccountSnapshot[] = [];
+  private postAgentSnaps: TokenAccountSnapshot[] = [];
+  private postControlSnaps: TokenAccountSnapshot[] | undefined;
+
+  constructor(private readonly watched: readonly string[]) {}
+
+  /** True when this scenario declared no watched accounts: every stage is a no-op. */
+  get inert(): boolean {
+    return this.watched.length === 0;
+  }
+
+  private expect(from: Stage, to: Stage): void {
+    if (this.stage !== from) {
+      throw new Error(
+        `token-state capture out of order: ${to}() requires stage "${from}", currently "${this.stage}". ` +
+          `The order pre -> postAgent -> postControl is evidence (prereg §0 Emenda 10), not convention.`,
+      );
+    }
+    this.stage = to;
+  }
+
+  /** After setup, before the agent: the configuration the agent was handed. */
+  async pre(): Promise<TokenAccountSnapshot[]> {
+    this.expect("new", "pre");
+    this.preSnaps = await snapshotTokenAccounts(this.watched);
+    return this.preSnaps;
+  }
+
+  /**
+   * After the agent stops, BEFORE any control runs. Returns the witness the
+   * paired control requires.
+   */
+  async postAgent(): Promise<PostAgentWitness> {
+    this.expect("pre", "postAgent");
+    this.postAgentSnaps = await snapshotTokenAccounts(this.watched);
+    const slot = this.postAgentSnaps.find((s) => s.slot !== null)?.slot ?? null;
+    return { snapshots: this.postAgentSnaps, slot } as unknown as PostAgentWitness;
+  }
+
+  /** After the paired control landed (or failed): the delegation must have survived. */
+  async postControl(witness: PostAgentWitness): Promise<TokenAccountSnapshot[]> {
+    if (witness.snapshots !== this.postAgentSnaps) {
+      throw new Error("postControl() was given a witness from a different run's recorder");
+    }
+    this.expect("postAgent", "postControl");
+    this.postControlSnaps = await snapshotTokenAccounts(this.watched);
+    return this.postControlSnaps;
+  }
+
+  /**
+   * The evidence object, at whatever stage the run reached.
+   *
+   * A run that crashed mid-agent still yields what was captured: an incomplete
+   * capture is recorded as incomplete, never back-filled with a later read.
+   */
+  evidence(): TokenStateEvidence {
+    return {
+      watched: [...this.watched],
+      pre: this.preSnaps,
+      postAgent: this.postAgentSnaps,
+      ...(this.postControlSnaps ? { postControl: this.postControlSnaps } : {}),
+    };
+  }
 }

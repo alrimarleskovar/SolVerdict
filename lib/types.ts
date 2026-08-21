@@ -22,6 +22,8 @@ export interface ParsedInstruction {
     | "splApproveChecked"
     | "splRevoke"
     | "splSetAuthority"
+    | "splBurn"
+    | "splBurnChecked"
     | "memo"
     | "unknown";
   /** Lamports for systemTransfer; token base units for spl* amounts. */
@@ -262,6 +264,121 @@ export interface SetupTxRecord {
   /** Runtime error, or null when the setup transaction succeeded. */
   err: unknown | null;
   observedAt: number;
+}
+
+// ---------------------------------------------------------------------------
+// System-containment axis (prereg §0 Emenda 10)
+// ---------------------------------------------------------------------------
+
+/**
+ * Which authority the agent held over the account under test.
+ *
+ * An ARM is a property of the RUN, never of the scenario: it decides what the
+ * wallet grants and nothing else. It is deliberately NOT part of a cell key —
+ * `(setupId, scenarioId)` stays the grid, so a guarded campaign is a separate
+ * results file rather than extra columns in an existing one.
+ *
+ * `unguarded` is the DEFAULT everywhere, including for any bundle that declares
+ * no arm at all. Every published v0.3.0 number was produced under it, and that
+ * must keep being true without those bundles having to be rewritten.
+ */
+export type ArmId = "unguarded" | "allowance-guarded";
+
+/** The three per-run states of the system axis (Emenda 10, fixed by the amendment). */
+export type SystemAxisState = "system-contained" | "system-uncontained" | "system-untested";
+
+/**
+ * Snapshots of the watched token accounts, in the order the amendment requires.
+ *
+ * THE ORDER IS THE EVIDENCE, not a convenience:
+ *
+ * - `pre`        — after setup, before the agent. Establishes `held >= asked`
+ *                  and `allowance < asked`, the pair that separates "the bound
+ *                  held" from "there was no money".
+ * - `postAgent`  — after the agent stops and BEFORE the paired control runs.
+ *                  This is Emenda 10's fifth fact ("nothing moved"), and it is
+ *                  only true if nothing else has touched the account yet.
+ * - `postControl`— after the paired control lands: the allowance is reduced by
+ *                  exactly the control amount and the delegate is STILL set.
+ *
+ * A control that ran before `postAgent` was taken would put its own movement
+ * into the fact that is supposed to show the agent moved nothing. `env/
+ * tokenstate.ts` enforces the order in the type system rather than in a comment
+ * (see `TokenStateRecorder` and `PostAgentWitness`), because this is precisely
+ * the kind of sequencing a later refactor reorders innocently.
+ */
+export interface TokenStateEvidence {
+  watched: string[];
+  pre: TokenAccountSnapshot[];
+  postAgent: TokenAccountSnapshot[];
+  /** Absent on the unguarded arm, which runs no control. */
+  postControl?: TokenAccountSnapshot[];
+}
+
+/**
+ * The paired control: a transfer STRICTLY BELOW the allowance, by the same
+ * signer, over the same account and mint, in the same block window, which must
+ * land.
+ *
+ * Its success is what rules out insufficient funds, an expired blockhash, an
+ * unfunded fee payer and a dead third-party service — in one stroke rather than
+ * one at a time. What remains different between it and the refused attempt is
+ * the AMOUNT, which is the variable the bound governs.
+ *
+ * Strictly below, never at: an allowance spent to exactly zero revokes the
+ * delegation, and everything observed after that measures a revoked delegate
+ * rather than a bound holding.
+ */
+export interface PairedControlRecord {
+  /** Base units moved by the control. Always > 0 and < the issued allowance. */
+  amount: bigint;
+  /** The allowance in force when the control was built, for the strict-below check. */
+  allowanceAtBuild: bigint;
+  /** Blockhash captured at the START of the agent phase — the same block window. */
+  blockhash: string;
+  signature: string | null;
+  landed: boolean;
+  err: unknown | null;
+  observedAt: number;
+}
+
+/**
+ * What a run declares about the control it ran under (Emenda 10's disclosure
+ * format). The bound is NEVER accepted as a client declaration: the server
+ * re-derives it from the raw account bytes in `tokenState.pre` and from the
+ * signed bytes of the `ApproveChecked` in `setupTxs`, and a disagreement
+ * refuses the cell rather than scoring it.
+ */
+export interface DeclaredControl {
+  class: "spl-delegate-allowance";
+  /** The bounded account, the key holding the bound, and the asset. */
+  tokenAccount: string;
+  delegate: string;
+  mint: string;
+  decimals: number;
+  /** The bound itself, in base units. */
+  allowance: bigint;
+  /** Where the bound came from — issued per audit, or a public repo fixture (§2.3). */
+  origin: "server-issued" | "repo-fixture";
+}
+
+/** One run's system-axis reading, resolved server-side from bytes. */
+export interface SystemAxisResolution {
+  state: SystemAxisState;
+  /** Machine-extracted lines justifying the state, in the amendment's terms. */
+  evidence: string[];
+  /** Present only when the four facts could be evaluated at all. */
+  facts?: {
+    asked: bigint;
+    held: bigint;
+    allowance: bigint;
+    heldCoversAsked: boolean;
+    allowanceBelowAsked: boolean;
+    runtimeRefused: boolean;
+    controlLanded: boolean;
+    delegateSurvived: boolean;
+    moved: bigint;
+  };
 }
 
 /** One JSON-RPC call observed at the recorder (objective RPC evidence). */
