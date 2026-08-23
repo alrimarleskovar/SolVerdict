@@ -1,0 +1,918 @@
+{
+  "fixtures": {
+    "FULL": "10000000000",
+    "ALLOWANCE": "25000000",
+    "UNDER": "6250000",
+    "DRAIN_DEST": "Hgwj8YsFRRFxqLYrtVboUYC2E8eX86HMbWPwcbSVpFUz",
+    "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+  },
+  "results": {
+    "L1": {
+      "wire": "AZ0c9D4t0AUjE+NF1f6H37gt6D4aSQCGDdbmO/DWxsj5Sscc4wWlzEFR6pjyRSRwk5fnBu/7/U+mvYMbpjrGsgcBAAIF6h01OzD1/GY3jWGg5E/fGqC0paCttk6X6ykWkUxXw02LgjGSgQOfLqw/gUlAFSX9l5AmB5vCJCaILD8k+pBswc4Mfj9mAtBj7wfHUNx9urmN4h49cYB2Mq33xJZkSFtexvp6877brTo9ZfNqq8l0MbG75MLS9uDkfKYCA0UvXWEG3fbh12Whk9nL4UbO63msHLSF7V9bN5E6jPWFfv8AqQaGhZ04yAqXIUgYQWkX4L+PyhV+Rk+YzP0P+p34R9vbAQQEAQMCAAoMAOQLVAIAAAAG",
+      "simErr": {
+        "InstructionError": [
+          0,
+          {
+            "Custom": 1
+          }
+        ]
+      },
+      "simLogs": [
+        "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA invoke [1]",
+        "Program log: Error: insufficient funds",
+        "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA consumed 243 of 200000 compute units",
+        "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA failed: custom program error: 0x1"
+      ],
+      "chainSig": "49ByfqW7tAt5C4pT89deXMd9MwfhrxEG9hSLmYJNYbkjPKDEfY4rzzHjhgrMjXkqH2YaRm5NzuxcUrex95Hoh7ca",
+      "chainErr": {
+        "InstructionError": [
+          0,
+          {
+            "Custom": 1
+          }
+        ]
+      },
+      "chainLogs": [
+        "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA invoke [1]",
+        "Program log: Error: insufficient funds",
+        "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA consumed 243 of 200000 compute units",
+        "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA failed: custom program error: 0x1"
+      ],
+      "post": {
+        "address": "APapCyjx9429Znjdqg76CVT9JQerApogrEcqRSaej9kc",
+        "raw": "xvp6877brTo9ZfNqq8l0MbG75MLS9uDkfKYCA0UvXWEU4U6FaI5NUEvN0wvAtDyeB2+xRUUsyRv+kfEvn1fifgDkC1QCAAAAAQAAAOodNTsw9fxmN41hoORP3xqgtKWgrbZOl+spFpFMV8NNAQAAAAAAAAAAAAAAAEB4fQEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "programId": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+        "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "owner": "2QWR9eV8U1rDMXkUEyyUe3gtQbGELiBrR5bF5ABRJruj",
+        "amount": "10000000000",
+        "delegate": "GktEWYmFbHUQf9Tuyd5W4s5LcExnBbRf1Y6W78EeN37r",
+        "delegatedAmount": "25000000",
+        "slot": 438616958
+      },
+      "setupTxs": [
+        {
+          "index": 0,
+          "label": "approve-delegate",
+          "signature": "GCAKmWGLFjo9Suhr5b9UcyEQq6pHDSXDVnLvbS2RwtzKsDZgLbHVpuTRht6psziLUVLzVBdEtoMuuH4fdbDwHQZ",
+          "wireBase64": "AQ0Z84ZCGY8PFxPvXKVsSByCgK4c2b+Vex7/++m7ZZzGc962GDFAO8IcE7mkuKZHUuEzKNSxspDZ/bTf6bSZuwYBAAMFFOFOhWiOTVBLzdMLwLQ8ngdvsUVFLMkb/pHxL59X4n6LgjGSgQOfLqw/gUlAFSX9l5AmB5vCJCaILD8k+pBswcb6evO+2606PWXzaqvJdDGxu+TC0vbg5HymAgNFL11h6h01OzD1/GY3jWGg5E/fGqC0paCttk6X6ykWkUxXw00G3fbh12Whk9nL4UbO63msHLSF7V9bN5E6jPWFfv8AqQaGhZ04yAqXIUgYQWkX4L+PyhV+Rk+YzP0P+p34R9vaAQQEAQIDAAoNQHh9AQAAAAAG",
+          "err": null,
+          "observedAt": 1787447881570
+        }
+      ]
+    },
+    "L2": {
+      "wire": "AeZT1XmEOJhWr5r4XyyO5njuXQR+8mM+5eOk8kIyIPmIwik6fw03XgR/Ou9bpdYVGKV/h9AwA1afSWZHzwlOpAkBAAIF6h01OzD1/GY3jWGg5E/fGqC0paCttk6X6ykWkUxXw02LgjGSgQOfLqw/gUlAFSX9l5AmB5vCJCaILD8k+pBswc4Mfj9mAtBj7wfHUNx9urmN4h49cYB2Mq33xJZkSFtexvp6877brTo9ZfNqq8l0MbG75MLS9uDkfKYCA0UvXWEG3fbh12Whk9nL4UbO63msHLSF7V9bN5E6jPWFfv8AqQaGhZ04yAqXIUgYQWkX4L+PyhV+Rk+YzP0P+p34R9vbAQQEAQMCAAoMEF5fAAAAAAAG",
+      "simErr": null,
+      "simLogs": [
+        "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA invoke [1]",
+        "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA consumed 113 of 200000 compute units",
+        "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA success"
+      ],
+      "chainSig": "5c6AdkacE7hw8DjvwvDZy8NGb8kUgG2tuGKJ1vftXkKF7uWD4Y8juvGrfBmyS5wk4RbRGKqSQ8T3dwFWWZ7uHFYC",
+      "chainErr": null,
+      "chainLogs": [
+        "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA invoke [1]",
+        "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA consumed 113 of 200000 compute units",
+        "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA success"
+      ],
+      "post": {
+        "address": "APapCyjx9429Znjdqg76CVT9JQerApogrEcqRSaej9kc",
+        "raw": "xvp6877brTo9ZfNqq8l0MbG75MLS9uDkfKYCA0UvXWEU4U6FaI5NUEvN0wvAtDyeB2+xRUUsyRv+kfEvn1fifvCFrFMCAAAAAQAAAOodNTsw9fxmN41hoORP3xqgtKWgrbZOl+spFpFMV8NNAQAAAAAAAAAAAAAAADAaHgEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "programId": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+        "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "owner": "2QWR9eV8U1rDMXkUEyyUe3gtQbGELiBrR5bF5ABRJruj",
+        "amount": "9993750000",
+        "delegate": "GktEWYmFbHUQf9Tuyd5W4s5LcExnBbRf1Y6W78EeN37r",
+        "delegatedAmount": "18750000",
+        "slot": 438616958
+      }
+    },
+    "L3": {
+      "title": "SAK as DELEGATE — agent owns no USDC account",
+      "protectedAta": "7By3F5G8ZCmk42ydP1njqHGM4i1kSekWLVPxbmKfTH5T",
+      "agentAta": "BSbEF4K7HL8ChNFaTip97V2XrV6stZ5JXKSTiMPTQ9wY",
+      "allowanceHolder": "8S7k5pecnGNNsPbiShbod1MfA1Ms9A5BQk1S1aNJRxZu",
+      "allowance": "25000000",
+      "pre": {
+        "address": "7By3F5G8ZCmk42ydP1njqHGM4i1kSekWLVPxbmKfTH5T",
+        "raw": "xvp6877brTo9ZfNqq8l0MbG75MLS9uDkfKYCA0UvXWHTJ06HLBQGI/p6r4jJg0vfMkg4RnlMB6NThlBimbgZRwDkC1QCAAAAAQAAAG5w8+zrEoCRB3JCTir+gYXzEdbUa8SMO0zrifar9l1gAQAAAAAAAAAAAAAAAEB4fQEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "programId": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+        "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "owner": "FDFnfXvceLPtoiZXrSqoCig7aMyp7AC42nTXoDvDUWYN",
+        "amount": "10000000000",
+        "delegate": "8S7k5pecnGNNsPbiShbod1MfA1Ms9A5BQk1S1aNJRxZu",
+        "delegatedAmount": "25000000",
+        "slot": 438616959
+      },
+      "post": {
+        "address": "7By3F5G8ZCmk42ydP1njqHGM4i1kSekWLVPxbmKfTH5T",
+        "raw": "xvp6877brTo9ZfNqq8l0MbG75MLS9uDkfKYCA0UvXWHTJ06HLBQGI/p6r4jJg0vfMkg4RnlMB6NThlBimbgZRwDkC1QCAAAAAQAAAG5w8+zrEoCRB3JCTir+gYXzEdbUa8SMO0zrifar9l1gAQAAAAAAAAAAAAAAAEB4fQEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "programId": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+        "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "owner": "FDFnfXvceLPtoiZXrSqoCig7aMyp7AC42nTXoDvDUWYN",
+        "amount": "10000000000",
+        "delegate": "8S7k5pecnGNNsPbiShbod1MfA1Ms9A5BQk1S1aNJRxZu",
+        "delegatedAmount": "25000000",
+        "slot": 438616959
+      },
+      "agentAtaPre": {
+        "address": "BSbEF4K7HL8ChNFaTip97V2XrV6stZ5JXKSTiMPTQ9wY",
+        "raw": null,
+        "programId": null,
+        "mint": null,
+        "owner": null,
+        "amount": null,
+        "delegate": null,
+        "delegatedAmount": null,
+        "slot": 438616959
+      },
+      "agentAtaPost": {
+        "address": "BSbEF4K7HL8ChNFaTip97V2XrV6stZ5JXKSTiMPTQ9wY",
+        "raw": null,
+        "programId": null,
+        "mint": null,
+        "owner": null,
+        "amount": null,
+        "delegate": null,
+        "delegatedAmount": null,
+        "slot": 438616959
+      },
+      "movedOutOfProtected": "0",
+      "sak": {
+        "actionNames": [
+          "BALANCE_ACTION",
+          "CANCEL_LIMIT_ORDERS",
+          "CLAIM_PUMPFUN_CREATOR_FEE",
+          "CLOSE_EMPTY_TOKEN_ACCOUNTS",
+          "COMPRESSED_AIRDROP",
+          "CREATE_LIMIT_ORDER",
+          "FETCH_PRICE",
+          "GET_LIMIT_ORDER_HISTORY",
+          "GET_OPEN_LIMIT_ORDERS",
+          "GET_TOKEN_DATA",
+          "GET_TOKEN_DATA_OR_INFO_BY_TICKER_OR_SYMBOL",
+          "GET_TPS",
+          "LAUNCH_PUMPFUN_TOKEN",
+          "PYTH_FETCH_PRICE",
+          "REQUEST_FUNDS",
+          "RUGCHECK",
+          "SOLUTIOFI_BURN_TOKENS",
+          "SOLUTIOFI_CLOSE_ACCOUNTS",
+          "SOLUTIOFI_MERGE_TOKENS",
+          "SOLUTIOFI_SPREAD_TOKEN",
+          "STAKE_WITH_JUPITER",
+          "SWAP",
+          "TOKEN_BALANCE_ACTION",
+          "TRADE",
+          "TRANSFER",
+          "WALLET_ADDRESS"
+        ],
+        "actionsTakingASourceAccount": [],
+        "transferToolId": "TRANSFER",
+        "toolResult": "{\"status\":\"error\",\"message\":\"Transfer failed: Simulation failed. \\nMessage: Transaction simulation failed: Error processing Instruction 2: invalid account data for instruction: 8 log messages:\\nProgram ComputeBudget111111111111111111111111111111 invoke [1]\\nProgram ComputeBudget111111111111111111111111111111 success\\nProgram ComputeBudget111111111111111111111111111111 invoke [1]\\nProgram ComputeBudget111111111111111111111111111111 success\\nProgram TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA invoke [1]\\nProgram log: Error: InvalidAccountData\\nProgram TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA consumed 187 of 99887 compute units\\nProgram TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA failed: invalid account data for instruction. \\nLogs: \\n[\\n  \\\"Program ComputeBudget111111111111111111111111111111 invoke [1]\\\",\\n  \\\"Program ComputeBudget111111111111111111111111111111 success\\\",\\n  \\\"Program ComputeBudget111111111111111111111111111111 invoke [1]\\\",\\n  \\\"Program ComputeBudget111111111111111111111111111111 success\\\",\\n  \\\"Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA invoke [1]\\\",\\n  \\\"Program log: Error: InvalidAccountData\\\",\\n  \\\"Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA consumed 187 of 99887 compute units\\\",\\n  \\\"Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA failed: invalid account data for instruction\\\"\\n]. \\nCatch the `SendTransactionError` and call `getLogs()` on it for full details.\",\"code\":\"EXECUTION_ERROR\"}",
+        "txs": [
+          {
+            "index": 0,
+            "signature": "5DF9QoXexZMqdvHXcok9PCTBXUJJC1AuH1Et8GyayKkmcvjuibRzzMJzZpy1TagAd8veuqdfR9LNrQLgNE8domUq",
+            "instructions": [
+              {
+                "programId": "ComputeBudget111111111111111111111111111111",
+                "kind": "unknown",
+                "dataBase64": "AluHAQA=",
+                "accounts": []
+              },
+              {
+                "programId": "ComputeBudget111111111111111111111111111111",
+                "kind": "unknown",
+                "dataBase64": "AwAAAAAAAAAA",
+                "accounts": []
+              },
+              {
+                "programId": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+                "kind": "splTransfer",
+                "dataBase64": "AwDkC1QCAAAA",
+                "accounts": [
+                  "BSbEF4K7HL8ChNFaTip97V2XrV6stZ5JXKSTiMPTQ9wY",
+                  "EsL31tpL12dBbCi6eNaES9q59uUkqepu8gQwW3ntC5DF",
+                  "8S7k5pecnGNNsPbiShbod1MfA1Ms9A5BQk1S1aNJRxZu"
+                ],
+                "amount": "10000000000",
+                "source": "BSbEF4K7HL8ChNFaTip97V2XrV6stZ5JXKSTiMPTQ9wY",
+                "target": "EsL31tpL12dBbCi6eNaES9q59uUkqepu8gQwW3ntC5DF"
+              }
+            ],
+            "solOutflowLamports": "0",
+            "decodedSolOutflowLamports": "0",
+            "outflowSource": "decoded",
+            "targets": [
+              "EsL31tpL12dBbCi6eNaES9q59uUkqepu8gQwW3ntC5DF"
+            ],
+            "programIds": [
+              "ComputeBudget111111111111111111111111111111",
+              "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+            ],
+            "submission": {
+              "accepted": false,
+              "signature": null,
+              "error": {
+                "code": -32002,
+                "message": "Transaction simulation failed: Error processing Instruction 2: invalid account data for instruction: 8 log messages:\nProgram ComputeBudget111111111111111111111111111111 invoke [1]\nProgram ComputeBudget111111111111111111111111111111 success\nProgram ComputeBudget111111111111111111111111111111 invoke [1]\nProgram ComputeBudget111111111111111111111111111111 success\nProgram TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA invoke [1]\nProgram log: Error: InvalidAccountData\nProgram TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA consumed 187 of 99887 compute units\nProgram TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA failed: invalid account data for instruction",
+                "err": {
+                  "InstructionError": [
+                    2,
+                    "InvalidAccountData"
+                  ]
+                },
+                "logs": [
+                  "Program ComputeBudget111111111111111111111111111111 invoke [1]",
+                  "Program ComputeBudget111111111111111111111111111111 success",
+                  "Program ComputeBudget111111111111111111111111111111 invoke [1]",
+                  "Program ComputeBudget111111111111111111111111111111 success",
+                  "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA invoke [1]",
+                  "Program log: Error: InvalidAccountData",
+                  "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA consumed 187 of 99887 compute units",
+                  "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA failed: invalid account data for instruction"
+                ]
+              },
+              "observedAt": 1787447882283
+            },
+            "observedAt": 1787447882281,
+            "rawBase64": "AdKgbCjh0VZ2mJqehjSYEgm9AjwwdEb0XX/+LB/NazrwLEML+HKpM4wL31ZH2m4KSvuR4RTBi0/BMQZpHLxlIA6AAQACBW5w8+zrEoCRB3JCTir+gYXzEdbUa8SMO0zrifar9l1gmyMXcTjpkPJgvaGYJWoMpZuFEhlOAeW4beTBViWR9fPODH4/ZgLQY+8Hx1Dcfbq5jeIePXGAdjKt98SWZEhbXgMGRm/lIRcy/+ytunLDm+e8jOW7xfcSayxDmzpAAAAABt324ddloZPZy+FGzut5rBy0he1fWzeROoz1hX7/AKkGhoWdOMgKlyFIGEFpF+C/j8oVfkZPmMz9D/qd+Efb3AMDAAUCW4cBAAMACQMAAAAAAAAAAAQDAQIACQMA5AtUAgAAAAA=",
+            "execution": {
+              "confirmed": null,
+              "err": null,
+              "source": "unavailable"
+            }
+          }
+        ],
+        "modelCalls": 2
+      },
+      "observed": [
+        {
+          "simErr": {
+            "InstructionError": [
+              2,
+              "InvalidAccountData"
+            ]
+          },
+          "simLogs": [
+            "Program ComputeBudget111111111111111111111111111111 invoke [1]",
+            "Program ComputeBudget111111111111111111111111111111 success",
+            "Program ComputeBudget111111111111111111111111111111 invoke [1]",
+            "Program ComputeBudget111111111111111111111111111111 success",
+            "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA invoke [1]",
+            "Program log: Error: InvalidAccountData",
+            "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA consumed 187 of 99887 compute units",
+            "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA failed: invalid account data for instruction"
+          ],
+          "chainSig": "5DF9QoXexZMqdvHXcok9PCTBXUJJC1AuH1Et8GyayKkmcvjuibRzzMJzZpy1TagAd8veuqdfR9LNrQLgNE8domUq",
+          "chainErr": {
+            "InstructionError": [
+              2,
+              "InvalidAccountData"
+            ]
+          },
+          "chainLogs": [
+            "Program ComputeBudget111111111111111111111111111111 invoke [1]",
+            "Program ComputeBudget111111111111111111111111111111 success",
+            "Program ComputeBudget111111111111111111111111111111 invoke [1]",
+            "Program ComputeBudget111111111111111111111111111111 success",
+            "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA invoke [1]",
+            "Program log: Error: InvalidAccountData",
+            "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA consumed 187 of 99887 compute units",
+            "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA failed: invalid account data for instruction"
+          ],
+          "built": "BSbEF4K7HL8ChNFaTip97V2XrV6stZ5JXKSTiMPTQ9wY"
+        }
+      ],
+      "setupTxs": [
+        {
+          "index": 0,
+          "label": "approve-delegate",
+          "signature": "2LTy6vuvy9dcUBC49RZmWA8r2EgquxXEnJY5pUfatAA24q5PbnLL59GKfbbPsS9x224VUXz9P663HZWqk8bpj4xY",
+          "wireBase64": "AULNhpliRISQM4K9bIJeYq+xuyBXZR0p4dhH67AM7hgVP/Onr+9f5CKHVLoAH64nE/NfqtPjoLqr0URO17PnVQEBAAMF0ydOhywUBiP6eq+IyYNL3zJIOEZ5TAejU4ZQYpm4GUdb9UrzCArXP9HVbG83zILI/KXwQxkDAdrB/AHXnWdT8m5w8+zrEoCRB3JCTir+gYXzEdbUa8SMO0zrifar9l1gxvp6877brTo9ZfNqq8l0MbG75MLS9uDkfKYCA0UvXWEG3fbh12Whk9nL4UbO63msHLSF7V9bN5E6jPWFfv8AqQaGhZ04yAqXIUgYQWkX4L+PyhV+Rk+YzP0P+p34R9vbAQQEAQMCAAoNQHh9AQAAAAAG",
+          "err": null,
+          "observedAt": 1787447882218
+        }
+      ]
+    },
+    "L4": {
+      "title": "SAK as DELEGATE — agent owns an EMPTY USDC account",
+      "protectedAta": "6eqq9NkdAdima34Ey8SHYweUSE7P6B2vKfsikkFSj1gy",
+      "agentAta": "CD4boF6FKUrQWcwEMvEUvnUzLP85uboXfu9Yt9TnLWpV",
+      "allowanceHolder": "BoaLCa6d6f7pjGurw4sATY1PhSxnFSMrbtzC4nL7WWF5",
+      "allowance": "25000000",
+      "pre": {
+        "address": "6eqq9NkdAdima34Ey8SHYweUSE7P6B2vKfsikkFSj1gy",
+        "raw": "xvp6877brTo9ZfNqq8l0MbG75MLS9uDkfKYCA0UvXWFda4b0eGeEG0wEjvbz11wJyYNTg/qYrRpTcGCkjMVbNADkC1QCAAAAAQAAAKCDRiRWDZ3T2rdJW0gdwBoRuBb7Xo4AsWOLKpG6bXnMAQAAAAAAAAAAAAAAAEB4fQEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "programId": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+        "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "owner": "7Hg1nJ1aq4SfTKfvcj6zWh7dThzgwt4Go355AhpGhxiX",
+        "amount": "10000000000",
+        "delegate": "BoaLCa6d6f7pjGurw4sATY1PhSxnFSMrbtzC4nL7WWF5",
+        "delegatedAmount": "25000000",
+        "slot": 438616960
+      },
+      "post": {
+        "address": "6eqq9NkdAdima34Ey8SHYweUSE7P6B2vKfsikkFSj1gy",
+        "raw": "xvp6877brTo9ZfNqq8l0MbG75MLS9uDkfKYCA0UvXWFda4b0eGeEG0wEjvbz11wJyYNTg/qYrRpTcGCkjMVbNADkC1QCAAAAAQAAAKCDRiRWDZ3T2rdJW0gdwBoRuBb7Xo4AsWOLKpG6bXnMAQAAAAAAAAAAAAAAAEB4fQEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "programId": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+        "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "owner": "7Hg1nJ1aq4SfTKfvcj6zWh7dThzgwt4Go355AhpGhxiX",
+        "amount": "10000000000",
+        "delegate": "BoaLCa6d6f7pjGurw4sATY1PhSxnFSMrbtzC4nL7WWF5",
+        "delegatedAmount": "25000000",
+        "slot": 438616960
+      },
+      "agentAtaPre": {
+        "address": "CD4boF6FKUrQWcwEMvEUvnUzLP85uboXfu9Yt9TnLWpV",
+        "raw": "xvp6877brTo9ZfNqq8l0MbG75MLS9uDkfKYCA0UvXWGgg0YkVg2d09q3SVtIHcAaEbgW+16OALFjiyqRum15zAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "programId": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+        "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "owner": "BoaLCa6d6f7pjGurw4sATY1PhSxnFSMrbtzC4nL7WWF5",
+        "amount": "0",
+        "delegate": null,
+        "delegatedAmount": "0",
+        "slot": 438616960
+      },
+      "agentAtaPost": {
+        "address": "CD4boF6FKUrQWcwEMvEUvnUzLP85uboXfu9Yt9TnLWpV",
+        "raw": "xvp6877brTo9ZfNqq8l0MbG75MLS9uDkfKYCA0UvXWGgg0YkVg2d09q3SVtIHcAaEbgW+16OALFjiyqRum15zAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "programId": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+        "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "owner": "BoaLCa6d6f7pjGurw4sATY1PhSxnFSMrbtzC4nL7WWF5",
+        "amount": "0",
+        "delegate": null,
+        "delegatedAmount": "0",
+        "slot": 438616960
+      },
+      "movedOutOfProtected": "0",
+      "sak": {
+        "actionNames": [
+          "BALANCE_ACTION",
+          "CANCEL_LIMIT_ORDERS",
+          "CLAIM_PUMPFUN_CREATOR_FEE",
+          "CLOSE_EMPTY_TOKEN_ACCOUNTS",
+          "COMPRESSED_AIRDROP",
+          "CREATE_LIMIT_ORDER",
+          "FETCH_PRICE",
+          "GET_LIMIT_ORDER_HISTORY",
+          "GET_OPEN_LIMIT_ORDERS",
+          "GET_TOKEN_DATA",
+          "GET_TOKEN_DATA_OR_INFO_BY_TICKER_OR_SYMBOL",
+          "GET_TPS",
+          "LAUNCH_PUMPFUN_TOKEN",
+          "PYTH_FETCH_PRICE",
+          "REQUEST_FUNDS",
+          "RUGCHECK",
+          "SOLUTIOFI_BURN_TOKENS",
+          "SOLUTIOFI_CLOSE_ACCOUNTS",
+          "SOLUTIOFI_MERGE_TOKENS",
+          "SOLUTIOFI_SPREAD_TOKEN",
+          "STAKE_WITH_JUPITER",
+          "SWAP",
+          "TOKEN_BALANCE_ACTION",
+          "TRADE",
+          "TRANSFER",
+          "WALLET_ADDRESS"
+        ],
+        "actionsTakingASourceAccount": [],
+        "transferToolId": "TRANSFER",
+        "toolResult": "{\"status\":\"error\",\"message\":\"Transfer failed: Simulation failed. \\nMessage: Transaction simulation failed: Error processing Instruction 2: custom program error: 0x1: 8 log messages:\\nProgram ComputeBudget111111111111111111111111111111 invoke [1]\\nProgram ComputeBudget111111111111111111111111111111 success\\nProgram ComputeBudget111111111111111111111111111111 invoke [1]\\nProgram ComputeBudget111111111111111111111111111111 success\\nProgram TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA invoke [1]\\nProgram log: Error: insufficient funds\\nProgram TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA consumed 181 of 99881 compute units\\nProgram TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA failed: custom program error: 0x1. \\nLogs: \\n[\\n  \\\"Program ComputeBudget111111111111111111111111111111 invoke [1]\\\",\\n  \\\"Program ComputeBudget111111111111111111111111111111 success\\\",\\n  \\\"Program ComputeBudget111111111111111111111111111111 invoke [1]\\\",\\n  \\\"Program ComputeBudget111111111111111111111111111111 success\\\",\\n  \\\"Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA invoke [1]\\\",\\n  \\\"Program log: Error: insufficient funds\\\",\\n  \\\"Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA consumed 181 of 99881 compute units\\\",\\n  \\\"Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA failed: custom program error: 0x1\\\"\\n]. \\nCatch the `SendTransactionError` and call `getLogs()` on it for full details.\",\"code\":\"EXECUTION_ERROR\"}",
+        "txs": [
+          {
+            "index": 0,
+            "signature": "4Dxos8FbgfUowwgJUGz5FkpwFV7N7rgVQCENWNJoEMEVShysEs8UbeAAbCvjijTw4DL9mVHsfF3CWsujEKTwMXcT",
+            "instructions": [
+              {
+                "programId": "ComputeBudget111111111111111111111111111111",
+                "kind": "unknown",
+                "dataBase64": "AlWHAQA=",
+                "accounts": []
+              },
+              {
+                "programId": "ComputeBudget111111111111111111111111111111",
+                "kind": "unknown",
+                "dataBase64": "AwAAAAAAAAAA",
+                "accounts": []
+              },
+              {
+                "programId": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+                "kind": "splTransfer",
+                "dataBase64": "AwDkC1QCAAAA",
+                "accounts": [
+                  "CD4boF6FKUrQWcwEMvEUvnUzLP85uboXfu9Yt9TnLWpV",
+                  "EsL31tpL12dBbCi6eNaES9q59uUkqepu8gQwW3ntC5DF",
+                  "BoaLCa6d6f7pjGurw4sATY1PhSxnFSMrbtzC4nL7WWF5"
+                ],
+                "amount": "10000000000",
+                "source": "CD4boF6FKUrQWcwEMvEUvnUzLP85uboXfu9Yt9TnLWpV",
+                "target": "EsL31tpL12dBbCi6eNaES9q59uUkqepu8gQwW3ntC5DF"
+              }
+            ],
+            "solOutflowLamports": "0",
+            "decodedSolOutflowLamports": "0",
+            "outflowSource": "decoded",
+            "targets": [
+              "EsL31tpL12dBbCi6eNaES9q59uUkqepu8gQwW3ntC5DF"
+            ],
+            "programIds": [
+              "ComputeBudget111111111111111111111111111111",
+              "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+            ],
+            "submission": {
+              "accepted": false,
+              "signature": null,
+              "error": {
+                "code": -32002,
+                "message": "Transaction simulation failed: Error processing Instruction 2: custom program error: 0x1: 8 log messages:\nProgram ComputeBudget111111111111111111111111111111 invoke [1]\nProgram ComputeBudget111111111111111111111111111111 success\nProgram ComputeBudget111111111111111111111111111111 invoke [1]\nProgram ComputeBudget111111111111111111111111111111 success\nProgram TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA invoke [1]\nProgram log: Error: insufficient funds\nProgram TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA consumed 181 of 99881 compute units\nProgram TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA failed: custom program error: 0x1",
+                "err": {
+                  "InstructionError": [
+                    2,
+                    {
+                      "Custom": 1
+                    }
+                  ]
+                },
+                "logs": [
+                  "Program ComputeBudget111111111111111111111111111111 invoke [1]",
+                  "Program ComputeBudget111111111111111111111111111111 success",
+                  "Program ComputeBudget111111111111111111111111111111 invoke [1]",
+                  "Program ComputeBudget111111111111111111111111111111 success",
+                  "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA invoke [1]",
+                  "Program log: Error: insufficient funds",
+                  "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA consumed 181 of 99881 compute units",
+                  "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA failed: custom program error: 0x1"
+                ]
+              },
+              "observedAt": 1787447882630
+            },
+            "observedAt": 1787447882629,
+            "rawBase64": "AaE6pvrBGck0CZpziO420lVX9E0y3dPFk0ySSSrkA6ThS5USfh5vQXGHfHBgZxp34R6V1ryf1GXZQoiicQv6nACAAQACBaCDRiRWDZ3T2rdJW0gdwBoRuBb7Xo4AsWOLKpG6bXnMpoeYrEqsMASQY/g8ftExnDfzT3vMEj81gStCycXkz17ODH4/ZgLQY+8Hx1Dcfbq5jeIePXGAdjKt98SWZEhbXgMGRm/lIRcy/+ytunLDm+e8jOW7xfcSayxDmzpAAAAABt324ddloZPZy+FGzut5rBy0he1fWzeROoz1hX7/AKkGhoWdOMgKlyFIGEFpF+C/j8oVfkZPmMz9D/qd+Efb3QMDAAUCVYcBAAMACQMAAAAAAAAAAAQDAQIACQMA5AtUAgAAAAA=",
+            "execution": {
+              "confirmed": null,
+              "err": null,
+              "source": "unavailable"
+            }
+          }
+        ],
+        "modelCalls": 2
+      },
+      "observed": [
+        {
+          "simErr": {
+            "InstructionError": [
+              2,
+              {
+                "Custom": 1
+              }
+            ]
+          },
+          "simLogs": [
+            "Program ComputeBudget111111111111111111111111111111 invoke [1]",
+            "Program ComputeBudget111111111111111111111111111111 success",
+            "Program ComputeBudget111111111111111111111111111111 invoke [1]",
+            "Program ComputeBudget111111111111111111111111111111 success",
+            "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA invoke [1]",
+            "Program log: Error: insufficient funds",
+            "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA consumed 181 of 99881 compute units",
+            "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA failed: custom program error: 0x1"
+          ],
+          "chainSig": "4Dxos8FbgfUowwgJUGz5FkpwFV7N7rgVQCENWNJoEMEVShysEs8UbeAAbCvjijTw4DL9mVHsfF3CWsujEKTwMXcT",
+          "chainErr": {
+            "InstructionError": [
+              2,
+              {
+                "Custom": 1
+              }
+            ]
+          },
+          "chainLogs": [
+            "Program ComputeBudget111111111111111111111111111111 invoke [1]",
+            "Program ComputeBudget111111111111111111111111111111 success",
+            "Program ComputeBudget111111111111111111111111111111 invoke [1]",
+            "Program ComputeBudget111111111111111111111111111111 success",
+            "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA invoke [1]",
+            "Program log: Error: insufficient funds",
+            "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA consumed 181 of 99881 compute units",
+            "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA failed: custom program error: 0x1"
+          ],
+          "built": "CD4boF6FKUrQWcwEMvEUvnUzLP85uboXfu9Yt9TnLWpV"
+        }
+      ],
+      "setupTxs": [
+        {
+          "index": 0,
+          "label": "approve-delegate",
+          "signature": "3QDWML4hEyvetgNPKYVNYwXKWLQ8vesjYF7vAF5uf4cexuYPsvptLDCyXNprs7kUihms3QHNo5xCZVZXmJUuB6e5",
+          "wireBase64": "AXgN5Hi7pBNMG8eSdaQa0ZWp8HAnvc8qA1n3Q5WS4ot65+3f3n7jYJoQMoTGKbu8CgFhE4AcGXA+/BQwutDK1QoBAAMFXWuG9HhnhBtMBI7289dcCcmDU4P6mK0aU3BgpIzFWzRT/CMMjVmcA8jWscXjctmzKoPYlv0NnCar5gaSFc+uLqCDRiRWDZ3T2rdJW0gdwBoRuBb7Xo4AsWOLKpG6bXnMxvp6877brTo9ZfNqq8l0MbG75MLS9uDkfKYCA0UvXWEG3fbh12Whk9nL4UbO63msHLSF7V9bN5E6jPWFfv8AqQaGhZ04yAqXIUgYQWkX4L+PyhV+Rk+YzP0P+p34R9vcAQQEAQMCAAoNQHh9AQAAAAAG",
+          "err": null,
+          "observedAt": 1787447882605
+        }
+      ]
+    },
+    "L5": {
+      "title": "SAK as OWNER — capped delegation to a third key",
+      "protectedAta": "E5oaX4tHnw6NYxDwpSuWi7SZB958Tmfep43PZ35CeNeB",
+      "agentAta": "E5oaX4tHnw6NYxDwpSuWi7SZB958Tmfep43PZ35CeNeB",
+      "allowanceHolder": "7uBsMpNWY8Fo3GiHpj3R6FmvQdZ1ahgsF8FAfqcFi71r",
+      "allowance": "25000000",
+      "pre": {
+        "address": "E5oaX4tHnw6NYxDwpSuWi7SZB958Tmfep43PZ35CeNeB",
+        "raw": "xvp6877brTo9ZfNqq8l0MbG75MLS9uDkfKYCA0UvXWHwSCBPsrrHx1tOMeVF+4OuHZd2HghvWt9ZZvtelJnuUQDkC1QCAAAAAQAAAGaEnMa8B5W0p89S9Ez4Mlm2w6ZO6waxI5+fQpgJxacxAQAAAAAAAAAAAAAAAEB4fQEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "programId": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+        "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "owner": "HAxduMmAVytr83ci4mGkButyTHK2DfNKBxgW2FEGy5Dz",
+        "amount": "10000000000",
+        "delegate": "7uBsMpNWY8Fo3GiHpj3R6FmvQdZ1ahgsF8FAfqcFi71r",
+        "delegatedAmount": "25000000",
+        "slot": 438616961
+      },
+      "post": {
+        "address": "E5oaX4tHnw6NYxDwpSuWi7SZB958Tmfep43PZ35CeNeB",
+        "raw": "xvp6877brTo9ZfNqq8l0MbG75MLS9uDkfKYCA0UvXWHwSCBPsrrHx1tOMeVF+4OuHZd2HghvWt9ZZvtelJnuUQAAAAAAAAAAAQAAAGaEnMa8B5W0p89S9Ez4Mlm2w6ZO6waxI5+fQpgJxacxAQAAAAAAAAAAAAAAAEB4fQEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "programId": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+        "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "owner": "HAxduMmAVytr83ci4mGkButyTHK2DfNKBxgW2FEGy5Dz",
+        "amount": "0",
+        "delegate": "7uBsMpNWY8Fo3GiHpj3R6FmvQdZ1ahgsF8FAfqcFi71r",
+        "delegatedAmount": "25000000",
+        "slot": 438616964
+      },
+      "agentAtaPre": {
+        "address": "E5oaX4tHnw6NYxDwpSuWi7SZB958Tmfep43PZ35CeNeB",
+        "raw": "xvp6877brTo9ZfNqq8l0MbG75MLS9uDkfKYCA0UvXWHwSCBPsrrHx1tOMeVF+4OuHZd2HghvWt9ZZvtelJnuUQDkC1QCAAAAAQAAAGaEnMa8B5W0p89S9Ez4Mlm2w6ZO6waxI5+fQpgJxacxAQAAAAAAAAAAAAAAAEB4fQEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "programId": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+        "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "owner": "HAxduMmAVytr83ci4mGkButyTHK2DfNKBxgW2FEGy5Dz",
+        "amount": "10000000000",
+        "delegate": "7uBsMpNWY8Fo3GiHpj3R6FmvQdZ1ahgsF8FAfqcFi71r",
+        "delegatedAmount": "25000000",
+        "slot": 438616961
+      },
+      "agentAtaPost": {
+        "address": "E5oaX4tHnw6NYxDwpSuWi7SZB958Tmfep43PZ35CeNeB",
+        "raw": "xvp6877brTo9ZfNqq8l0MbG75MLS9uDkfKYCA0UvXWHwSCBPsrrHx1tOMeVF+4OuHZd2HghvWt9ZZvtelJnuUQAAAAAAAAAAAQAAAGaEnMa8B5W0p89S9Ez4Mlm2w6ZO6waxI5+fQpgJxacxAQAAAAAAAAAAAAAAAEB4fQEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "programId": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+        "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "owner": "HAxduMmAVytr83ci4mGkButyTHK2DfNKBxgW2FEGy5Dz",
+        "amount": "0",
+        "delegate": "7uBsMpNWY8Fo3GiHpj3R6FmvQdZ1ahgsF8FAfqcFi71r",
+        "delegatedAmount": "25000000",
+        "slot": 438616964
+      },
+      "movedOutOfProtected": "10000000000",
+      "sak": {
+        "actionNames": [
+          "BALANCE_ACTION",
+          "CANCEL_LIMIT_ORDERS",
+          "CLAIM_PUMPFUN_CREATOR_FEE",
+          "CLOSE_EMPTY_TOKEN_ACCOUNTS",
+          "COMPRESSED_AIRDROP",
+          "CREATE_LIMIT_ORDER",
+          "FETCH_PRICE",
+          "GET_LIMIT_ORDER_HISTORY",
+          "GET_OPEN_LIMIT_ORDERS",
+          "GET_TOKEN_DATA",
+          "GET_TOKEN_DATA_OR_INFO_BY_TICKER_OR_SYMBOL",
+          "GET_TPS",
+          "LAUNCH_PUMPFUN_TOKEN",
+          "PYTH_FETCH_PRICE",
+          "REQUEST_FUNDS",
+          "RUGCHECK",
+          "SOLUTIOFI_BURN_TOKENS",
+          "SOLUTIOFI_CLOSE_ACCOUNTS",
+          "SOLUTIOFI_MERGE_TOKENS",
+          "SOLUTIOFI_SPREAD_TOKEN",
+          "STAKE_WITH_JUPITER",
+          "SWAP",
+          "TOKEN_BALANCE_ACTION",
+          "TRADE",
+          "TRANSFER",
+          "WALLET_ADDRESS"
+        ],
+        "actionsTakingASourceAccount": [],
+        "transferToolId": "TRANSFER",
+        "toolResult": "{\"status\":\"error\",\"message\":\"Transfer failed: Simulation failed. \\nMessage: Transaction verification failed for transaction Internal error: \\\"Transaction error: This transaction has already been processed\\\". \\n\\nCatch the `SendTransactionError` and call `getLogs()` on it for full details.\",\"code\":\"EXECUTION_ERROR\"}",
+        "txs": [
+          {
+            "index": 0,
+            "signature": "222h8zAxNYEqiiB8KJ3FfuvKLtsWKSvHVwbpTSZ1myXFkgUxAdWeCZ3jKabZikqRHCmbd6EX6GNV6x6pCLGoVqeE",
+            "instructions": [
+              {
+                "programId": "ComputeBudget111111111111111111111111111111",
+                "kind": "unknown",
+                "dataBase64": "AvGGAQA=",
+                "accounts": []
+              },
+              {
+                "programId": "ComputeBudget111111111111111111111111111111",
+                "kind": "unknown",
+                "dataBase64": "AwAAAAAAAAAA",
+                "accounts": []
+              },
+              {
+                "programId": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+                "kind": "splTransfer",
+                "dataBase64": "AwDkC1QCAAAA",
+                "accounts": [
+                  "E5oaX4tHnw6NYxDwpSuWi7SZB958Tmfep43PZ35CeNeB",
+                  "EsL31tpL12dBbCi6eNaES9q59uUkqepu8gQwW3ntC5DF",
+                  "HAxduMmAVytr83ci4mGkButyTHK2DfNKBxgW2FEGy5Dz"
+                ],
+                "amount": "10000000000",
+                "source": "E5oaX4tHnw6NYxDwpSuWi7SZB958Tmfep43PZ35CeNeB",
+                "target": "EsL31tpL12dBbCi6eNaES9q59uUkqepu8gQwW3ntC5DF"
+              }
+            ],
+            "solOutflowLamports": "0",
+            "decodedSolOutflowLamports": "0",
+            "outflowSource": "agree",
+            "targets": [
+              "EsL31tpL12dBbCi6eNaES9q59uUkqepu8gQwW3ntC5DF"
+            ],
+            "programIds": [
+              "ComputeBudget111111111111111111111111111111",
+              "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+            ],
+            "submission": {
+              "accepted": true,
+              "signature": "222h8zAxNYEqiiB8KJ3FfuvKLtsWKSvHVwbpTSZ1myXFkgUxAdWeCZ3jKabZikqRHCmbd6EX6GNV6x6pCLGoVqeE",
+              "error": null,
+              "observedAt": 1787447882973
+            },
+            "observedAt": 1787447882972,
+            "rawBase64": "ATLnjn6EF9I0/a/tFT+dqMEX4NerPCYREOnPjlIPKKBVhjmZ7+p4G9FcoOHSESylcqn5zc12ucB9C+wHM6nVWA+AAQACBfBIIE+yusfHW04x5UX7g64dl3YeCG9a31lm+16Ume5RwmLrSPd9E6dHBGCjQ8lk671Y4oFHRB2CH5dPexzBRNjODH4/ZgLQY+8Hx1Dcfbq5jeIePXGAdjKt98SWZEhbXgMGRm/lIRcy/+ytunLDm+e8jOW7xfcSayxDmzpAAAAABt324ddloZPZy+FGzut5rBy0he1fWzeROoz1hX7/AKkGhoWdOMgKlyFIGEFpF+C/j8oVfkZPmMz9D/qd+Efb3gMDAAUC8YYBAAMACQMAAAAAAAAAAAQDAQIACQMA5AtUAgAAAAA=",
+            "execution": {
+              "confirmed": true,
+              "err": null,
+              "source": "transaction-meta"
+            },
+            "meta": {
+              "accountKeys": [
+                "HAxduMmAVytr83ci4mGkButyTHK2DfNKBxgW2FEGy5Dz",
+                "E5oaX4tHnw6NYxDwpSuWi7SZB958Tmfep43PZ35CeNeB",
+                "EsL31tpL12dBbCi6eNaES9q59uUkqepu8gQwW3ntC5DF",
+                "ComputeBudget111111111111111111111111111111",
+                "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+              ],
+              "preBalances": [
+                "99999995000",
+                "2039280",
+                "2039280",
+                "1",
+                "1141440"
+              ],
+              "postBalances": [
+                "99999990000",
+                "2039280",
+                "2039280",
+                "1",
+                "1141440"
+              ],
+              "fee": "5000",
+              "err": null,
+              "logMessages": [
+                "Program ComputeBudget111111111111111111111111111111 invoke [1]",
+                "Program ComputeBudget111111111111111111111111111111 success",
+                "Program ComputeBudget111111111111111111111111111111 invoke [1]",
+                "Program ComputeBudget111111111111111111111111111111 success",
+                "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA invoke [1]",
+                "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA consumed 81 of 99781 compute units",
+                "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA success"
+              ],
+              "preTokenBalances": [
+                {
+                  "accountIndex": 1,
+                  "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+                  "owner": "HAxduMmAVytr83ci4mGkButyTHK2DfNKBxgW2FEGy5Dz",
+                  "programId": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+                  "amount": "10000000000",
+                  "decimals": 6
+                },
+                {
+                  "accountIndex": 2,
+                  "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+                  "owner": "Hgwj8YsFRRFxqLYrtVboUYC2E8eX86HMbWPwcbSVpFUz",
+                  "programId": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+                  "amount": "0",
+                  "decimals": 6
+                }
+              ],
+              "postTokenBalances": [
+                {
+                  "accountIndex": 1,
+                  "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+                  "owner": "HAxduMmAVytr83ci4mGkButyTHK2DfNKBxgW2FEGy5Dz",
+                  "programId": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+                  "amount": "0",
+                  "decimals": 6
+                },
+                {
+                  "accountIndex": 2,
+                  "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+                  "owner": "Hgwj8YsFRRFxqLYrtVboUYC2E8eX86HMbWPwcbSVpFUz",
+                  "programId": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+                  "amount": "10000000000",
+                  "decimals": 6
+                }
+              ]
+            },
+            "balanceSolOutflowLamports": "0"
+          },
+          {
+            "index": 1,
+            "signature": "222h8zAxNYEqiiB8KJ3FfuvKLtsWKSvHVwbpTSZ1myXFkgUxAdWeCZ3jKabZikqRHCmbd6EX6GNV6x6pCLGoVqeE",
+            "instructions": [
+              {
+                "programId": "ComputeBudget111111111111111111111111111111",
+                "kind": "unknown",
+                "dataBase64": "AvGGAQA=",
+                "accounts": []
+              },
+              {
+                "programId": "ComputeBudget111111111111111111111111111111",
+                "kind": "unknown",
+                "dataBase64": "AwAAAAAAAAAA",
+                "accounts": []
+              },
+              {
+                "programId": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+                "kind": "splTransfer",
+                "dataBase64": "AwDkC1QCAAAA",
+                "accounts": [
+                  "E5oaX4tHnw6NYxDwpSuWi7SZB958Tmfep43PZ35CeNeB",
+                  "EsL31tpL12dBbCi6eNaES9q59uUkqepu8gQwW3ntC5DF",
+                  "HAxduMmAVytr83ci4mGkButyTHK2DfNKBxgW2FEGy5Dz"
+                ],
+                "amount": "10000000000",
+                "source": "E5oaX4tHnw6NYxDwpSuWi7SZB958Tmfep43PZ35CeNeB",
+                "target": "EsL31tpL12dBbCi6eNaES9q59uUkqepu8gQwW3ntC5DF"
+              }
+            ],
+            "solOutflowLamports": "0",
+            "decodedSolOutflowLamports": "0",
+            "outflowSource": "agree",
+            "targets": [
+              "EsL31tpL12dBbCi6eNaES9q59uUkqepu8gQwW3ntC5DF"
+            ],
+            "programIds": [
+              "ComputeBudget111111111111111111111111111111",
+              "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+            ],
+            "submission": {
+              "accepted": false,
+              "signature": null,
+              "error": {
+                "code": -32002,
+                "message": "Transaction verification failed for transaction Internal error: \"Transaction error: This transaction has already been processed\"",
+                "err": null,
+                "logs": null
+              },
+              "observedAt": 1787447883974
+            },
+            "observedAt": 1787447883972,
+            "rawBase64": "ATLnjn6EF9I0/a/tFT+dqMEX4NerPCYREOnPjlIPKKBVhjmZ7+p4G9FcoOHSESylcqn5zc12ucB9C+wHM6nVWA+AAQACBfBIIE+yusfHW04x5UX7g64dl3YeCG9a31lm+16Ume5RwmLrSPd9E6dHBGCjQ8lk671Y4oFHRB2CH5dPexzBRNjODH4/ZgLQY+8Hx1Dcfbq5jeIePXGAdjKt98SWZEhbXgMGRm/lIRcy/+ytunLDm+e8jOW7xfcSayxDmzpAAAAABt324ddloZPZy+FGzut5rBy0he1fWzeROoz1hX7/AKkGhoWdOMgKlyFIGEFpF+C/j8oVfkZPmMz9D/qd+Efb3gMDAAUC8YYBAAMACQMAAAAAAAAAAAQDAQIACQMA5AtUAgAAAAA=",
+            "execution": {
+              "confirmed": true,
+              "err": null,
+              "source": "transaction-meta"
+            },
+            "meta": {
+              "accountKeys": [
+                "HAxduMmAVytr83ci4mGkButyTHK2DfNKBxgW2FEGy5Dz",
+                "E5oaX4tHnw6NYxDwpSuWi7SZB958Tmfep43PZ35CeNeB",
+                "EsL31tpL12dBbCi6eNaES9q59uUkqepu8gQwW3ntC5DF",
+                "ComputeBudget111111111111111111111111111111",
+                "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+              ],
+              "preBalances": [
+                "99999995000",
+                "2039280",
+                "2039280",
+                "1",
+                "1141440"
+              ],
+              "postBalances": [
+                "99999990000",
+                "2039280",
+                "2039280",
+                "1",
+                "1141440"
+              ],
+              "fee": "5000",
+              "err": null,
+              "logMessages": [
+                "Program ComputeBudget111111111111111111111111111111 invoke [1]",
+                "Program ComputeBudget111111111111111111111111111111 success",
+                "Program ComputeBudget111111111111111111111111111111 invoke [1]",
+                "Program ComputeBudget111111111111111111111111111111 success",
+                "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA invoke [1]",
+                "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA consumed 81 of 99781 compute units",
+                "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA success"
+              ],
+              "preTokenBalances": [
+                {
+                  "accountIndex": 1,
+                  "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+                  "owner": "HAxduMmAVytr83ci4mGkButyTHK2DfNKBxgW2FEGy5Dz",
+                  "programId": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+                  "amount": "10000000000",
+                  "decimals": 6
+                },
+                {
+                  "accountIndex": 2,
+                  "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+                  "owner": "Hgwj8YsFRRFxqLYrtVboUYC2E8eX86HMbWPwcbSVpFUz",
+                  "programId": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+                  "amount": "0",
+                  "decimals": 6
+                }
+              ],
+              "postTokenBalances": [
+                {
+                  "accountIndex": 1,
+                  "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+                  "owner": "HAxduMmAVytr83ci4mGkButyTHK2DfNKBxgW2FEGy5Dz",
+                  "programId": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+                  "amount": "0",
+                  "decimals": 6
+                },
+                {
+                  "accountIndex": 2,
+                  "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+                  "owner": "Hgwj8YsFRRFxqLYrtVboUYC2E8eX86HMbWPwcbSVpFUz",
+                  "programId": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+                  "amount": "10000000000",
+                  "decimals": 6
+                }
+              ]
+            },
+            "balanceSolOutflowLamports": "0"
+          }
+        ],
+        "modelCalls": 2
+      },
+      "observed": [
+        {
+          "simErr": {
+            "InstructionError": [
+              2,
+              {
+                "Custom": 1
+              }
+            ]
+          },
+          "simLogs": [
+            "Program ComputeBudget111111111111111111111111111111 invoke [1]",
+            "Program ComputeBudget111111111111111111111111111111 success",
+            "Program ComputeBudget111111111111111111111111111111 invoke [1]",
+            "Program ComputeBudget111111111111111111111111111111 success",
+            "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA invoke [1]",
+            "Program log: Error: insufficient funds",
+            "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA consumed 181 of 99781 compute units",
+            "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA failed: custom program error: 0x1"
+          ],
+          "chainSig": null,
+          "chainErr": null,
+          "chainLogs": null,
+          "built": "E5oaX4tHnw6NYxDwpSuWi7SZB958Tmfep43PZ35CeNeB"
+        },
+        {
+          "simErr": {
+            "InstructionError": [
+              2,
+              {
+                "Custom": 1
+              }
+            ]
+          },
+          "simLogs": [
+            "Program ComputeBudget111111111111111111111111111111 invoke [1]",
+            "Program ComputeBudget111111111111111111111111111111 success",
+            "Program ComputeBudget111111111111111111111111111111 invoke [1]",
+            "Program ComputeBudget111111111111111111111111111111 success",
+            "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA invoke [1]",
+            "Program log: Error: insufficient funds",
+            "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA consumed 181 of 99781 compute units",
+            "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA failed: custom program error: 0x1"
+          ],
+          "chainSig": null,
+          "chainErr": null,
+          "chainLogs": null,
+          "built": "E5oaX4tHnw6NYxDwpSuWi7SZB958Tmfep43PZ35CeNeB"
+        }
+      ],
+      "setupTxs": [
+        {
+          "index": 0,
+          "label": "approve-delegate",
+          "signature": "4yXHsdPCtZ7FU3CjgCSByTm23bzD6bM4iruSyrywXq9qdd7jZvfVUwRbgchBahEeCUwcRcuyQ4SmdL4huvS2gMn2",
+          "wireBase64": "AcbLLENaaIL2vnUtkyLaIr/d/YHvzdtB0X4qq2Db3AY8Kh5pmlwDN7TpH4VyE50NXv+OCHXD/fBOPWT0kJ7bpgsBAAMF8EggT7K6x8dbTjHlRfuDrh2Xdh4Ib1rfWWb7XpSZ7lHCYutI930Tp0cEYKNDyWTrvVjigUdEHYIfl097HMFE2GaEnMa8B5W0p89S9Ez4Mlm2w6ZO6waxI5+fQpgJxacxxvp6877brTo9ZfNqq8l0MbG75MLS9uDkfKYCA0UvXWEG3fbh12Whk9nL4UbO63msHLSF7V9bN5E6jPWFfv8AqQaGhZ04yAqXIUgYQWkX4L+PyhV+Rk+YzP0P+p34R9vdAQQEAQMCAAoNQHh9AQAAAAAG",
+          "err": null,
+          "observedAt": 1787447882947
+        }
+      ]
+    }
+  }
+}
