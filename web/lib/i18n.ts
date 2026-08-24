@@ -168,6 +168,112 @@ const en = {
   "land.foot.pledge":
     "SolVerdict never accepts money, equity, or any consideration from any project, framework, model, or guardrail layer it evaluates.",
 
+  // --- landing (app/page.tsx) — product-first copy ---------------------------
+  // An ADDITIVE namespace on purpose: the current landing reads only `land.*`,
+  // so nothing in this block can change it, and deleting the block deletes the
+  // experiment.
+  //
+  // The H1 is the offer and the sub is what the product does; the FINDING is
+  // its own line further down. `find.*` is split across four keys so the count
+  // can carry the hero's one colour accent and the closing question can be set
+  // brighter; the clause order is identical in EN and PT, so the split survives
+  // both.
+  //
+  // "once it's wrapped in a framework" is load-bearing and must not drift back
+  // toward a tools framing. Our own data forbids it: model-only-claude HAD
+  // tools and contained 400/400 runs. The framework is what changed. That same
+  // sentence is why `land2.demo.caveat` has to exist somewhere on the page —
+  // see the note on that key.
+  //
+  // The eyebrow is the ONE line carrying protocol scope, deliberately: the sub
+  // says "your agent", not "your Solana AI agent", so expanding past Solana is
+  // a one-string change here rather than a copy rewrite.
+  "land2.hero.eyebrow": "Pre-production safety validation for Solana AI agents",
+  "land2.hero.h1": "Attack your agent before you hand it your wallet.",
+  "land2.hero.sub":
+    "Run adversarial safety tests locally, submit verifiable evidence, and find out if your agent is actually ready to ship.",
+  "land2.hero.cta": "Test your agent",
+  "land2.hero.cta2": "Explore the methodology",
+  "land2.hero.diff": "You run the agent. We verify the evidence.",
+  "land2.hero.find.a": "A model can refuse every attack in isolation and still drain a wallet",
+  "land2.hero.find.b": "20/20",
+  "land2.hero.find.c": "once it's wrapped in a framework.",
+  "land2.hero.find.q": "Will yours?",
+  "land2.badge.prereg": "Pre-registered rubric",
+  // Renders under the live-examples section, NOT in the hero — the citation
+  // that used to sit beside it there was redundant with `land.demo.note`, which
+  // already carries the setups, the counts and N. This line was not: it is the
+  // only rendered copy on the site qualifying the comparison the hero's finding
+  // draws, and the standard it upholds is the repo's own (README "What this
+  // design supports", components/landing/data.ts). It also belongs here on the
+  // merits — it qualifies the two examples shown directly above it.
+  "land2.demo.caveat":
+    "The two setups differ in framework, tool surface, prompt and execution path at once — measured association, not a proven mechanism.",
+  "land2.dash.zone.client": "Your machine",
+  "land2.dash.zone.server": "SolVerdict · server",
+  "land2.dash.n5": "Evidence",
+  "land2.dash.boundary": "signed evidence bundle",
+  "land2.dash.stdout": "harness stdout",
+  "land2.dash.st2": "logging tool calls",
+  "land2.dash.st3": "capturing transactions at the RPC boundary",
+  "land2.dash.st4": "packing the evidence bundle",
+  "land2.dash.st5": "submitting the signed bundle",
+  "land2.how.eyebrow": "How the audit works",
+  "land2.how.h2": "You run it. We score it. Neither side takes the other's word.",
+  "land2.how.s1.t": "Run it on your machine",
+  "land2.how.s1.b":
+    "The harness launches a Solana mainnet fork, funds an ephemeral keypair and drives your agent through all 20 scenarios. No real funds move, and your own wallet key is never used during a run.",
+  "land2.how.s2.t": "Sign the manifest, submit the bundle",
+  "land2.how.s2.b":
+    "Every submitted transaction and RPC call is captured at the recorder and packed into a bundle. The harness prints its sha256; you sign that digest with the wallet that owns the audit and POST the archive.",
+  "land2.how.s3.t": "Get the verdict",
+  "land2.how.s3.b":
+    "SolVerdict re-derives every verdict from the raw evidence — including transaction magnitudes, recomputed from the validator's own pre/post balances rather than taken from your bundle.",
+  "land2.how.why":
+    "The pass/fail rules, the scoring thresholds and the aggregation are server-side and are not published. A client holding them holds the answer key, and the benchmark would measure optimisation against the test instead of containment.",
+
+  // ARCHITECTURE, v2. The v1 section describes the OFFICIAL campaign path
+  // (bench.ts, published results files) — correct for the repo, wrong for a
+  // visitor buying an audit, whose run goes through packages/harness. These
+  // keys describe the CUSTOMER path and reuse land2.dash.* for the two zone
+  // labels and the boundary caption, so the section names the trust boundary
+  // with the same words the hero panel does.
+  "land2.arch.lead":
+    "Your run and the published campaign go through the same evidence loop — the same fork, the same adapter interface, the same recorder. The only part that differs is where the verdict is decided.",
+  "land2.arch.p1": "Run",
+  "land2.arch.p2": "Capture",
+  "land2.arch.p3": "Score",
+  "land2.arch.n1.t": "Your agent, your machine",
+  "land2.arch.n1.d":
+    "The harness drives your agent through the scenarios against a local Surfpool fork — mainnet state, ephemeral keys, no real funds.",
+  "land2.arch.n2.t": "Recorded at the RPC boundary",
+  "land2.arch.n2.d":
+    "Every submitted transaction and RPC call is captured where it leaves the process, not reported by the agent, then packed and hashed.",
+  "land2.arch.n3.t": "Re-derived from the evidence",
+  "land2.arch.n3.d":
+    "Deterministic checks recompute every verdict from the raw bundle — transaction magnitudes come from the validator's own pre/post balances, never from your numbers.",
+  "land2.arch.why":
+    "The scoring code is not in the harness you download. A client that can compute the verdict can forge it, so the modules that decide one never ship.",
+  "land2.arch.more": "The seven components, end to end",
+
+  // LEADERBOARD, v2. The six containment values are the point of the section
+  // and were the part behind the scrollbar, so they get real per-column
+  // headers. The LETTER is the prereg identifier and is invariant; the word
+  // beside it is a description and is translated. Kept in sync with
+  // lib/placard-model.ts CATEGORY_LABELS, which mirrors scenarios/index.ts.
+  "land2.lb.col.cat": "Containment by category",
+  "land2.cat.a": "Spend",
+  "land2.cat.b": "Injection",
+  "land2.cat.c": "Approvals",
+  "land2.cat.d": "Destination",
+  "land2.cat.e": "Operational",
+  "land2.cat.f": "Token-2022",
+
+  // The opening sequence renders no prose — every token in it is a rubric term,
+  // a code fragment or a stage name, so it needs no locale. Its skip control is
+  // the one real sentence, and only assistive tech ever hears it.
+  "land2.intro.skip": "Skip the opening sequence",
+
   // submit
   "submit.eyebrow": "Audit intake",
   "submit.h1": "Start an audit",
@@ -578,6 +684,72 @@ const pt: Record<TKey, string> = {
   "land.foot.maintainer": "Mantenedor: Alrimar Sobrinho",
   "land.foot.pledge":
     "O SolVerdict nunca aceita dinheiro, participação societária ou qualquer contrapartida de nenhum projeto, framework, modelo ou camada de guardrail que avalia.",
+
+  // --- landing (app/page.tsx) ------------------------------------------------
+  "land2.hero.eyebrow": "Segurança pré-produção para agentes Solana",
+  "land2.hero.h1": "Ataque o seu agente antes de delegar a ele a sua wallet.",
+  "land2.hero.sub":
+    "Execute testes de segurança adversariais localmente, envie evidências verificáveis e descubra se o seu agente está realmente pronto.",
+  "land2.hero.cta": "Testar o meu agente",
+  "land2.hero.cta2": "Explorar a metodologia",
+  "land2.hero.diff": "Você executa o agente. Nós verificamos as evidências.",
+  "land2.hero.find.a": "Um modelo pode recusar todos os ataques isoladamente e ainda assim drenar uma carteira",
+  "land2.hero.find.b": "20/20",
+  "land2.hero.find.c": "quando está dentro de um framework.",
+  "land2.hero.find.q": "E o seu?",
+  "land2.badge.prereg": "Rubrica pré-registrada",
+  "land2.demo.caveat":
+    "Os dois setups diferem em framework, superfície de ferramentas, prompt e caminho de execução ao mesmo tempo — associação medida, não mecanismo provado.",
+  "land2.dash.zone.client": "Sua máquina",
+  "land2.dash.zone.server": "SolVerdict · servidor",
+  "land2.dash.n5": "Evidência",
+  "land2.dash.boundary": "bundle de evidências assinado",
+  "land2.dash.stdout": "saída do harness",
+  "land2.dash.st2": "registrando chamadas de ferramentas",
+  "land2.dash.st3": "capturando transações na fronteira RPC",
+  "land2.dash.st4": "empacotando o bundle de evidências",
+  "land2.dash.st5": "enviando o bundle assinado",
+  "land2.how.eyebrow": "Como funciona a auditoria",
+  "land2.how.h2": "Você executa. Nós pontuamos. Nenhum lado confia na palavra do outro.",
+  "land2.how.s1.t": "Execute na sua máquina",
+  "land2.how.s1.b":
+    "O harness sobe um fork da mainnet Solana, financia um par de chaves efêmero e conduz o seu agente pelos 20 cenários. Nenhum fundo real se move, e a sua própria chave nunca é usada durante uma execução.",
+  "land2.how.s2.t": "Assine o manifesto, envie o bundle",
+  "land2.how.s2.b":
+    "Cada transação submetida e cada chamada RPC é capturada no gravador e empacotada em um bundle. O harness imprime o sha256; você assina esse digest com a carteira dona da auditoria e envia o arquivo.",
+  "land2.how.s3.t": "Receba o veredito",
+  "land2.how.s3.b":
+    "O SolVerdict re-deriva cada veredito a partir da evidência bruta — inclusive as magnitudes das transações, recalculadas a partir dos saldos pré/pós do próprio validador, e não lidas do seu bundle.",
+  "land2.how.why":
+    "As regras de pass/fail, os limiares de pontuação e a agregação ficam no servidor e não são publicados. Um cliente que os possui possui o gabarito, e o benchmark passaria a medir otimização contra o teste em vez de contenção.",
+
+  "land2.arch.lead":
+    "A sua execução e a campanha publicada passam pelo mesmo circuito de evidências — o mesmo fork, a mesma interface de adaptador, o mesmo gravador. A única parte que difere é onde o veredito é decidido.",
+  "land2.arch.p1": "Executar",
+  "land2.arch.p2": "Capturar",
+  "land2.arch.p3": "Pontuar",
+  "land2.arch.n1.t": "O seu agente, na sua máquina",
+  "land2.arch.n1.d":
+    "O harness conduz o seu agente pelos cenários contra um fork Surfpool local — estado da mainnet, chaves efêmeras, sem fundos reais.",
+  "land2.arch.n2.t": "Gravado na fronteira RPC",
+  "land2.arch.n2.d":
+    "Cada transação submetida e cada chamada RPC é capturada onde sai do processo, não declarada pelo agente, e então empacotada e hasheada.",
+  "land2.arch.n3.t": "Re-derivado a partir da evidência",
+  "land2.arch.n3.d":
+    "Verificações determinísticas recalculam cada veredito a partir do bundle bruto — as magnitudes das transações vêm dos saldos pré/pós do próprio validador, nunca dos seus números.",
+  "land2.arch.why":
+    "O código de pontuação não está no harness que você baixa. Um cliente capaz de calcular o veredito é capaz de forjá-lo, então os módulos que decidem um nunca são distribuídos.",
+  "land2.arch.more": "Os sete componentes, ponta a ponta",
+
+  "land2.lb.col.cat": "Contenção por categoria",
+  "land2.cat.a": "Gasto",
+  "land2.cat.b": "Injeção",
+  "land2.cat.c": "Aprovações",
+  "land2.cat.d": "Destino",
+  "land2.cat.e": "Operacional",
+  "land2.cat.f": "Token-2022",
+
+  "land2.intro.skip": "Pular a sequência de abertura",
 
   "submit.eyebrow": "Entrada de auditoria",
   "submit.h1": "Iniciar uma auditoria",

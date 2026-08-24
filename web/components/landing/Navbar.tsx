@@ -58,14 +58,39 @@ function LangToggle() {
 }
 
 // "/#results" (not "#results") so the Benchmark link also works from inner pages.
-const NAV_LINKS: Array<{ key: TKey; href: string; external?: boolean }> = [
-  { key: "land.nav.benchmark", href: "/#results" },
+// A page that carries its OWN #results section passes benchmarkHref="#results"
+// so the link scrolls instead of navigating away (the landing does).
+const navLinks = (benchmarkHref: string): Array<{ key: TKey; href: string; external?: boolean }> => [
+  { key: "land.nav.benchmark", href: benchmarkHref },
   { key: "land.nav.methodology", href: LINKS.methodology },
   { key: "land.nav.docs", href: LINKS.docs },
   { key: "land.nav.leaderboard", href: LINKS.leaderboard },
 ];
 
-export function Navbar({ showWallet = false }: { showWallet?: boolean }) {
+/**
+ * `ctaKey`, `benchmarkHref` and `alwaysShowCheck` are optional and defaulted to
+ * what every current caller already renders, so adding them changes no other
+ * page (InnerPageShell passes none of them). The landing overrides the CTA
+ * label ("Test your agent" — the product, not the benchmark) and keeps the
+ * Benchmark link on its own page.
+ *
+ * `alwaysShowCheck` drops `revealCheck`, which leaves the lockup's check
+ * permanently drawn instead of hidden until hover. The landing's opening
+ * sequence ends by flying a completed check into this slot; arriving at a
+ * check-less logo would discard the payoff at the moment of the handoff.
+ */
+export function Navbar({
+  showWallet = false,
+  ctaKey = "land.nav.run",
+  benchmarkHref = "/#results",
+  alwaysShowCheck = false,
+}: {
+  showWallet?: boolean;
+  ctaKey?: TKey;
+  benchmarkHref?: string;
+  alwaysShowCheck?: boolean;
+}) {
+  const NAV_LINKS = navLinks(benchmarkHref);
   const { t } = useLang();
   const { connected } = useWallet();
   const reduced = useReducedMotion();
@@ -92,8 +117,11 @@ export function Navbar({ showWallet = false }: { showWallet?: boolean }) {
           The nav's own gap-8 guarantees the wordmark never touches a link,
           even when the row is width-constrained. */}
       <nav className="mx-auto flex h-16 max-w-6xl items-center gap-8 px-6" aria-label="Primary">
-        <Link href="/" className="shrink-0" aria-label="SolVerdict home">
-          <LockupLogo height={34} revealCheck />
+        {/* data-sv-logo is the measurement target for the landing's closing
+            FLIP. A data hook rather than a selector on the aria-label, so
+            rewording the label cannot silently break the morph. */}
+        <Link href="/" className="shrink-0" aria-label="SolVerdict home" data-sv-logo="">
+          <LockupLogo height={34} revealCheck={!alwaysShowCheck} />
         </Link>
 
         <div className="hidden items-center gap-8 md:flex">
@@ -126,7 +154,7 @@ export function Navbar({ showWallet = false }: { showWallet?: boolean }) {
             href={LINKS.submit}
             className="rounded-lg bg-gradient-to-br from-brand-blue to-brand-purple px-4 py-2 text-sm font-semibold text-snow shadow-lg shadow-black/20 transition-all duration-200 ease-brand hover:-translate-y-px hover:shadow-black/40"
           >
-            {t("land.nav.run")}
+            {t(ctaKey)}
           </Link>
         </div>
 
@@ -182,7 +210,7 @@ export function Navbar({ showWallet = false }: { showWallet?: boolean }) {
                   className="rounded-lg bg-gradient-to-br from-brand-blue to-brand-purple px-4 py-2 text-sm font-semibold text-snow shadow-lg shadow-black/20"
                   onClick={() => setOpen(false)}
                 >
-                  {t("land.nav.run")}
+                  {t(ctaKey)}
                 </Link>
               </div>
             </div>

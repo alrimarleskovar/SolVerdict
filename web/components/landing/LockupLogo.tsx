@@ -26,8 +26,13 @@
 
 import { useId } from "react";
 
-/** Path length of "M 288 233 L 338 285 L 440 178" — 72.1 + 147.8. */
-const CHECK_LENGTH = 220;
+/**
+ * Path length of "M 288 233 L 338 285 L 440 178" — 72.1 + 147.8.
+ * Exported so a consumer driving the same `.sv-check` path from its own
+ * stroke-dashoffset animation (the landing intro) cannot drift from the
+ * geometry here if the path is ever redrawn.
+ */
+export const CHECK_LENGTH = 220;
 
 /** Maps the symbol's native artboard into the 920×240 lockup box at 0.4762 scale. */
 const SYMBOL_TRANSFORM = "translate(-54.66, 5.71) scale(0.4762)";

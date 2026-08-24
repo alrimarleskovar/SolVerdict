@@ -5,6 +5,19 @@ const WEB_DIR = path.dirname(fileURLToPath(import.meta.url));
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // /landing-v2 was the parallel landing while it was a proposal; its
+  // composition is now app/page.tsx and the route is gone. Anyone holding a
+  // shared link lands on the real page instead of a 404, and Next carries the
+  // query string over, so /landing-v2?intro=0 still suppresses the opening.
+  //
+  // TEMPORARY (307), not permanent (308), deliberately: a 308 is cached hard by
+  // browsers, so if the promotion is reverted before Tuesday every tester who
+  // opened the old URL would keep being redirected to a landing they were
+  // trying to compare against. There is no SEO value to preserve — the route
+  // carried robots: { index: false } its whole life.
+  async redirects() {
+    return [{ source: "/landing-v2", destination: "/", permanent: false }];
+  },
   // The web app lives INSIDE the SolVerdict repo and imports the parent bench's
   // scoring/ and config/ modules via relative paths (../../scoring, ../../config).
   // externalDir lets Next transpile those TypeScript files that sit above /web.
