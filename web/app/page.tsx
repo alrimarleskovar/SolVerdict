@@ -137,7 +137,11 @@ export default function Home({
         {playIntro && <Intro />}
         <ParticleField />
         <HeroBackground />
-        <Navbar ctaKey="land2.hero.cta" benchmarkHref="#results" alwaysShowCheck />
+        {/* No alwaysShowCheck: the mark keeps its hover reveal here like
+            everywhere else, and the opening sequence hands the drawn check to
+            it for a beat at the morph instead of the page holding it on
+            forever. See THE HANDOFF in LockupLogo. */}
+        <Navbar ctaKey="land2.hero.cta" benchmarkHref="#results" />
         <main className="relative">
           <HeroV2 />
           <Stats />

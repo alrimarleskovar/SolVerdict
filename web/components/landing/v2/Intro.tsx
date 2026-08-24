@@ -224,7 +224,22 @@ export function Intro() {
   // slot cannot be measured, so a markup change downstream degrades quietly.
   useEffect(() => {
     if (reduced || mobile || phase !== PHASE.MORPH) return;
-    const target = document.querySelector<HTMLElement>("[data-sv-logo]")?.getBoundingClientRect();
+    const slot = document.querySelector<HTMLElement>("[data-sv-logo]");
+
+    // HAND THE CHECK OFF. The navbar mark runs `revealCheck`, so its check is
+    // hollow until hover — nothing for a completed check to land on. This arms
+    // the one-shot hold-then-recede in LockupLogo (see THE HANDOFF there) so
+    // the mark is drawn through the fly-in and settles back to hoverable
+    // afterwards, instead of the page trading the reveal away permanently.
+    //
+    // Fired here, at the real morph, rather than scheduled from the timeline:
+    // skipping the sequence never reaches this line, and a skipped intro should
+    // leave the navbar in its normal resting state rather than flashing a check
+    // for a handoff that did not happen. Nothing removes the class — the
+    // animation ends by itself and the cascade takes over again.
+    slot?.querySelector("svg")?.classList.add("sv-check-held");
+
+    const target = slot?.getBoundingClientRect();
     const source = markRef.current?.getBoundingClientRect();
     if (!target || !source || !source.width || !target.width) return;
     setFlip({

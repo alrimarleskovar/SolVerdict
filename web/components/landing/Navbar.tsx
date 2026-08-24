@@ -74,10 +74,15 @@ const navLinks = (benchmarkHref: string): Array<{ key: TKey; href: string; exter
  * label ("Test your agent" — the product, not the benchmark) and keeps the
  * Benchmark link on its own page.
  *
- * `alwaysShowCheck` drops `revealCheck`, which leaves the lockup's check
- * permanently drawn instead of hidden until hover. The landing's opening
- * sequence ends by flying a completed check into this slot; arriving at a
- * check-less logo would discard the payoff at the moment of the handoff.
+ * `alwaysShowCheck` drops `revealCheck`, leaving the lockup's check permanently
+ * drawn instead of hidden until hover. NO CALLER PASSES IT ANY MORE. The landing
+ * needed it because its opening sequence flies a completed check into this slot
+ * and arriving at a check-less logo discards the payoff — but holding the check
+ * on forever cost that page the hover reveal, and the two turned out not to
+ * conflict: the intro now arms a one-shot hold-then-recede on the mark at the
+ * morph (see THE HANDOFF in LockupLogo). The prop is kept as the revert lever
+ * while the landing promotion is still fresh; delete it with the v1 components
+ * if the handoff holds up.
  */
 export function Navbar({
   showWallet = false,

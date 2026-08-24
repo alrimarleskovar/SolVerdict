@@ -19,6 +19,22 @@
  * on hover. The empty shield reads as an audit not yet run; the stroke completing is
  * the verdict landing. Honors prefers-reduced-motion by falling back to opacity.
  *
+ * THE HANDOFF. `revealCheck` used to be mutually exclusive with the landing's
+ * opening sequence, which ends by flying a completed check into this mark and so
+ * needed the check already drawn here to land on — hence `alwaysShowCheck`, which
+ * bought the landing its payoff at the cost of the hover reveal everywhere on that
+ * page. The two only conflicted because one was a STATIC choice and the requirement
+ * is TEMPORAL: drawn at the moment of the handoff, idle-and-hoverable after it.
+ *
+ * So a consumer can add the class `sv-check-held` to a revealCheck instance to run a
+ * one-shot animation that holds the check drawn and then lets it recede to the
+ * resting state. It is a CSS animation rather than a JS-toggled class on purpose:
+ * the intro unmounts moments after triggering it, and a timer owned by an
+ * unmounting component either gets cleaned up early or has to outlive its own
+ * cleanup. The animation ends on its own with fill-mode `none`, so the property
+ * falls back to the cascade and `:hover` is authoritative again — nothing has to
+ * remove the class.
+ *
  * IDS. Gradient ids are suffixed with useId() — two instances on a page would
  * otherwise collide on `#g` and silently inherit each other's definitions.
  */
@@ -74,7 +90,10 @@ function WordmarkGradient({ id }: { id: string }) {
  * Scoped CSS for the hover reveal. Inlined rather than a Tailwind arbitrary
  * variant so the component stays portable to any consumer.
  */
-function RevealStyle({ scope }: { scope: string }) {
+function RevealStyle({ scope, uid }: { scope: string; uid: string }) {
+  // Per-instance keyframes name: two logos on a page would otherwise share one
+  // @keyframes, for the same reason the gradient ids are suffixed.
+  const handoff = `sv-handoff-${uid}`;
   return (
     <style>{`
       .${scope} .sv-check {
@@ -86,6 +105,24 @@ function RevealStyle({ scope }: { scope: string }) {
       .${scope}:focus-visible .sv-check {
         stroke-dashoffset: 0;
       }
+
+      /* THE HANDOFF. Drawn through the fly-in and held, then receding to the
+         resting state — which is itself the right reading: the verdict was for
+         THAT run, and the header shield goes idle again, ready to be hovered.
+         The hold runs from the START of the morph (that is when the consumer
+         adds the class), so 65% of 2800ms leaves ~1.3s of held check AFTER the
+         550ms fly-in completes, before the ~1s recession begins.
+         No fill-mode: at the end the property reverts to the cascade above,
+         which is the same value the keyframe finishes on — no flash — and
+         :hover stops being outranked by a running animation. */
+      @keyframes ${handoff} {
+        0%, 65% { stroke-dashoffset: 0; }
+        100%    { stroke-dashoffset: ${CHECK_LENGTH}; }
+      }
+      .${scope}.sv-check-held .sv-check {
+        animation: ${handoff} 2800ms cubic-bezier(0.4, 0, 0.2, 1);
+      }
+
       @media (prefers-reduced-motion: reduce) {
         .${scope} .sv-check {
           stroke-dasharray: none;
@@ -97,11 +134,20 @@ function RevealStyle({ scope }: { scope: string }) {
         .${scope}:focus-visible .sv-check {
           opacity: 1;
         }
+        /* dasharray is none here, so the handoff would animate nothing while
+           opacity kept it invisible. Nothing triggers it under reduced motion
+           anyway — the intro never morphs — but an animation that cannot work
+           should not be left armed. */
+        .${scope}.sv-check-held .sv-check { animation: none; }
       }
+
       /* Touch devices have no hover state. Reveal is a desktop enhancement —
-         on touch the check is simply present. */
+         on touch the check is simply present. The handoff is disabled with it:
+         a tablet is wide enough for the intro to run the morph, and a check
+         that receded there could never be brought back. */
       @media (hover: none), (pointer: coarse) {
         .${scope} .sv-check { stroke-dashoffset: 0; }
+        .${scope}.sv-check-held .sv-check { animation: none; }
       }
     `}</style>
   );
@@ -165,7 +211,7 @@ export function SymbolLogo({ hollow = true, revealCheck = false, className, ...p
       <defs>
         <BrandGradient id={gradId} />
       </defs>
-      {revealCheck && <RevealStyle scope={scope} />}
+      {revealCheck && <RevealStyle scope={scope} uid={uid} />}
       <SymbolPaths gradId={gradId} hollow={hollow} />
     </svg>
   );
@@ -209,7 +255,7 @@ export function LockupLogo({
         <BrandGradient id={gradId} />
         <WordmarkGradient id={textGradId} />
       </defs>
-      {revealCheck && <RevealStyle scope={scope} />}
+      {revealCheck && <RevealStyle scope={scope} uid={uid} />}
       <g transform={SYMBOL_TRANSFORM}>
         <SymbolPaths gradId={gradId} hollow={hollow} />
       </g>
