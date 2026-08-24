@@ -41,17 +41,24 @@ export const PHASE = {
 export type Phase = (typeof PHASE)[keyof typeof PHASE];
 
 /**
- * Milliseconds per phase. Desktop totals 9.75s, mobile 7.7s.
+ * Milliseconds per phase. Desktop totals 8.0s, mobile 6.4s.
  *
- * The budget is spent unevenly on purpose. MARK + CHECK together hold for
- * exactly 3.0s — more than three times the next longest beat — because the
- * check landing in the shield is what the sequence is FOR, and at the original
- * 550ms it was gone before a viewer had finished registering that a logo had
- * appeared. Everything upstream of it is context and pays for that hold: when
- * the sequence had to come down from 12s, the pipeline absorbed the entire
- * 2.25s cut and the ending was not touched. The pipeline is now marginally
- * tighter than the first 6.55s version's while the ending is nearly twice as
- * long, which is the whole trade — the middle was what felt slow, not the end.
+ * THE ENDING IS FIXED AND THE PIPELINE PAYS FOR EVERY CUT. MARK + CHECK hold
+ * for exactly 3.0s on desktop — more than four times the next longest beat —
+ * because the check landing in the shield is what the sequence is FOR, and at
+ * the original 550ms it was gone before a viewer had registered that a logo had
+ * appeared. Every trim since has come out of the middle with the ending
+ * byte-identical: 12s → 9.75s → 8.0s, pipeline 6.95s → 4.7s → 2.95s, ending
+ * 5.05s throughout. The middle was what felt slow, and it is now 42% of what it
+ * was while the payoff has not moved.
+ *
+ * THE PIPELINE BEATS ARE NOT FREELY SHRINKABLE — see PIPELINE_ANIM. Each beat
+ * contains an animation with its own hardcoded duration, and a beat shorter
+ * than the animation inside it cuts that animation off mid-flight, which is
+ * exactly how the check once came to "exist rather than arrive". SERVER was the
+ * tightest: its three staggered stages ended at 750ms inside a 750ms beat, so
+ * the naive cut would have truncated it. lib/intro-timeline.test.ts asserts
+ * every beat still covers what it contains.
  *
  * MOBILE CUTS (see WALLET — zero, i.e. merged into TOOLS):
  *   · TOOLS and WALLET collapse into one beat
@@ -60,19 +67,19 @@ export type Phase = (typeof PHASE)[keyof typeof PHASE];
  *   · the bundle hands off in place — 390px of horizontal travel is a smear
  *   · VERIFY / RE-DERIVE / SCORE tick as one row, not three staggered lines
  *   · the morph is scale+fade, with no FLIP to the header slot
- * The mark beats are cut LEAST (3.0s → 2.6s) while the pipeline loses ~40%:
- * a small screen is where a fast, small payoff is most easily missed.
+ * Mobile scales the same way desktop does: the ending keeps its 4.2s and the
+ * pipeline takes the whole cut, 3.5s → 2.2s.
  */
 export const TIMELINE_DESKTOP: Record<Phase, number> = {
-  // --- pipeline: 4700ms total, the only part that was cut ---
-  [PHASE.BLACK]: 200,
-  [PHASE.AGENT]: 1000,
-  [PHASE.TOOLS]: 800,
-  [PHASE.WALLET]: 650,
-  [PHASE.EVIDENCE]: 650,
-  [PHASE.BUNDLE]: 650,
-  [PHASE.SERVER]: 750,
-  // --- the ending: untouched ---
+  // --- pipeline: 2950ms total, the only part that is ever cut ---
+  [PHASE.BLACK]: 150,
+  [PHASE.AGENT]: 780, // holds the typed task — see TYPE_MS_DESKTOP
+  [PHASE.TOOLS]: 460,
+  [PHASE.WALLET]: 360,
+  [PHASE.EVIDENCE]: 360,
+  [PHASE.BUNDLE]: 400,
+  [PHASE.SERVER]: 440, // the tightest beat: the stage stagger ends at 430ms
+  // --- the ending: untouched, 5050ms ---
   [PHASE.MARK]: 1000,
   [PHASE.CHECK]: 2000,
   [PHASE.VERDICT]: 1500,
@@ -81,19 +88,48 @@ export const TIMELINE_DESKTOP: Record<Phase, number> = {
 };
 
 export const TIMELINE_MOBILE: Record<Phase, number> = {
-  [PHASE.BLACK]: 150,
-  [PHASE.AGENT]: 850,
-  [PHASE.TOOLS]: 800, // TOOLS + WALLET, merged
+  // --- pipeline: 2200ms ---
+  [PHASE.BLACK]: 100,
+  [PHASE.AGENT]: 560,
+  [PHASE.TOOLS]: 500, // TOOLS + WALLET, merged
   [PHASE.WALLET]: 0, // ← cut on mobile
-  [PHASE.EVIDENCE]: 550,
-  [PHASE.BUNDLE]: 550,
-  [PHASE.SERVER]: 600,
+  [PHASE.EVIDENCE]: 340,
+  [PHASE.BUNDLE]: 360,
+  [PHASE.SERVER]: 340, // no stage stagger on mobile — only the container fade
+  // --- the ending: untouched, 4200ms ---
   [PHASE.MARK]: 900,
   [PHASE.CHECK]: 1700,
   [PHASE.VERDICT]: 1200,
   [PHASE.MORPH]: 400,
   [PHASE.DONE]: 0,
 };
+
+/**
+ * Durations of the animations INSIDE the pipeline beats, in seconds.
+ *
+ * These used to be literals scattered through Intro.tsx, which is how SERVER
+ * ended up with a 750ms stagger inside a 750ms beat — a coincidence nobody
+ * could see, and one that turns into a visibly truncated beat the moment the
+ * timeline is trimmed. They live here now, next to the beats that have to
+ * contain them, and the test checks the relationship rather than trusting it.
+ *
+ * Budget per beat (desktop): TOOLS 460 ⊃ fade 260 · WALLET 360 ⊃ fade 260 ·
+ * EVIDENCE 360 ⊃ 300 · BUNDLE 400 ⊃ 340 · SERVER 440 ⊃ stageStep×2 + stageFade
+ * = 430. The ending's own durations stay in Intro.tsx: they are not on this
+ * budget and are not to be scaled with it.
+ */
+export const PIPELINE_ANIM = {
+  /** The TOOLS, WALLET and SERVER containers fading up. */
+  fade: 0.26,
+  /** EVIDENCE scaling in as the two above collapse into it. */
+  evidence: 0.3,
+  /** The signed bundle's travel across to the server. */
+  bundle: 0.34,
+  /** Desktop only: delay between consecutive VERIFY / RE-DERIVE / SCORE stages. */
+  stageStep: 0.13,
+  /** Each server stage's own fade. Last stage ends at 2×stageStep + stageFade. */
+  stageFade: 0.17,
+} as const;
 
 /** Stroke-draw duration for the check, in ms. Slow enough to read as a stroke
  *  being made rather than a state flipping. */

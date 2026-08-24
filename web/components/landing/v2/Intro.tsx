@@ -51,6 +51,7 @@ import {
   CHECK_DRAW_MS,
   INTRO_COOKIE,
   PHASE,
+  PIPELINE_ANIM,
   SERVER_STAGES,
   TASK_LINE,
   TASK_LINE_MOBILE,
@@ -63,10 +64,11 @@ import {
 } from "./intro-data";
 
 const MOBILE_MAX = 640;
-// Sized against the AGENT beat, not chosen for feel: 28 chars at 26ms fills
-// 730ms of a 1000ms beat, leaving the line legible for a moment after the last
-// character rather than cutting the instant it finishes.
-const TYPE_MS_DESKTOP = 26;
+// Sized against the AGENT beat, not chosen for feel: 28 chars at 21ms fills
+// 588ms of a 780ms beat, leaving the line legible for a moment after the last
+// character rather than cutting the instant it finishes. Mobile: 19 chars at
+// 18ms is 342ms of a 560ms beat. Both are asserted in lib/intro-timeline.test.ts.
+const TYPE_MS_DESKTOP = 21;
 const TYPE_MS_MOBILE = 18;
 /** Long enough to read the whole verdict block without motion to carry it. */
 const REDUCED_HOLD_MS = 2200;
@@ -284,7 +286,7 @@ export function Intro() {
             <motion.div
               initial={reduced ? false : { opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: dur(0.45), ease: EASE }}
+              transition={{ duration: dur(PIPELINE_ANIM.fade), ease: EASE }}
             >
               <Label>YOUR AGENT</Label>
               <p className="mt-5 font-code text-[18px] text-snow/85 sm:text-[26px]">
@@ -299,7 +301,7 @@ export function Intro() {
                 className="flex flex-col items-center gap-8 sm:flex-row sm:items-start sm:gap-16"
                 initial={reduced ? false : { opacity: 0 }}
                 animate={{ opacity: 1 }}
-                transition={{ duration: dur(0.4), ease: EASE }}
+                transition={{ duration: dur(PIPELINE_ANIM.fade), ease: EASE }}
               >
                 <div>
                   <Label>TOOLS</Label>
@@ -314,7 +316,7 @@ export function Intro() {
                   <motion.div
                     initial={reduced ? false : { opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: dur(0.4), ease: EASE }}
+                    transition={{ duration: dur(PIPELINE_ANIM.fade), ease: EASE }}
                   >
                     <Label>WALLET</Label>
                     <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
@@ -339,7 +341,7 @@ export function Intro() {
               <motion.div
                 initial={reduced ? false : { opacity: 0, scale: 0.94 }}
                 animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: dur(0.45), ease: EASE }}
+                transition={{ duration: dur(PIPELINE_ANIM.evidence), ease: EASE }}
               >
                 <Label>EVIDENCE</Label>
                 <div className="mt-5 flex flex-wrap justify-center gap-3">
@@ -355,7 +357,7 @@ export function Intro() {
               <motion.div
                 initial={reduced ? false : { opacity: 0, x: mobile ? 0 : -160, y: mobile ? -12 : 0 }}
                 animate={{ opacity: 1, x: 0, y: 0 }}
-                transition={{ duration: dur(0.6), ease: EASE }}
+                transition={{ duration: dur(PIPELINE_ANIM.bundle), ease: EASE }}
                 className={`${CAPS} rounded-2xl border border-brand-purple/40 bg-brand-purple/10 px-6 py-4 text-[14px] text-brand-purple sm:text-[18px]`}
               >
                 ↓ SIGNED EVIDENCE BUNDLE
@@ -367,7 +369,7 @@ export function Intro() {
               <motion.div
                 initial={reduced ? false : { opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: dur(0.4), ease: EASE }}
+                transition={{ duration: dur(PIPELINE_ANIM.fade), ease: EASE }}
               >
                 <Label tone="brand">SOLVERDICT · SERVER</Label>
                 <div className="mt-5 flex flex-wrap justify-center gap-3">
@@ -377,7 +379,11 @@ export function Intro() {
                       <motion.span
                         initial={reduced || mobile ? false : { opacity: 0.25 }}
                         animate={{ opacity: 1 }}
-                        transition={{ duration: dur(0.25), delay: mobile ? 0 : dur(0.25 * i), ease: EASE }}
+                        transition={{
+                          duration: dur(PIPELINE_ANIM.stageFade),
+                          delay: mobile ? 0 : dur(PIPELINE_ANIM.stageStep * i),
+                          ease: EASE,
+                        }}
                       >
                         <Node label={s} on tone="brand" />
                       </motion.span>
