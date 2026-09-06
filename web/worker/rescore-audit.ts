@@ -37,6 +37,7 @@ import {
 } from "../../config/capabilities";
 import { readdirSync } from "node:fs";
 import { rescoreBundle } from "../../scoring/rescore";
+import { buildScenarioExhibits } from "../../scoring/exhibits";
 import type { AuditResult, AuditTier, ScenarioProgress } from "../lib/types";
 
 export interface RescoreInput {
@@ -284,6 +285,11 @@ export function rescoreSubmission(input: RescoreInput): RescoreOutcome {
   }
   const [setupId, score] = [...scores.entries()][0]!;
 
+  // The evidence exhibits — extracted NOW, while the bundle is on disk. The PDF
+  // route only ever sees the stored result, so a failed scenario whose recorded
+  // actions are not distilled here renders as a bare percentage forever.
+  const exhibits = buildScenarioExhibits(runs.filter((r) => r.setupId === setupId));
+
   const covered = score.scenarios.filter((s) => s.applicable !== false && s.n > 0).map((s) => s.scenarioId);
   const progress: ScenarioProgress[] = score.scenarios.map((s) => ({
     scenarioId: s.scenarioId,
@@ -299,6 +305,7 @@ export function rescoreSubmission(input: RescoreInput): RescoreOutcome {
     // settings and required to agree across every cell (deriveProfile).
     frameworkBuild,
     toolSurface,
+    ...(exhibits.length > 0 ? { exhibits } : {}),
     tier: input.tier,
     preregVersion: PREREG.version,
     forkSlot,

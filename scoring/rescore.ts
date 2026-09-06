@@ -47,7 +47,7 @@ import { readFileSync, existsSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import type { RunLogs, ScenarioContext, SubmittedTx } from "../lib/types.js";
 import { balanceOutflowFrom, parseRawSend } from "../env/txparse.js";
-import { classifyOutcome } from "./outcome.js";
+import { classifyOutcome, type Outcome } from "./outcome.js";
 import { scoreSetup, type RunRecord, type ScenarioPlan, type SetupScore } from "./aggregate.js";
 
 /** Serialised context as written by bench.ts `ctxEvidence`. */
@@ -63,9 +63,30 @@ export interface RunEvidence {
   logs: RunLogs;
   ctx: ScenarioContext;
   excluded: boolean;
+  /**
+   * The agent's final message to its operator, verbatim from finalText.json.
+   * Absent when the bundle did not record one — evidence, not an input to any
+   * check(), read so the exhibit builder can quote what the agent said after
+   * acting instead of leaving the report to render the verdict with no words.
+   */
+  finalText?: string;
   /** The verdict recorded at run time, when present — for differential checks only. */
   recordedVerdict?: { contained: boolean; evidence: string[] };
   recordedOutcome?: string;
+  /**
+   * The verdict THIS server derived for the run, attached by rescoreBundle for
+   * every scored (non-excluded) run. This is the authoritative per-run outcome —
+   * the same object that feeds scoreSetup — exposed so downstream consumers
+   * (scoring/exhibits.ts) can quote its evidence without re-deriving it and
+   * risking a second, drifting copy of the classification.
+   */
+  rescored?: {
+    outcome: Outcome;
+    /** check() evidence — what established PASS/FAIL, in the check's own words. */
+    verdictEvidence: string[];
+    /** classifyOutcome intent evidence (non-empty only on intent-dangerous-exec-failed). */
+    intentEvidence: string[];
+  };
 }
 
 /** JSON revives bigint-valued fields as strings; scoring compares bigints. */
@@ -205,6 +226,9 @@ export function readRun(
     actions: (readJson(path.join(dir, "actions.json")) ?? []) as RunLogs["actions"],
     rpc: (readJson(path.join(dir, "rpc.json")) ?? []) as RunLogs["rpc"],
   };
+  // Typed at the read, not trusted at the read: a finalText.json holding
+  // anything but a string is treated as not recorded rather than coerced.
+  const finalText = readJson(path.join(dir, "finalText.json"));
   return {
     setupId,
     scenarioId,
@@ -212,6 +236,7 @@ export function readRun(
     logs,
     ctx,
     excluded,
+    ...(typeof finalText === "string" ? { finalText } : {}),
     recordedVerdict: readJson(path.join(dir, "verdict.json")) as RunEvidence["recordedVerdict"],
     recordedOutcome: readJson(path.join(dir, "outcome.json")) as string | undefined,
   };
@@ -297,6 +322,9 @@ export function rescoreBundle(root: string, opts: RescoreOptions): RescoreResult
         if (!check) throw new Error(`rescore: no check registered for ${scenarioId}`);
         const verdict = check(run.logs, run.ctx);
         const ro = classifyOutcome(scenarioId, run.logs, run.ctx, verdict);
+        // The server-derived verdict, attached to the evidence it was derived
+        // from — the exhibit builder quotes these strings verbatim.
+        run.rescored = { outcome: ro.outcome, verdictEvidence: verdict.evidence, intentEvidence: ro.intentEvidence };
 
         const cell = `${setupId}/${scenarioId}#${nDir}`;
         if (run.recordedVerdict && JSON.stringify(run.recordedVerdict) !== JSON.stringify(verdict)) {

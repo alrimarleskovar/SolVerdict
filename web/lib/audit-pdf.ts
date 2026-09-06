@@ -9,7 +9,9 @@
  * containment headline → metadata → the per-category placard (the visual
  * centerpiece, colored cells mirroring the site) → per-scenario breakdown →
  * an "Audited by SolVerdict" provenance strip (a shareable record — NOT a
- * safety seal) → disclaimer.
+ * safety seal) → disclaimer → and, when any scenario failed, an EVIDENCE
+ * APPENDIX on its own pages reproducing the recorded material behind each
+ * failed row (scoring/exhibits.ts) — what the agent did, never why.
  *
  * HONESTY: the provenance strip records that the agent was *measured* against
  * SolVerdict's adversarial scenarios. It never reads as "approved", "certified
@@ -128,13 +130,23 @@ export function buildAuditPdf(
   const CW = R - L;
 
   // typed text helper — one place to set font / size / color / alignment.
+  // `font` exists for the evidence appendix: quoted recorded material renders in
+  // courier so evidence is visually distinct from report prose. Courier is a
+  // core standard-14 font, so it shares helvetica's Latin-1 encoder behaviour.
   const txt = (
     str: string,
     x: number,
     y: number,
-    o: { size?: number; style?: "normal" | "bold" | "italic"; color?: RGB; align?: "left" | "center" | "right"; maxWidth?: number } = {},
+    o: {
+      size?: number;
+      style?: "normal" | "bold" | "italic";
+      color?: RGB;
+      align?: "left" | "center" | "right";
+      maxWidth?: number;
+      font?: "helvetica" | "courier";
+    } = {},
   ) => {
-    doc.setFont("helvetica", o.style ?? "normal");
+    doc.setFont(o.font ?? "helvetica", o.style ?? "normal");
     doc.setFontSize(o.size ?? 9);
     doc.setTextColor(...(o.color ?? INK));
     doc.text(str, x, y, { align: o.align ?? "left", maxWidth: o.maxWidth });
@@ -416,6 +428,11 @@ export function buildAuditPdf(
   const ROW_H = 13;
   const anyExecFailed = rows.some((r) => r.intentDangerousExecFailed > 0);
   const flaggedRows = rows.filter((r) => r.dataQualityFlags > 0);
+  // Evidence exhibits, needed this early because the table footnotes point at
+  // the appendix. Sorted like the table, so the two read in the same order.
+  // Absent on results stored before extraction existed — those audits render no
+  // appendix and no pointer, exactly as they were issued.
+  const exhibits = [...(result.exhibits ?? [])].sort((a, b) => a.scenarioId.localeCompare(b.scenarioId));
 
   /**
    * Footnote markers — ASCII, and that is the whole point.
@@ -578,6 +595,18 @@ export function buildAuditPdf(
         indent: 8, style: "normal", color: MUTED, gapBefore: 3,
       });
     }
+  }
+  // The pointer to the appendix. A reader who stops at the table would
+  // otherwise take "0%" as the whole story when the recorded material behind it
+  // is a few pages on; measured with the rest of the block, so it can never
+  // push a row under the strip.
+  if (exhibits.length > 0) {
+    footnoteParas.push({
+      text:
+        `Recorded evidence for ${exhibits.length} scenario(s) with not-contained runs - the tool calls as ` +
+        "logged, each call's result, and the agent's final message - is reproduced in the evidence appendix.",
+      indent: 0, style: "italic", color: MUTED, gapBefore: footnoteParas.length > 0 ? 3 : 0,
+    });
   }
 
   /** Wrapped lines for a footnote paragraph, at its own font. */
@@ -856,21 +885,26 @@ export function buildAuditPdf(
   };
   pageFooter();
 
+  // A compact running header for every page after the first: enough identity
+  // that a detached page is still traceable to its audit, without repeating the
+  // whole placard. Shared by the spilled table and the evidence appendix.
+  const runningHeader = () => {
+    doc.setFillColor(...WASH);
+    doc.rect(0, 0, W, 58, "F");
+    drawBadge(doc, L, 13, 32);
+    txt("SolVerdict — Containment Audit", L + 44, 30, { size: 12, style: "bold", color: INK });
+    txt(`Audit ${id}`, L + 44, 44, { size: 7, color: MUTED });
+    txt(`SolVerdict ${PREREG.version}`, R, 30, { size: 8.5, style: "bold", color: MUTED, align: "right" });
+    txt("Adversarial containment benchmark", R, 43, { size: 8, color: MUTED, align: "right" });
+    brandRule(0, 58, W);
+  };
+
   // ================= PAGE 2+ — the full per-scenario table ==================
   if (deferred) {
     let cursor = 0;
     while (cursor < rows.length) {
       doc.addPage();
-      // A compact running header: enough identity that a detached page is still
-      // traceable to its audit, without repeating the whole placard.
-      doc.setFillColor(...WASH);
-      doc.rect(0, 0, W, 58, "F");
-      drawBadge(doc, L, 13, 32);
-      txt("SolVerdict — Containment Audit", L + 44, 30, { size: 12, style: "bold", color: INK });
-      txt(`Audit ${id}`, L + 44, 44, { size: 7, color: MUTED });
-      txt(`SolVerdict ${PREREG.version}`, R, 30, { size: 8.5, style: "bold", color: MUTED, align: "right" });
-      txt("Adversarial containment benchmark", R, 43, { size: 8, color: MUTED, align: "right" });
-      brandRule(0, 58, W);
+      runningHeader();
 
       let py = 92;
       if (legendPending) {
@@ -907,6 +941,188 @@ export function buildAuditPdf(
       cursor += take;
       if (cursor >= rows.length) drawFootnotes(endY);
       pageFooter();
+    }
+  }
+
+  // ================= EVIDENCE APPENDIX (own pages) ==========================
+  //
+  // WHAT THIS IS. The recorded material behind every failed scenario row: the
+  // tool calls with their arguments, what each tool returned, the evidence
+  // lines the server derived when it scored the run, and the first line of the
+  // agent's final message. All of it comes from result.exhibits, distilled at
+  // scoring time (scoring/exhibits.ts) — the PDF route never sees the bundle.
+  //
+  // WHAT THIS IS NOT. It never says WHY the agent did something. Labels are
+  // structural, the quoted strings are the recorded ones, and the only
+  // classification shown ("matched") is the §6 matcher's own — the same rule
+  // that produced the verdict, not a narrative layered on top.
+  //
+  // ALWAYS ITS OWN PAGES. The PDF is what gets forwarded to a third party, so
+  // the evidence has to travel inside it — but page 1's layout arithmetic
+  // (strip anchoring, measured footnotes) is delicate, and the appendix must
+  // not participate in it. A clean audit renders no appendix and keeps its
+  // page count.
+  if (exhibits.length > 0) {
+    /**
+     * Fold quoted material for the Latin-1 encoder — VISIBLY. jsPDF's core
+     * fonts silently drop every codepoint above U+00FF, which would alter a
+     * quote with nothing on the page admitting it (the ‡ failure, aimed at
+     * evidence this time). So common typographic punctuation folds to its
+     * ASCII equivalent, everything else undrawable becomes "?", and the
+     * appendix note declares both substitutions. Latin-1 letters (é, ç)
+     * survive — the boundary is what the encoder can draw, not ASCII purity.
+     * Newlines collapse to spaces: a quoted line is one line.
+     */
+    const FOLD_MAP: Record<string, string> = {
+      "‘": "'", "’": "'", "“": '"', "”": '"',
+      "–": "-", "—": "-", "…": "...", "•": "-",
+      "→": "->",
+      // Zero-width joiners / variation selectors: dropped entirely, so an emoji
+      // sequence folds to one "?" instead of a run of them.
+      "️": "", "‍": "", "​": "",
+    };
+    const fold = (s: string): string => {
+      let out = "";
+      for (const ch of s.replace(/\s+/g, " ")) {
+        const cp = ch.codePointAt(0)!;
+        if ((cp >= 0x20 && cp <= 0x7e) || (cp >= 0xa0 && cp <= 0xff)) out += ch;
+        else out += FOLD_MAP[ch] ?? "?";
+      }
+      return out;
+    };
+
+    let ay = 0;
+    const appendixPage = (cont: boolean) => {
+      doc.addPage();
+      runningHeader();
+      pageFooter();
+      ay = 92;
+      // " - ", not an em dash: appendix chrome is load-bearing and stays ASCII.
+      txt(cont ? "Evidence appendix - continued" : "Evidence appendix", L, ay, { size: 12, style: "bold", color: INK });
+      txt("recorded runs · prereg §6", R, ay, { size: 8, color: MUTED, align: "right" });
+      ay += 16;
+    };
+    appendixPage(false);
+
+    /**
+     * One measured paragraph in the flow. Breaks to a new page BEFORE drawing
+     * when it would cross CONT_LIMIT — the same measure-then-draw discipline as
+     * every block on page 1, so nothing here can hide under the page footer.
+     * No single paragraph can exceed a page: the extraction caps bound every
+     * quoted string to a few wrapped lines.
+     */
+    const para = (
+      text: string,
+      o: { size: number; style?: "normal" | "bold" | "italic"; color: RGB; font?: "helvetica" | "courier"; indent?: number; gap?: number },
+    ) => {
+      doc.setFont(o.font ?? "helvetica", o.style ?? "normal");
+      doc.setFontSize(o.size);
+      const lines = doc.splitTextToSize(text, CW - (o.indent ?? 0)) as string[];
+      const h = (o.gap ?? 0) + lines.length * o.size * 1.28;
+      if (ay + h > CONT_LIMIT) appendixPage(true);
+      ay += o.gap ?? 0;
+      txt(lines.join("\n"), L + (o.indent ?? 0), ay, { size: o.size, style: o.style, color: o.color, font: o.font });
+      ay += lines.length * o.size * 1.28;
+    };
+
+    para(
+      "For each scenario with at least one run scored uncontained or attempted-but-averted, this appendix " +
+        "reproduces recorded evidence from the submitted bundle for one run: the tool calls the agent made, " +
+        "what each tool returned, the evidence lines the server derived when scoring, and the first line of the " +
+        "agent's final message to its operator. It reproduces what the agent did, in the words recorded at run " +
+        "time - it does not say why. The shown run is selected mechanically (each caption states the rule's " +
+        "result); calls marked 'matched' are the ones the pre-registered dangerous-action definition (prereg §6) " +
+        "matched - the same rule that scored the run. Quoted text is verbatim except: characters this PDF's " +
+        "fonts cannot draw appear as '?', typographic punctuation is folded to ASCII, and ' [+N chars]' marks " +
+        "text clipped at the stated length.",
+      { size: 7, style: "italic", color: MUTED },
+    );
+    ay += 6;
+
+    for (const ex of exhibits) {
+      // Keep the heading, caption and the first call together: a heading as the
+      // last line of a page reads like the exhibit was cut off.
+      if (ay + 84 > CONT_LIMIT) appendixPage(true);
+
+      hairline(L, ay, CW);
+      ay += 14;
+      const letter = ex.scenarioId[0] as keyof typeof CATEGORY_LABELS;
+      const outcomeWord = ex.outcome === "uncontained" ? "uncontained" : "attempted - tool failure averted";
+      const outcomeColor = ex.outcome === "uncontained" ? TIER.fail.fg : TIER.partial.fg;
+      txt(`${ex.scenarioId} - ${CATEGORY_LABELS[letter] ?? ""}`, L, ay, { size: 11, style: "bold", color: INK });
+      // "#" so "run #0 of 20" cannot misread as zero runs; the index names the
+      // exact cell in the bundle (<setup>/<scenario>/<index>), which is the
+      // point — a third party can walk to the raw evidence.
+      txt(`run #${ex.runIndex} of ${ex.tally.n} scored - ${outcomeWord}`, R, ay, {
+        size: 8, style: "bold", color: outcomeColor, align: "right",
+      });
+      ay += 11;
+
+      // The caption: the cell's tally and the selection rule's result. This is
+      // what makes one run evidence rather than cherry-picking — the reader
+      // sees the distribution the run was drawn from.
+      const t = ex.tally;
+      const failedRuns = t.uncontained + t.intentDangerousExecFailed;
+      para(
+        `Of ${t.n} scored run(s): ${t.contained} contained · ${t.uncontained} uncontained · ` +
+          `${t.intentDangerousExecFailed} attempted with the dangerous action averted by a tool failure.`,
+        { size: 7.5, color: BODY },
+      );
+      para(
+        failedRuns === 1
+          ? "The one not-contained run is shown."
+          : ex.matchedTools.length > 0
+            ? `${ex.sameShape} of ${failedRuns} not-contained runs share this run's shape ` +
+              `(${ex.matchedTools.join(", ")}); the earliest run of the largest group is shown.`
+            : "No recorded call matched the scenario's dangerous-action definition in this run " +
+              `(${ex.sameShape} of ${failedRuns} not-contained runs share that shape); the verdict rests on the ` +
+              "evidence lines below. The earliest run of the largest group is shown.",
+        { size: 7, style: "italic", color: MUTED, gap: 1 },
+      );
+
+      para("RECORDED TOOL CALLS", { size: 7, style: "bold", color: MUTED, gap: 6 });
+      if (ex.actions.length < ex.totalActions) {
+        const shownMatched = ex.actions.filter((a) => a.matched).length;
+        para(
+          shownMatched === ex.matchedActions
+            ? `showing ${ex.actions.length} of ${ex.totalActions} recorded calls - every matched call is shown`
+            : `showing ${ex.actions.length} of ${ex.totalActions} recorded calls - ${shownMatched} of ` +
+              `${ex.matchedActions} matched calls shown`,
+          { size: 7, style: "italic", color: MUTED, gap: 1 },
+        );
+      }
+      for (const a of ex.actions) {
+        // Reserve the head plus a worst-case args/result pair (both capped, so
+        // a few wrapped lines each): a call whose header lands on one page and
+        // whose result lands on the next reads as two different calls.
+        if (ay + 68 > CONT_LIMIT) appendixPage(true);
+        ay += 4;
+        txt(`${a.index}. ${a.tool}`, L + 2, ay, { size: 8, style: "bold", color: INK });
+        if (a.matched) {
+          txt("matched the §6 dangerous-action definition", R, ay, { size: 7, style: "italic", color: outcomeColor, align: "right" });
+        }
+        ay += 10;
+        para(`args ${fold(a.args)}`, { size: 6.5, color: BODY, font: "courier", indent: 12 });
+        para(`->   ${fold(a.result)}`, { size: 6.5, color: BODY, font: "courier", indent: 12, gap: 1 });
+      }
+
+      para("SCORING EVIDENCE (SERVER-DERIVED)", { size: 7, style: "bold", color: MUTED, gap: 6 });
+      for (const line of ex.evidence) {
+        para(fold(line), { size: 6.5, color: BODY, font: "courier", indent: 12, gap: 1 });
+      }
+      if (ex.evidenceDropped > 0) {
+        para(`+ ${ex.evidenceDropped} more evidence line(s) in the bundle`, { size: 7, style: "italic", color: MUTED, indent: 12, gap: 1 });
+      }
+
+      para("AGENT'S FINAL MESSAGE - FIRST LINE", { size: 7, style: "bold", color: MUTED, gap: 6 });
+      if (ex.finalLine !== null) {
+        para(`"${fold(ex.finalLine)}"`, { size: 6.5, color: BODY, font: "courier", indent: 12, gap: 1 });
+      } else {
+        para(ex.finalRecorded ? "(recorded, but empty)" : "not recorded in this run's evidence", {
+          size: 7, style: "italic", color: MUTED, indent: 12, gap: 1,
+        });
+      }
+      ay += 10;
     }
   }
 

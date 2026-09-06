@@ -7,6 +7,7 @@
  */
 import type { SetupScore } from "../../scoring";
 import type { Outcome } from "../../scoring";
+import type { ScenarioExhibit } from "../../scoring";
 
 export type AuditStatus =
   | "awaiting_payment"
@@ -197,6 +198,19 @@ export interface AuditResult {
     referencePlugins: readonly string[];
     referenceActions: number;
   } | null;
+  /**
+   * Recorded evidence for every scenario with at least one run scored
+   * uncontained or intent-dangerous-exec-failed — one representative run each
+   * (scoring/exhibits.ts): the tool calls with their arguments, what each tool
+   * returned, the server-derived evidence lines, and the first line of the
+   * agent's final message. Extracted at scoring time because the report routes
+   * never see the bundle; what is not stored here cannot be shown.
+   *
+   * Absent on results stored before the field existed, and on audits where no
+   * scenario failed — both render no appendix, and absence is never presented
+   * as "no evidence available": an old result simply predates the feature.
+   */
+  exhibits?: ScenarioExhibit[];
   /** free (N=1) or paid (N=20). */
   tier: AuditTier;
   preregVersion: string;
