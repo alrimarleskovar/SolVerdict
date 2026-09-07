@@ -862,6 +862,15 @@ for (const ids of [["A2"], ["A1", "B2", "D1", "F1"]]) {
       assert.ok(head.some(isVisible), `${id}: exhibit heading drawn under the footer band`);
       const fin = drawn.filter((d) => d.text.includes(`final line for ${id}`));
       assert.ok(fin.length > 0 && fin.some(isVisible), `${id}: final-message line missing or buried`);
+      // KEEP-TOGETHER. These exhibits each fit on a page, so no exhibit may be
+      // split across the fold — its heading and its final line, the first and
+      // last content it draws, must land on the SAME page. This is the orphan
+      // bug the fix is for: an exhibit that started low used to spill its tail.
+      assert.equal(
+        head[0]!.page,
+        fin[0]!.page,
+        `${id}: exhibit split across pages ${head[0]!.page} and ${fin[0]!.page} despite fitting on one`,
+      );
     }
     // The continuation title appears on the later appendix pages.
     assert.ok(
@@ -872,6 +881,51 @@ for (const ids of [["A2"], ["A1", "B2", "D1", "F1"]]) {
     for (const id of ALL) {
       const hits = drawn.filter((d) => d.text === id || d.text.startsWith(`${id} `));
       assert.ok(hits.some(isVisible), `${id}: table row became invisible once the appendix was added`);
+    }
+  }
+
+  // 6. THE FALLBACK: an exhibit genuinely taller than a page. It cannot be kept
+  //    whole, so it is allowed to span pages — but it must break between blocks,
+  //    lose nothing, and keep every line above the footer band. Constructed
+  //    directly (bypassing the extraction caps) so the layout is exercised
+  //    against an input larger than any real exhibit.
+  {
+    const huge = exhibit("A2", {
+      finalLine: "final line for the oversized exhibit",
+      actions: Array.from({ length: 6 }, (_, k) => ({
+        index: k,
+        tool: k === 5 ? "transfer_sol" : "BALANCE_ACTION",
+        args: `{"call":${k},"pad":"${"a".repeat(500)}"}`,
+        result: `{"RESULT_MARKER_${k}":"${"r".repeat(490)}"}`,
+        matched: k === 5,
+      })),
+      totalActions: 8,
+      matchedActions: 1,
+      evidence: Array.from({ length: 6 }, (_, i) => `EVIDENCE_MARKER_${i} ${"z".repeat(400)}`),
+      evidenceDropped: 2,
+    });
+    const drawn = withExhibits([huge], ["A2"]);
+
+    const heading = drawn.find((d) => d.text.startsWith("A2 - "));
+    const finalLn = drawn.find((d) => d.text.includes("final line for the oversized exhibit"));
+    assert.ok(heading && finalLn, "the oversized exhibit's heading and final line must both be drawn");
+    // It must actually span pages — otherwise this fixture is not exercising the
+    // fallback and the test proves nothing.
+    assert.ok(
+      finalLn!.page > heading!.page,
+      `expected the oversized exhibit to span pages; heading p${heading!.page}, final p${finalLn!.page}`,
+    );
+    assert.ok(isVisible(heading!) && isVisible(finalLn!), "heading and final line must stay above the footer band");
+
+    // Nothing is lost across the break: every call's result and every evidence
+    // line is drawn and visible, wherever it landed.
+    for (let k = 0; k < 6; k++) {
+      const r = drawn.filter((d) => d.text.includes(`RESULT_MARKER_${k}`));
+      assert.ok(r.length > 0 && r.every(isVisible), `result of call ${k} missing or buried in the fallback`);
+    }
+    for (let i = 0; i < 6; i++) {
+      const e = drawn.filter((d) => d.text.includes(`EVIDENCE_MARKER_${i}`));
+      assert.ok(e.length > 0 && e.every(isVisible), `evidence line ${i} missing or buried in the fallback`);
     }
   }
 }

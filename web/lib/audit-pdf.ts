@@ -1039,88 +1039,175 @@ export function buildAuditPdf(
     );
     ay += 6;
 
-    for (const ex of exhibits) {
-      // Keep the heading, caption and the first call together: a heading as the
-      // last line of a page reads like the exhibit was cut off.
-      if (ay + 84 > CONT_LIMIT) appendixPage(true);
+    /**
+     * KEEP-TOGETHER, PER EXHIBIT. An exhibit used to be drawn straight down the
+     * flow, each paragraph breaking to the next page on its own — so an exhibit
+     * that started low on a page left its tail orphaned across the fold (a
+     * heading and its first lines here, four more lines on the next page). An
+     * exhibit is one piece of evidence and reads as one: it moves to the next
+     * page whole rather than splitting.
+     *
+     * The mechanism is measure-then-place. Each drawable unit is built as a
+     * `Block` that has ALREADY measured its own wrapped height (drawing just
+     * repaints the measured lines), so the exhibit's full height is known before
+     * a single line is committed. If the whole exhibit fits on a page but not in
+     * what's left of this one, it starts a fresh page.
+     *
+     * THE FALLBACK. A single exhibit can, in the worst case (six calls, every
+     * argument and result at its extraction cap), be taller than one page. Such
+     * an exhibit cannot be kept whole, so it degrades to breaking between GROUPS
+     * — the heading cluster, each call, the evidence block, the final message —
+     * which keeps a call's header/args/result together and never orphans a
+     * section heading, even though the exhibit itself spans pages.
+     */
+    type Block = { height: number; draw: () => void };
+    /** The y a fresh appendix page starts its body at (see appendixPage). */
+    const APPENDIX_BODY_TOP = 108; // 92 header baseline + 16
+    const pageContentH = CONT_LIMIT - APPENDIX_BODY_TOP;
 
-      hairline(L, ay, CW);
-      ay += 14;
+    /** A measured paragraph block: the wrap is computed now, painted on draw. */
+    const paraBlock = (
+      text: string,
+      o: { size: number; style?: "normal" | "bold" | "italic"; color: RGB; font?: "helvetica" | "courier"; indent?: number; gap?: number },
+    ): Block => {
+      doc.setFont(o.font ?? "helvetica", o.style ?? "normal");
+      doc.setFontSize(o.size);
+      const lines = doc.splitTextToSize(text, CW - (o.indent ?? 0)) as string[];
+      return {
+        height: (o.gap ?? 0) + lines.length * o.size * 1.28,
+        draw: () => {
+          ay += o.gap ?? 0;
+          txt(lines.join("\n"), L + (o.indent ?? 0), ay, { size: o.size, style: o.style, color: o.color, font: o.font });
+          ay += lines.length * o.size * 1.28;
+        },
+      };
+    };
+
+    for (const ex of exhibits) {
       const letter = ex.scenarioId[0] as keyof typeof CATEGORY_LABELS;
       const outcomeWord = ex.outcome === "uncontained" ? "uncontained" : "attempted - tool failure averted";
       const outcomeColor = ex.outcome === "uncontained" ? TIER.fail.fg : TIER.partial.fg;
-      txt(`${ex.scenarioId} - ${CATEGORY_LABELS[letter] ?? ""}`, L, ay, { size: 11, style: "bold", color: INK });
-      // "#" so "run #0 of 20" cannot misread as zero runs; the index names the
-      // exact cell in the bundle (<setup>/<scenario>/<index>), which is the
-      // point — a third party can walk to the raw evidence.
-      txt(`run #${ex.runIndex} of ${ex.tally.n} scored - ${outcomeWord}`, R, ay, {
-        size: 8, style: "bold", color: outcomeColor, align: "right",
-      });
-      ay += 11;
-
-      // The caption: the cell's tally and the selection rule's result. This is
-      // what makes one run evidence rather than cherry-picking — the reader
-      // sees the distribution the run was drawn from.
       const t = ex.tally;
       const failedRuns = t.uncontained + t.intentDangerousExecFailed;
-      para(
-        `Of ${t.n} scored run(s): ${t.contained} contained · ${t.uncontained} uncontained · ` +
-          `${t.intentDangerousExecFailed} attempted with the dangerous action averted by a tool failure.`,
-        { size: 7.5, color: BODY },
-      );
-      para(
-        failedRuns === 1
-          ? "The one not-contained run is shown."
-          : ex.matchedTools.length > 0
-            ? `${ex.sameShape} of ${failedRuns} not-contained runs share this run's shape ` +
-              `(${ex.matchedTools.join(", ")}); the earliest run of the largest group is shown.`
-            : "No recorded call matched the scenario's dangerous-action definition in this run " +
-              `(${ex.sameShape} of ${failedRuns} not-contained runs share that shape); the verdict rests on the ` +
-              "evidence lines below. The earliest run of the largest group is shown.",
-        { size: 7, style: "italic", color: MUTED, gap: 1 },
-      );
 
-      para("RECORDED TOOL CALLS", { size: 7, style: "bold", color: MUTED, gap: 6 });
+      // Each group is a run of blocks that must not be split from one another.
+      const groups: Block[][] = [];
+
+      // Heading cluster: rule, title, the tally caption, the selection-rule
+      // caption, and the "RECORDED TOOL CALLS" header — a heading stranded as a
+      // page's last line reads like the exhibit was cut off.
+      const head: Block[] = [
+        { height: 14, draw: () => { hairline(L, ay, CW); ay += 14; } },
+        {
+          height: 11,
+          draw: () => {
+            txt(`${ex.scenarioId} - ${CATEGORY_LABELS[letter] ?? ""}`, L, ay, { size: 11, style: "bold", color: INK });
+            // "#" so "run #0 of 20" cannot misread as zero runs; the index names
+            // the exact cell in the bundle (<setup>/<scenario>/<index>), so a
+            // third party can walk to the raw evidence.
+            txt(`run #${ex.runIndex} of ${ex.tally.n} scored - ${outcomeWord}`, R, ay, {
+              size: 8, style: "bold", color: outcomeColor, align: "right",
+            });
+            ay += 11;
+          },
+        },
+        // The caption states the distribution the shown run was drawn from —
+        // what makes one run evidence rather than cherry-picking.
+        paraBlock(
+          `Of ${t.n} scored run(s): ${t.contained} contained · ${t.uncontained} uncontained · ` +
+            `${t.intentDangerousExecFailed} attempted with the dangerous action averted by a tool failure.`,
+          { size: 7.5, color: BODY },
+        ),
+        paraBlock(
+          failedRuns === 1
+            ? "The one not-contained run is shown."
+            : ex.matchedTools.length > 0
+              ? `${ex.sameShape} of ${failedRuns} not-contained runs share this run's shape ` +
+                `(${ex.matchedTools.join(", ")}); the earliest run of the largest group is shown.`
+              : "No recorded call matched the scenario's dangerous-action definition in this run " +
+                `(${ex.sameShape} of ${failedRuns} not-contained runs share that shape); the verdict rests on the ` +
+                "evidence lines below. The earliest run of the largest group is shown.",
+          { size: 7, style: "italic", color: MUTED, gap: 1 },
+        ),
+        paraBlock("RECORDED TOOL CALLS", { size: 7, style: "bold", color: MUTED, gap: 6 }),
+      ];
       if (ex.actions.length < ex.totalActions) {
         const shownMatched = ex.actions.filter((a) => a.matched).length;
-        para(
-          shownMatched === ex.matchedActions
-            ? `showing ${ex.actions.length} of ${ex.totalActions} recorded calls - every matched call is shown`
-            : `showing ${ex.actions.length} of ${ex.totalActions} recorded calls - ${shownMatched} of ` +
-              `${ex.matchedActions} matched calls shown`,
-          { size: 7, style: "italic", color: MUTED, gap: 1 },
+        head.push(
+          paraBlock(
+            shownMatched === ex.matchedActions
+              ? `showing ${ex.actions.length} of ${ex.totalActions} recorded calls - every matched call is shown`
+              : `showing ${ex.actions.length} of ${ex.totalActions} recorded calls - ${shownMatched} of ` +
+                `${ex.matchedActions} matched calls shown`,
+            { size: 7, style: "italic", color: MUTED, gap: 1 },
+          ),
         );
       }
+      groups.push(head);
+
+      // One group per call: header + args + result stay together, so a call
+      // never reads as two calls across a fold.
       for (const a of ex.actions) {
-        // Reserve the head plus a worst-case args/result pair (both capped, so
-        // a few wrapped lines each): a call whose header lands on one page and
-        // whose result lands on the next reads as two different calls.
-        if (ay + 68 > CONT_LIMIT) appendixPage(true);
-        ay += 4;
-        txt(`${a.index}. ${a.tool}`, L + 2, ay, { size: 8, style: "bold", color: INK });
-        if (a.matched) {
-          txt("matched the §6 dangerous-action definition", R, ay, { size: 7, style: "italic", color: outcomeColor, align: "right" });
-        }
-        ay += 10;
-        para(`args ${fold(a.args)}`, { size: 6.5, color: BODY, font: "courier", indent: 12 });
-        para(`->   ${fold(a.result)}`, { size: 6.5, color: BODY, font: "courier", indent: 12, gap: 1 });
+        groups.push([
+          {
+            height: 14,
+            draw: () => {
+              ay += 4;
+              txt(`${a.index}. ${a.tool}`, L + 2, ay, { size: 8, style: "bold", color: INK });
+              if (a.matched) {
+                txt("matched the §6 dangerous-action definition", R, ay, { size: 7, style: "italic", color: outcomeColor, align: "right" });
+              }
+              ay += 10;
+            },
+          },
+          paraBlock(`args ${fold(a.args)}`, { size: 6.5, color: BODY, font: "courier", indent: 12 }),
+          paraBlock(`->   ${fold(a.result)}`, { size: 6.5, color: BODY, font: "courier", indent: 12, gap: 1 }),
+        ]);
       }
 
-      para("SCORING EVIDENCE (SERVER-DERIVED)", { size: 7, style: "bold", color: MUTED, gap: 6 });
+      // Scoring evidence: its header and lines stay together.
+      const evidence: Block[] = [paraBlock("SCORING EVIDENCE (SERVER-DERIVED)", { size: 7, style: "bold", color: MUTED, gap: 6 })];
       for (const line of ex.evidence) {
-        para(fold(line), { size: 6.5, color: BODY, font: "courier", indent: 12, gap: 1 });
+        evidence.push(paraBlock(fold(line), { size: 6.5, color: BODY, font: "courier", indent: 12, gap: 1 }));
       }
       if (ex.evidenceDropped > 0) {
-        para(`+ ${ex.evidenceDropped} more evidence line(s) in the bundle`, { size: 7, style: "italic", color: MUTED, indent: 12, gap: 1 });
+        evidence.push(paraBlock(`+ ${ex.evidenceDropped} more evidence line(s) in the bundle`, { size: 7, style: "italic", color: MUTED, indent: 12, gap: 1 }));
       }
+      groups.push(evidence);
 
-      para("AGENT'S FINAL MESSAGE - FIRST LINE", { size: 7, style: "bold", color: MUTED, gap: 6 });
-      if (ex.finalLine !== null) {
-        para(`"${fold(ex.finalLine)}"`, { size: 6.5, color: BODY, font: "courier", indent: 12, gap: 1 });
+      // The agent's final message: header and line stay together.
+      groups.push([
+        paraBlock("AGENT'S FINAL MESSAGE - FIRST LINE", { size: 7, style: "bold", color: MUTED, gap: 6 }),
+        ex.finalLine !== null
+          ? paraBlock(`"${fold(ex.finalLine)}"`, { size: 6.5, color: BODY, font: "courier", indent: 12, gap: 1 })
+          : paraBlock(ex.finalRecorded ? "(recorded, but empty)" : "not recorded in this run's evidence", {
+              size: 7, style: "italic", color: MUTED, indent: 12, gap: 1,
+            }),
+      ]);
+
+      const groupH = (g: Block[]): number => g.reduce((a, b) => a + b.height, 0);
+      const exhibitH = groups.reduce((a, g) => a + groupH(g), 0);
+      const keepWhole = exhibitH <= pageContentH;
+
+      // Primary path: the exhibit fits on a page, so place it whole — start a
+      // fresh page if it will not fit in what is left of this one, then draw it
+      // straight through with no internal breaks.
+      if (keepWhole) {
+        if (ay + exhibitH > CONT_LIMIT) appendixPage(true);
+        for (const g of groups) for (const b of g) b.draw();
       } else {
-        para(ex.finalRecorded ? "(recorded, but empty)" : "not recorded in this run's evidence", {
-          size: 7, style: "italic", color: MUTED, indent: 12, gap: 1,
-        });
+        // Fallback: too tall for any page. Break between groups instead, so a
+        // call and each section heading still hold together.
+        for (const g of groups) {
+          const gh = groupH(g);
+          if (gh <= pageContentH && ay + gh > CONT_LIMIT) appendixPage(true);
+          for (const b of g) {
+            // A single group larger than a whole page (pathological) still must
+            // not overprint the footer: let it break block by block.
+            if (gh > pageContentH && ay + b.height > CONT_LIMIT) appendixPage(true);
+            b.draw();
+          }
+        }
       }
       ay += 10;
     }
