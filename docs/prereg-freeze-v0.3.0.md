@@ -182,7 +182,8 @@ nessa data não os tem (transporta os mesmos números noutro sítio, em `runCoun
 diff profundo campo a campo mostra que **a totalidade da diferença são esses dois campos**,
 ausentes de um lado e presentes do outro: `n`, `planned`, `attempted`, `excluded`, `contained`,
 `uncontained`, `intentDangerousExecFailed`, `rate`, o intervalo de Wilson, o `tier`, as médias por
-categoria e o bloco `completeness` são **idênticos em todas as 80 células**.
+categoria e o bloco `completeness` são **idênticos em todas as 80 células**. *(Incorreto quanto
+aos não-aplicáveis — ver a correção de 2026-09-17, logo abaixo.)*
 
 Fica registado como **defasagem deste documento**, e não como divergência de pontuação. E fica
 registado em vez de corrigido no comparador: tornar um script de prova mais tolerante para
@@ -190,6 +191,39 @@ restaurar um visto verde é exatamente o género de conveniência que este regis
 permitir. A verificação forte continua a existir e é a linha dos vereditos, que é a que responde à
 pergunta; se o comparador vier a ignorar campos aditivos, é uma alteração deliberada ao script de
 prova e é registada como tal.
+
+**Correção — registada em 2026-09-17.** O registo de 2026-08-21 está **errado** num ponto: os dois
+campos aditivos **não** são a totalidade da diferença, e o bloco `completeness` **não** é idêntico
+nos quatro setups. Repetido em 2026-09-17, o diff profundo campo a campo entre o agregado
+re-pontuado e o snapshot publicado encontra **196** caminhos diferentes, e não 160:
+
+| Caminhos | Onde | O quê |
+|---|---|---|
+| 160 | as 80 células dos quatro setups | `dataQualityFlags` e `dataQualityReasons`, ausentes do snapshot — os dois campos aditivos registados acima |
+| 18 | `score.scenarios[]` de `sak+claude` e `sak+gpt` | `notApplicable.capability` de C1, C3 e C4 (6) e `notApplicable.reason` de C1, C3, C4, F1, F2 e F3 (12) |
+| 18 | `completeness.notApplicableReasons` dos mesmos dois setups | os mesmos pares: `capability` e `reason` de C1, C3 e C4 (12), e `reason` de F1, F2 e F3 (6) |
+
+**A causa é a Emenda 9 (2026-08-17), e nenhum veredito, contagem ou denominador muda com ela.**
+Essa emenda dividiu a capacidade `approve-delegate` em `approve-allowance` (C1, C4) e
+`set-authority` (C3), cada uma com a sua razão, e reescreveu a razão de `token2022` (F1, F2, F3)
+para dizer que a capacidade é construção **local** e que o limite é contingente. O pipeline atual emite os rótulos e as razões novos; o
+snapshot de 2026-08-09 transporta os antigos — `approve-delegate` nas três células C, e a razão
+curta de `token2022` nas três F. A própria Emenda 9 o antecipa na sua tabela de *superseding*: as
+linhas publicadas «resolvem-se para as mesmas células por ambos os caminhos».
+
+E resolvem-se. **O conjunto de células não-aplicáveis é o mesmo dos dois lados** — C1, C3, C4, F1,
+F2 e F3 em `sak+claude` e em `sak+gpt`, nenhuma em `baseline-scripted` nem em
+`model-only-claude` — e com ele todos os denominadores. As contagens, as taxas, os intervalos de
+Wilson, os `tier`, as médias por categoria e os restantes campos de `completeness` são idênticos, e
+os **1360** vereditos por corrida reproduzem-se. Em `baseline-scripted` e `model-only-claude` a
+diferença é, de facto, só a dos dois campos aditivos.
+
+**Pela regra de leitura abaixo, isto não é uma mudança de forma: é uma diferença num valor da
+tabela**, porque as razões dos não-aplicáveis estão na linha **Completude** («não-aplicáveis e as
+suas razões»). A regra manda explicá-la. Devia ter sido explicada em 2026-08-21, quando a diferença
+foi registada, e não foi; fica explicada aqui, com a causa. A tabela **não** muda para a acomodar,
+nem a regra: a próxima diferença em qualquer valor dela — rótulos e razões dos não-aplicáveis
+incluídos — obriga à mesma explicação.
 
 ### A propriedade que interessa: valores pontuados, não forma de serialização
 
