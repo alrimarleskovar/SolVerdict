@@ -26,6 +26,7 @@
     "setups/**/*.ts",
     "report/**/*.ts",
     "issuance/**/*.ts",
+    "rulecheck/**/*.ts",
     "scripts/**/*.ts"
   ],
   "exclude": [
