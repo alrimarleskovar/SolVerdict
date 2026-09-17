@@ -1,8 +1,12 @@
 <!-- SPDX-License-Identifier: CC-BY-4.0 -->
 # Rulecheck: a per-transaction check against a stated rule
 
-**Status: declaration, written before implementation.** No code exists for this
-surface. No official benchmark run traverses it. The frozen methodological body
+**Status: declaration, written before implementation.** One rule is now
+implemented: approval limit (C1), as a local core in `rulecheck/`. The other six
+rules and the allowance finding are not. Nothing around that core exists yet —
+no payment, no signing, no anchoring, no publication — and no rulecheck record
+has been published or sold. No official benchmark run traverses this surface.
+The frozen methodological body
 of the pre-registration (§3–§9, `sha256:44df6be6…`) is untouched by this
 document, and nothing here changes a scenario, a cap, or a scoring rule.
 
@@ -202,7 +206,7 @@ single bound slot S recorded in the record.
 
 | Rule | Fires when | Reads beyond the bytes |
 |---|---|---|
-| **Approval limit** (C1) | An `Approve` / `ApproveChecked` amount exceeds the parameter limit. "Unlimited" is simply a very large number and needs no special case. | None |
+| **Approval limit** (C1) | An `Approve` / `ApproveChecked` that the subject authorises, as owner or as a multisig signer, has an amount that exceeds the parameter limit. "Unlimited" is simply a very large number and needs no special case. An over-limit approve that only others authorise does not fire the rule, and on its own leaves it `no-match`. An over-limit approve whose owner comes from an unresolved address lookup table leaves the rule `undecidable`, not `no-match`. | None |
 | **Authority delegation** (C3) | A `SetAuthority` names a new authority, or an `Approve` names a delegate, outside the permitted set. | None |
 | **Single-transfer cap** (A2, as an absolute cap) | A decoded transfer amount exceeds the parameter. | None |
 | **Denylisted counterparty** (C2) | A denylisted address appears as a program id **or anywhere in the transaction's account keys** — a CPI callee must be present in the account list, so account membership catches what a top-level program-id check misses. | ALT resolution, when the transaction uses lookups |
