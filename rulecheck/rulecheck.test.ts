@@ -32,12 +32,26 @@ import { parseRawSend } from "../env/txparse.js";
 import type { RawSend } from "../env/recorder.js";
 import { evaluateApprovalLimit, type Finding } from "./approval-limit.js";
 import { bindingDigest } from "./binding.js";
+import { CHAIN_GENESIS, nextChainHash, replayChain } from "./chain.js";
+import {
+  canonicalJson,
+  ENVELOPE_FORMAT,
+  publicKeyForSeed,
+  recordDigest,
+  signEnvelope,
+  slotOf,
+  slotSkewSeconds,
+  verifyEnvelope,
+  type RecordEnvelope,
+} from "./envelope.js";
 import { approveTx, DEMO, DEMO_POLICY, DEMO_SOURCE, DEMO_TRANSACTIONS, routerInstruction } from "./demo.js";
+import { currentKey, keyById, problemsIn, RECORD_KEYS, type RecordKey } from "./keys.js";
 import { parsePolicy, policyToJson, policyVersionDigest, U64_MAX, type RulecheckPolicy } from "./policy.js";
 import { RulecheckRefusal, type RefusalCode } from "./refusal.js";
 import { renderRecord } from "./render.js";
-import { RECORD_LIMIT, recordProse, rulecheck, type RulecheckRecord } from "./rulecheck.js";
-import { FORBIDDEN_WORDS, forbiddenWordsIn } from "./vocabulary.js";
+import { OPAQUE_KEYS, RECORD_LIMIT, recordProse, rulecheck, type RulecheckRecord } from "./rulecheck.js";
+import { lookupKeyFor, seal, unseal } from "./seal.js";
+import { FORBIDDEN_WORDS, forbiddenWordsIn, maskOpaque } from "./vocabulary.js";
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
 
@@ -552,7 +566,95 @@ test("separation: nothing the rulecheck imports reaches the scoring side", () =>
   }
 });
 
-test("separation: nothing outside rulecheck/ imports it", () => {
+/**
+ * The modules outside rulecheck/ that may import it, and what each is for.
+ *
+ * An allowlist, not a blanket prohibition: the surface now has a store behind
+ * it, and a paid route in front of it next. The list IS the guarantee — a file
+ * not named here that reaches into rulecheck/ is the two pipelines beginning to
+ * meet, which is what §8(e) forbids. Adding a line is a decision someone has to
+ * write down, which is the point of keeping it short.
+ */
+const RULECHECK_IMPORTERS: Record<string, string> = {
+  "web/lib/rulecheck-key.ts": "loads the record signing key from the environment (§7)",
+  "web/lib/rulecheck-store.ts": "seals an issued record and appends it to the chain",
+  "web/lib/rulecheck-store.test.ts": "the store's own suite",
+};
+
+/**
+ * The one module the two sides are permitted to share, and why.
+ *
+ * lib/supabase.ts is the Postgres client factory. The service-role key must be
+ * read in exactly one place — web/lib/server-only-secrets.test.ts asserts
+ * that — so a second factory for the rulecheck side would weaken a guarantee
+ * that matters more than this one. What crosses here is a database connection,
+ * which is exactly the "they share a Postgres and nothing else" arrangement;
+ * nothing that computes or renders a benchmark result crosses with it, and the
+ * walk below is what holds that.
+ */
+const PERMITTED_CROSSINGS = ["web/lib/supabase.ts"];
+
+/** Modules that compute, hold or render a benchmark result. Off limits, both ways. */
+const BENCHMARK_DIRS = ["scoring", "scenarios", "issuance", "probes", "report", "setups"];
+const BENCHMARK_FILES = ["config/thresholds.ts", "bench.ts"];
+const BENCHMARK_WEB =
+  /^web\/(lib\/(audit-|placard-model|badge|evidence-|instance-|submission|types|payment|notify|sak-adapter|explorer)|worker\/|app\/api\/audit)/;
+
+/** Comments stripped, so a path named in prose is never read as an import. */
+const uncommented = (src: string): string =>
+  src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+
+const REACHES_RULECHECK = /["'][./]*rulecheck\//;
+const rel = (p: string): string => path.relative(ROOT, p).split(path.sep).join("/");
+
+/**
+ * Relative specifiers that survive to runtime.
+ *
+ * A type-only import is erased before anything runs, so it cannot carry
+ * behaviour across the boundary — the same distinction web/lib/root-imports.test.ts
+ * draws. Dynamic `import(...)` is included: deferring a module does not
+ * un-import it.
+ */
+function runtimeImportsOf(file: string): string[] {
+  const src = uncommented(readFileSync(file, "utf8"));
+  const out: string[] = [];
+  for (const m of src.matchAll(/(?:^|[\s;}])(?:import|export)\s+(type\s+)?([^;]*?)from\s*["'](\.[^"']+)["']/g)) {
+    if (!m[1]) out.push(m[3]!);
+  }
+  for (const m of src.matchAll(/(?:^|[\s;}])import\s*["'](\.[^"']+)["']/g)) out.push(m[1]!);
+  for (const m of src.matchAll(/import\s*\(\s*["'](\.[^"']+)["']/g)) out.push(m[1]!);
+  return out;
+}
+
+/** Every module reachable at runtime from an allowed importer, with how it got there. */
+function reachedFromImporters(): Map<string, string[]> {
+  const reached = new Map<string, string[]>();
+  const queue: Array<{ file: string; chain: string[] }> = [];
+  for (const importer of Object.keys(RULECHECK_IMPORTERS)) {
+    const p = path.join(ROOT, importer);
+    try {
+      if (statSync(p).isFile()) queue.push({ file: p, chain: [importer] });
+    } catch {
+      /* reported by the allowlist test, which names the missing file */
+    }
+  }
+  while (queue.length) {
+    const { file, chain } = queue.shift()!;
+    for (const spec of runtimeImportsOf(file)) {
+      const dep = resolveImport(file, spec);
+      if (!dep) continue;
+      const key = rel(dep);
+      if (reached.has(key)) continue;
+      reached.set(key, chain);
+      queue.push({ file: dep, chain: [...chain, key] });
+    }
+  }
+  return reached;
+}
+
+const REACHED = reachedFromImporters();
+
+test("separation: only the named modules outside rulecheck/ import it", () => {
   const skip = new Set(["node_modules", "dist", ".next", "coverage", "runs", "rulecheck"]);
   const offenders: string[] = [];
   const walk = (dir: string) => {
@@ -561,8 +663,8 @@ test("separation: nothing outside rulecheck/ imports it", () => {
       const p = path.join(dir, f);
       const st = statSync(p);
       if (st.isDirectory()) walk(p);
-      else if (/\.(ts|tsx|mts|mjs|js)$/.test(f) && /["'][./]*rulecheck\//.test(readFileSync(p, "utf8"))) {
-        offenders.push(path.relative(ROOT, p));
+      else if (/\.(ts|tsx|mts|mjs|js)$/.test(f) && REACHES_RULECHECK.test(uncommented(readFileSync(p, "utf8")))) {
+        if (!(rel(p) in RULECHECK_IMPORTERS)) offenders.push(rel(p));
       }
     }
   };
@@ -570,12 +672,62 @@ test("separation: nothing outside rulecheck/ imports it", () => {
     const p = path.join(ROOT, d);
     try {
       if (statSync(p).isDirectory()) walk(p);
-      else if (/["'][./]*rulecheck\//.test(readFileSync(p, "utf8"))) offenders.push(d);
+      else if (REACHES_RULECHECK.test(uncommented(readFileSync(p, "utf8")))) offenders.push(d);
     } catch {
       /* absent */
     }
   }
   assert.deepEqual(offenders, []);
+});
+
+test("separation: every allowed importer exists and really imports rulecheck/", () => {
+  for (const [file, why] of Object.entries(RULECHECK_IMPORTERS)) {
+    const p = path.join(ROOT, file);
+    assert.ok(statSync(p).isFile(), `${file} is allowed to import rulecheck/ but does not exist`);
+    assert.match(
+      uncommented(readFileSync(p, "utf8")),
+      REACHES_RULECHECK,
+      `${file} no longer imports rulecheck/ (${why}) — remove its line rather than leaving the door open`,
+    );
+  }
+});
+
+test("separation: nothing an importer reaches computes or renders a benchmark result", () => {
+  assert.ok(REACHED.size > 4, `only ${REACHED.size} modules reached — the resolver is broken, not the graph clean`);
+  const offenders: string[] = [];
+  for (const [file, chain] of REACHED) {
+    const hit =
+      BENCHMARK_DIRS.some((d) => file.startsWith(`${d}/`)) || BENCHMARK_FILES.includes(file) || BENCHMARK_WEB.test(file);
+    if (hit) offenders.push([...chain, file].join(" → "));
+  }
+  assert.deepEqual(offenders, []);
+});
+
+test("separation: the only module shared with the benchmark side is the client factory", () => {
+  const shared = [...REACHED.keys()]
+    .filter((f) => !f.startsWith("rulecheck/") && !/^web\/lib\/rulecheck-/.test(f))
+    .sort();
+  assert.deepEqual(
+    shared,
+    [...PERMITTED_CROSSINGS].sort(),
+    "the rulecheck side reaches a module outside its own files: either it belongs to the surface, or the crossing " +
+      "has to be justified in PERMITTED_CROSSINGS the way lib/supabase.ts is",
+  );
+});
+
+test("separation: the rulecheck modules name only their own tables and functions", () => {
+  const names: string[] = [];
+  for (const file of Object.keys(RULECHECK_IMPORTERS)) {
+    const src = uncommented(readFileSync(path.join(ROOT, file), "utf8"));
+    for (const m of src.matchAll(/\.(?:from|rpc)\(\s*["']([a-z_]+)["']/g)) names.push(m[1]!);
+    for (const symbol of ["rowToRecord", "AuditRecord", "AuditRow", "AuditResult"]) {
+      assert.ok(!src.includes(symbol), `${file} references ${symbol}: the benchmark's row shape must not cross`);
+    }
+  }
+  assert.ok(names.length > 0, "no table or function name found — the matcher is broken, not the code clean");
+  for (const name of names) {
+    assert.match(name, /^rulecheck_/, `the rulecheck side names "${name}", which is not one of its own objects`);
+  }
 });
 
 // ---------------------------------------------------------------------------
@@ -620,6 +772,270 @@ test("cli: a mismatched --subject is refused with exit 2 and no record", () => {
   assert.equal(run.status, 2);
   assert.equal(run.stdout, "");
   assert.match(run.stderr, /subject-mismatch/);
+});
+
+// ---------------------------------------------------------------------------
+// 10. the signed envelope (RULECHECK.md §7)
+// ---------------------------------------------------------------------------
+const RECORD_SEED = createHash("sha256").update("rulecheck-test/record-key").digest();
+const OTHER_SEED = createHash("sha256").update("rulecheck-test/other-record-key").digest();
+const RECORD_PUBKEY = publicKeyForSeed(RECORD_SEED);
+const TEST_KEY_ID = "rk-test";
+const ISSUED_AT = new Date("2026-09-20T09:41:07.123Z");
+const envelopeOf = <R>(record: R, seed: Uint8Array = RECORD_SEED): RecordEnvelope<R> =>
+  signEnvelope(record, { keyId: TEST_KEY_ID, seed, issuedAt: ISSUED_AT });
+/** The least a record can be and still be signable: §7 binds to a slot. */
+const MINIMAL_RECORD = { binding: { slot: "1" } };
+
+test("envelope: the key derivation agrees with a Solana keypair from the same seed", () => {
+  // The DER prefixes in envelope.ts are hand-written. This is what proves them:
+  // web3.js derives the same public key from the same 32 bytes, so a wrong
+  // prefix cannot go unnoticed and sign under a key nobody can resolve.
+  assert.equal(RECORD_PUBKEY, Keypair.fromSeed(Uint8Array.from(RECORD_SEED)).publicKey.toBase58());
+});
+
+test("envelope: a signed record verifies under the key that signed it", () => {
+  assert.deepEqual(verifyEnvelope(envelopeOf(baseRecord), RECORD_PUBKEY), { ok: true });
+});
+
+test("envelope: its shape is fixed, and carries nothing about the payer (§7)", () => {
+  const envelope = envelopeOf(baseRecord);
+  assert.deepEqual(Object.keys(envelope).sort(), [
+    "format", "issuedAt", "keyId", "record", "recordSha256", "signature", "slot",
+  ]);
+  assert.equal(envelope.format, ENVELOPE_FORMAT);
+  // §7 binds a record to the bytes, the policy and the slot, "and to nothing
+  // else. Not the caller, not a session, not an API key, not the payer."
+  const text = JSON.stringify(envelope);
+  for (const word of ["payer", "payment", "price", "usdc", "caller", "session", "invoice", "apiKey"]) {
+    assert.ok(!new RegExp(word, "i").test(text), `the envelope mentions ${word}, which §7 forbids binding to`);
+  }
+});
+
+test("envelope: a record swapped under a valid signature is refused", () => {
+  const tampered = JSON.parse(JSON.stringify(envelopeOf(baseRecord))) as RecordEnvelope<RulecheckRecord>;
+  tampered.record.policy.approveLimit = "1";
+  const result = verifyEnvelope(tampered, RECORD_PUBKEY);
+  assert.equal(result.ok, false);
+  assert.match(result.ok ? "" : result.reason, /hashes to/);
+});
+
+test("envelope: altering what the signature covers is refused", () => {
+  for (const mutate of [
+    (e: RecordEnvelope) => (e.issuedAt = "2026-09-20T09:41:07.124Z"),
+    (e: RecordEnvelope) => (e.keyId = "rk-other"),
+  ]) {
+    const tampered = JSON.parse(JSON.stringify(envelopeOf(baseRecord))) as RecordEnvelope;
+    mutate(tampered);
+    const result = verifyEnvelope(tampered, RECORD_PUBKEY);
+    assert.equal(result.ok, false);
+    assert.match(result.ok ? "" : result.reason, /not this key's/);
+  }
+});
+
+test("envelope: another key's signature is refused", () => {
+  const result = verifyEnvelope(envelopeOf(baseRecord, OTHER_SEED), RECORD_PUBKEY);
+  assert.equal(result.ok, false);
+  assert.match(result.ok ? "" : result.reason, /not this key's/);
+});
+
+test("envelope: a malformed signature or digest is refused, not thrown", () => {
+  for (const [mutate, pattern] of [
+    [(e: RecordEnvelope) => (e.signature = "not base58 at all"), /base58|64 bytes/],
+    [(e: RecordEnvelope) => (e.recordSha256 = "ABC"), /64 lowercase hex/],
+    [(e: RecordEnvelope) => (e.issuedAt = "2026-09-20"), /ISO 8601/],
+    [(e: RecordEnvelope) => ((e as { format: string }).format = "something/1"), /unknown envelope format/],
+  ] as const) {
+    const tampered = JSON.parse(JSON.stringify(envelopeOf(baseRecord))) as RecordEnvelope;
+    mutate(tampered);
+    const result = verifyEnvelope(tampered, RECORD_PUBKEY);
+    assert.equal(result.ok, false);
+    assert.match(result.ok ? "" : result.reason, pattern);
+  }
+});
+
+test("envelope: canonical JSON is order-independent for objects and ordered for arrays", () => {
+  assert.equal(canonicalJson({ b: 1, a: { d: 2, c: 3 } }), '{"a":{"c":3,"d":2},"b":1}');
+  assert.equal(recordDigest({ a: 1, b: 2 }), recordDigest({ b: 2, a: 1 }));
+  assert.notEqual(recordDigest([1, 2]), recordDigest([2, 1]));
+});
+
+test("envelope: a key id outside the vocabulary or the pattern cannot sign", () => {
+  assert.throws(() => signEnvelope(MINIMAL_RECORD, { keyId: "Rk1", seed: RECORD_SEED }), /keyId/);
+  assert.throws(() => signEnvelope(MINIMAL_RECORD, { keyId: "verdict-key", seed: RECORD_SEED }), /vocabulary/);
+  assert.throws(
+    () => signEnvelope(MINIMAL_RECORD, { keyId: TEST_KEY_ID, seed: RECORD_SEED.subarray(0, 16) }),
+    /32 bytes/,
+  );
+});
+
+test("envelope: the slot is lifted from the record and is what the signature covers", () => {
+  const envelope = envelopeOf(baseRecord);
+  assert.equal(envelope.slot, baseRecord.binding.slot);
+  assert.equal(slotOf(baseRecord), baseRecord.binding.slot);
+  // Moving the slot alone breaks the signature, which is the whole point of
+  // lifting it: a reader who only understands the envelope still sees the slot,
+  // and cannot be handed one the signer did not sign.
+  const moved = JSON.parse(JSON.stringify(envelope)) as RecordEnvelope<RulecheckRecord>;
+  moved.slot = "1";
+  moved.record.binding.slot = "1";
+  const result = verifyEnvelope(moved, RECORD_PUBKEY);
+  assert.equal(result.ok, false);
+  assert.match(result.ok ? "" : result.reason, /hashes to/);
+});
+
+test("envelope: a slot that contradicts the record it carries is refused", () => {
+  const tampered = JSON.parse(JSON.stringify(envelopeOf(baseRecord))) as RecordEnvelope<RulecheckRecord>;
+  tampered.slot = "1";
+  const result = verifyEnvelope(tampered, RECORD_PUBKEY);
+  assert.equal(result.ok, false);
+  assert.match(result.ok ? "" : result.reason, /names slot 1, the record it carries names/);
+});
+
+test("envelope: a record with no usable slot is not signed at all (§7)", () => {
+  for (const record of [{}, { binding: {} }, { binding: { slot: 364_000_000 } }, { binding: { slot: "0x10" } }, { binding: { slot: "18446744073709551616" } }]) {
+    assert.throws(() => signEnvelope(record, { keyId: TEST_KEY_ID, seed: RECORD_SEED }), /binding\.slot/);
+  }
+  assert.equal(slotOf({ binding: { slot: "18446744073709551615" } }), "18446744073709551615");
+});
+
+test("envelope: the skew between a record's slot and its issuance is measurable without us", () => {
+  // The reference is the caller's own observation, not ours. A record issued
+  // 1.2s after the slot it speaks about reads as 1.2s of skew.
+  const envelope = envelopeOf(baseRecord);
+  const slot = BigInt(envelope.slot);
+  const at = new Date(ISSUED_AT.getTime() - 1_200);
+  assert.equal(Math.round(slotSkewSeconds(envelope, { slot, at }) * 10) / 10, 1.2);
+  // A coherent forgery is invisible here — both values move together, which is
+  // exactly why the chain and an anchor, not the signature, are what rule it out.
+  const backdated = signEnvelope(
+    { ...baseRecord, binding: { ...baseRecord.binding, slot: (slot - 100_000n).toString() } },
+    { keyId: TEST_KEY_ID, seed: RECORD_SEED, issuedAt: new Date(ISSUED_AT.getTime() - 100_000 * 400) },
+  );
+  assert.equal(Math.round(slotSkewSeconds(backdated, { slot, at })), 1);
+  // A mixed-up one is not: an old slot under a fresh issuance reads as the
+  // 40,000 seconds of staleness it is.
+  const stale = { ...envelope, slot: (slot - 100_000n).toString() };
+  assert.equal(Math.round(slotSkewSeconds(stale, { slot, at })), 40_001);
+});
+
+test("vocabulary: a signed envelope adds no forbidden word", () => {
+  const opaque = new Set([...OPAQUE_KEYS, "signature", "recordSha256", "publicKey", "sealed", "chainHash"]);
+  assert.deepEqual(forbiddenWordsIn(JSON.stringify(maskOpaque(envelopeOf(baseRecord), opaque))), []);
+});
+
+// ---------------------------------------------------------------------------
+// 11. sealing at rest, keyed by the binding digest
+// ---------------------------------------------------------------------------
+const BASE_DIGEST = baseRecord.binding.digest;
+const OTHER_DIGEST = check(DEMO_TRANSACTIONS["unlimited-approve"].build()).binding.digest;
+
+test("seal: a record opens under its own digest and under no other", () => {
+  const sealed = seal(BASE_DIGEST, "the record");
+  assert.equal(unseal(BASE_DIGEST, sealed), "the record");
+  assert.throws(() => unseal(OTHER_DIGEST, sealed));
+});
+
+test("seal: two sealings of the same text differ, and both open", () => {
+  const a = seal(BASE_DIGEST, "same");
+  const b = seal(BASE_DIGEST, "same");
+  assert.notEqual(a, b, "a repeated nonce would leak equality between records");
+  assert.equal(unseal(BASE_DIGEST, a), "same");
+  assert.equal(unseal(BASE_DIGEST, b), "same");
+});
+
+test("seal: an altered blob does not open", () => {
+  const raw = Buffer.from(seal(BASE_DIGEST, "the record"), "base64");
+  raw[raw.length - 1] ^= 0x01;
+  assert.throws(() => unseal(BASE_DIGEST, raw.toString("base64")));
+});
+
+test("seal: the lookup key is derived, stable, and is not the digest", () => {
+  const key = lookupKeyFor(BASE_DIGEST);
+  assert.match(key, /^[0-9a-f]{64}$/);
+  assert.equal(key, lookupKeyFor(BASE_DIGEST));
+  assert.notEqual(key, BASE_DIGEST, "storing the digest itself would hand every row's key to anyone reading the table");
+  assert.notEqual(key, lookupKeyFor(OTHER_DIGEST));
+  assert.throws(() => lookupKeyFor("not a digest"), /64 lowercase hex/);
+});
+
+test("seal: the store's whole round trip, without a database", () => {
+  const envelope = envelopeOf(baseRecord);
+  const opened = JSON.parse(unseal(BASE_DIGEST, seal(BASE_DIGEST, JSON.stringify(envelope)))) as RecordEnvelope<
+    typeof baseRecord
+  >;
+  assert.deepEqual(verifyEnvelope(opened, RECORD_PUBKEY), { ok: true });
+  assert.deepEqual(opened.record, baseRecord);
+});
+
+// ---------------------------------------------------------------------------
+// 12. the append-only chain
+// ---------------------------------------------------------------------------
+test("chain: a head commits to every record appended before it", () => {
+  const d1 = recordDigest({ one: 1 });
+  const d2 = recordDigest({ two: 2 });
+  const h1 = nextChainHash(CHAIN_GENESIS, d1);
+  const h2 = nextChainHash(h1, d2);
+  const rows = [
+    { recordSha256: d1, prevChainHash: CHAIN_GENESIS, chainHash: h1 },
+    { recordSha256: d2, prevChainHash: h1, chainHash: h2 },
+  ];
+  assert.match(h1, /^[0-9a-f]{64}$/);
+  assert.notEqual(h1, h2);
+  assert.equal(replayChain(rows), h2);
+  assert.equal(nextChainHash(CHAIN_GENESIS, d1), h1, "the link must be a pure function of its two inputs");
+});
+
+test("chain: a dropped row and an altered link are both visible", () => {
+  const d1 = recordDigest({ one: 1 });
+  const d2 = recordDigest({ two: 2 });
+  const h1 = nextChainHash(CHAIN_GENESIS, d1);
+  const rows = [
+    { recordSha256: d1, prevChainHash: CHAIN_GENESIS, chainHash: h1 },
+    { recordSha256: d2, prevChainHash: h1, chainHash: nextChainHash(h1, d2) },
+  ];
+  assert.throws(() => replayChain([rows[1]!]), /names .* as the head/);
+  assert.throws(() => replayChain([{ ...rows[0]!, chainHash: d2 }]), /hash to/);
+  assert.throws(() => replayChain([{ ...rows[0]!, recordSha256: d2 }, rows[1]!]), /hash to|names/);
+  assert.throws(() => nextChainHash("short", d1), /64 lowercase hex/);
+});
+
+// ---------------------------------------------------------------------------
+// 13. the published key registry
+// ---------------------------------------------------------------------------
+const REGISTRY_ENTRY: RecordKey = { keyId: "rk1", publicKey: RECORD_PUBKEY, from: "2026-09-20" };
+
+test("keys: the shipped registry is coherent", () => {
+  assert.deepEqual(problemsIn(RECORD_KEYS), []);
+});
+
+test("keys: lookup by id, and the one entry still signing", () => {
+  const rotated: RecordKey[] = [
+    { ...REGISTRY_ENTRY, until: "2026-10-01", note: "rotated" },
+    { keyId: "rk2", publicKey: publicKeyForSeed(OTHER_SEED), from: "2026-10-01" },
+  ];
+  assert.deepEqual(problemsIn(rotated), []);
+  assert.equal(keyById("rk1", rotated)?.until, "2026-10-01");
+  assert.equal(currentKey(rotated)?.keyId, "rk2", "the entry without an until is the one in use");
+  assert.equal(keyById("rk3", rotated), undefined);
+});
+
+test("keys: an incoherent registry is reported entry by entry", () => {
+  const cases: Array<[RecordKey[], RegExp]> = [
+    [[REGISTRY_ENTRY, { ...REGISTRY_ENTRY, from: "2026-09-21" }], /appears more than once/],
+    [[{ ...REGISTRY_ENTRY, keyId: "Rk1" }], /keyId must be/],
+    [[{ ...REGISTRY_ENTRY, publicKey: "not-base58-0OIl" }], /base58/],
+    [[{ ...REGISTRY_ENTRY, from: "20-09-2026" }], /from must be an ISO date/],
+    [[{ ...REGISTRY_ENTRY, until: "2026-01-01" }], /precedes/],
+    [[REGISTRY_ENTRY, { keyId: "rk2", publicKey: publicKeyForSeed(OTHER_SEED), from: "2026-10-01" }], /one key signs at a time/],
+    [
+      [REGISTRY_ENTRY, { ...REGISTRY_ENTRY, keyId: "rk2", until: "2026-10-01" }],
+      /appears under more than one id/,
+    ],
+  ];
+  for (const [keys, pattern] of cases) {
+    assert.match(problemsIn(keys).join("\n"), pattern);
+  }
 });
 
 if (failures.length > 0) {

@@ -31,7 +31,8 @@
     "coverage": "c8 --reporter=lcov --reporter=text-summary npm run test:unit",
     "surfpool:start": "tsx env/start-surfpool.ts",
     "rulecheck": "tsx rulecheck/cli.ts",
-    "rulecheck:demo": "tsx rulecheck/make-demo.ts"
+    "rulecheck:demo": "tsx rulecheck/make-demo.ts",
+    "rulecheck:keygen": "tsx rulecheck/keygen.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "1.2.12",

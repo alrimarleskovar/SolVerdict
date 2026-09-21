@@ -165,6 +165,18 @@ directly. **Web app (Vercel):**
 | `SOLANA_RPC_URL` | RPC used for payment verification (default: mainnet-beta public) |
 | `RESEND_API_KEY` | email notifications (optional) |
 | `NEXT_PUBLIC_BASE_URL` | base URL used in notification links |
+| `RULECHECK_RECORD_KEY_ID` | which entry of `rulecheck/keys.ts` this deployment signs records as |
+| `RULECHECK_RECORD_SIGNING_SEED` | the record signing key — 32-byte Ed25519 seed, base58, **secret** |
+
+The two `RULECHECK_` variables are the rulecheck surface (`docs/RULECHECK.md`),
+not the audit product. Generate a key with `npm run rulecheck:keygen -- --key-id
+<id>`, which prints the seed and the `rulecheck/keys.ts` entry to commit beside
+it and writes nothing itself; the seed's public key must be the one that entry
+publishes, or the signer refuses rather than issue records no reader can resolve.
+Set neither and the surface still answers — it issues no signed record, which is
+why `web/.env.example` naming both is asserted, not assumed. The signing key must
+not be a payment-receiving address (§7), and the record store needs the same
+`SUPABASE_*` values as everything else plus migration 011 applied.
 
 **Worker (Railway):** `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`,
 `SOLVERDICT_PAYMENT_WALLET`, `SOLANA_RPC_URL`, `RESEND_API_KEY`. Optional tuning:

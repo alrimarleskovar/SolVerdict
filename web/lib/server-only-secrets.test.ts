@@ -26,6 +26,20 @@ import path from "node:path";
 
 const WEB = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
 const SUPABASE_MODULE = path.join(WEB, "lib/supabase.ts");
+const RULECHECK_KEY_MODULE = path.join(WEB, "lib/rulecheck-key.ts");
+
+/**
+ * Modules that hold a secret and must therefore stay out of every client
+ * bundle.
+ *
+ * lib/supabase.ts holds the service-role key. lib/rulecheck-key.ts holds the
+ * record signing seed — the one secret whose leak lets someone else sign
+ * records in this project's name (RULECHECK.md §7, rulecheck/keys.ts). It moves
+ * no money and cannot make a wrong record right, since what a rule says about
+ * bytes is recomputable without any key; what it can do is put this project's
+ * name on a record it never issued.
+ */
+const SERVER_ONLY = [SUPABASE_MODULE, RULECHECK_KEY_MODULE];
 const SKIP = new Set(["node_modules", ".next", "supabase", ".git"]);
 
 function walk(dir: string, out: string[] = []): string[] {
@@ -92,7 +106,7 @@ assert.ok(!isClientModule(source.get(SUPABASE_MODULE)!), "lib/supabase.ts must n
     while (queue.length) {
       const { file, chain } = queue.shift()!;
       for (const dep of relativeImports(file, source.get(file) ?? readFileSync(file, "utf8"))) {
-        if (dep === SUPABASE_MODULE) {
+        if (SERVER_ONLY.includes(dep)) {
           violations.push([...chain, dep].map((p) => path.relative(WEB, p)).join("\n      → "));
           continue;
         }
@@ -105,9 +119,10 @@ assert.ok(!isClientModule(source.get(SUPABASE_MODULE)!), "lib/supabase.ts must n
   assert.deepEqual(
     violations,
     [],
-    `a "use client" module reaches lib/supabase — the SUPABASE_SERVICE_ROLE_KEY would be inlined into the ` +
-      `browser bundle, and RLS is off, so that key is full read/write on every table.\n\n  ${violations.join("\n\n  ")}\n\n` +
-      `Move the database access to a route handler or server component and have the client fetch it.`,
+    `a "use client" module reaches a server-only secret holder, so its secret would be inlined into the browser ` +
+      `bundle: lib/supabase.ts means the SUPABASE_SERVICE_ROLE_KEY, and RLS is off, so that key is full ` +
+      `read/write on every table; lib/rulecheck-key.ts means the record signing seed.\n\n  ${violations.join("\n\n  ")}\n\n` +
+      `Move the access to a route handler or server component and have the client fetch it.`,
   );
 }
 
@@ -115,7 +130,12 @@ assert.ok(!isClientModule(source.get(SUPABASE_MODULE)!), "lib/supabase.ts must n
 {
   const offenders: string[] = [];
   const scan = (label: string, text: string) => {
-    for (const m of text.matchAll(/NEXT_PUBLIC_[A-Z0-9_]*(?:SERVICE_ROLE|SERVICE_KEY|SECRET|PRIVATE)[A-Z0-9_]*/g)) {
+    // SEED and SIGNING are here because the record signing seed would not have
+    // matched any of the first four names, and a secret is only as protected as
+    // the pattern that looks for it.
+    for (const m of text.matchAll(
+      /NEXT_PUBLIC_[A-Z0-9_]*(?:SERVICE_ROLE|SERVICE_KEY|SECRET|PRIVATE|SEED|SIGNING)[A-Z0-9_]*/g,
+    )) {
       offenders.push(`${label}: ${m[0]}`);
     }
   };
@@ -145,6 +165,23 @@ assert.ok(!isClientModule(source.get(SUPABASE_MODULE)!), "lib/supabase.ts must n
   );
 }
 
+// --- 3b. the record signing seed is read in exactly one place ---------------
+{
+  const readers = files
+    .filter((f) => !f.endsWith(".test.ts"))
+    .filter((f) => /RULECHECK_RECORD_SIGNING_SEED/.test(code(source.get(f)!)))
+    .map((f) => path.relative(WEB, f))
+    .sort();
+  assert.deepEqual(
+    readers,
+    ["lib/rulecheck-key.ts"],
+    "the record signing seed must be read only by lib/rulecheck-key.ts, which checks it against the published " +
+      "registry and refuses if it is also a payment-receiving key (RULECHECK.md §7). A second reader is a second " +
+      "place for the seed to reach a log, a response or a bundle. Suites may name the variable; production code " +
+      "may not read it twice.",
+  );
+}
+
 // --- 4. .env.example documents the key, un-prefixed -------------------------
 {
   // Read here rather than by hand: env files are permission-protected, and a
@@ -167,6 +204,26 @@ assert.ok(!isClientModule(source.get(SUPABASE_MODULE)!), "lib/supabase.ts must n
     !/NEXT_PUBLIC_[A-Z0-9_]*SUPABASE[A-Z0-9_]*/.test(t),
     "no Supabase credential may be exposed through a NEXT_PUBLIC_ name",
   );
+
+  // ASSERTED, not warned, unlike the Supabase line above. That warning covers a
+  // deploy that fails closed: no Supabase credential means no database and
+  // nothing works, loudly, on the first request. The rulecheck signing vars fail
+  // in the other direction — the surface runs, answers, and simply issues no
+  // signed record, which looks like a working deployment. A variable a deployer
+  // is never told about is a variable they will not set, so the template naming
+  // them is the only thing standing between "not configured" and "silently
+  // unsigned". Every name here is read by lib/rulecheck-key.ts.
+  for (const [name, why] of [
+    ["RULECHECK_RECORD_KEY_ID", "which entry of rulecheck/keys.ts this deployment signs as"],
+    ["RULECHECK_RECORD_SIGNING_SEED", "the record signing key itself (32-byte Ed25519 seed, base58, SECRET)"],
+  ] as const) {
+    assert.ok(
+      new RegExp(`^\\s*#?\\s*${name}\\s*=`, "m").test(t),
+      `web/.env.example must document ${name} — ${why}. Run \`npm run rulecheck:keygen -- --key-id <id>\` for a ` +
+        `seed and its registry entry. Without both variables set, this surface answers requests and issues no ` +
+        `signed record, which is a deployment that looks healthy and produces nothing verifiable.`,
+    );
+  }
 }
 
 // --- 5. the documented rule exists and says the right thing -----------------
@@ -181,5 +238,5 @@ assert.ok(!isClientModule(source.get(SUPABASE_MODULE)!), "lib/supabase.ts must n
 
 console.log(
   `server-only-secrets guard passed (${files.length} files, ${clientEntries.length} client modules, ` +
-    `no path to lib/supabase)`,
+    `no path to ${SERVER_ONLY.map((m) => path.relative(WEB, m)).join(" or ")})`,
 );

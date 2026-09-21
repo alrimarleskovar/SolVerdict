@@ -3,9 +3,13 @@
 
 **Status: declaration, written before implementation.** One rule is now
 implemented: approval limit (C1), as a local core in `rulecheck/`. The other six
-rules and the allowance finding are not. Nothing around that core exists yet —
-no payment, no signing, no anchoring, no publication — and no rulecheck record
-has been published or sold. No official benchmark run traverses this surface.
+rules and the allowance finding are not. Around that core there is now record
+signing (§7) and an append-only store; there is still no payment path, no policy
+anchor, no published chain head and no rendered surface, and no rulecheck record
+has been issued outside a test. §7 and §8(e) were amended on 2026-09-20 to match
+what that code does: records are generated and addressable rather than published,
+and the section on the signing key says plainly what its compromise does and does
+not buy. No official benchmark run traverses this surface.
 The frozen methodological body
 of the pre-registration (§3–§9, `sha256:44df6be6…`) is untouched by this
 document, and nothing here changes a scenario, a cap, or a scoring rule.
@@ -349,8 +353,9 @@ to publish permanently. A record that says *these bytes violate this rule* is a
 statement anyone can verify against the bytes, forever; presented for different
 bytes it is self-evidently invalid, because the digest will not match. A record
 that said *this caller is cleared* would be a bearer token, and would have to be
-kept secret to be worth anything. This surface publishes its records, so it must
-never issue the second kind.
+kept secret to be worth anything. A record here is meant to survive being handed
+on — the customer decides whether it is (§8(e)) — so it must never be the second
+kind, whether or not anyone ever publishes it.
 
 **Slot binding carries equal weight to byte binding.** Every finding that
 required a chain read — mint extensions, standing allowances, lookup table
@@ -393,6 +398,60 @@ is a choice to make in the open, not a detail to discover later.
 **The record is signed with a key that is not the payment-receiving key.** A
 single key would mean the identity that profits from a call is the identity that
 attests to its result.
+
+### The signing key, and what its compromise buys
+
+*Added 2026-09-20, with the record store and the signing path.*
+
+The key that signs records is a 32-byte Ed25519 seed held in the deployment's
+encrypted environment and read in exactly one module. That is stated here rather
+than left as an operational detail, because a signing key in an environment
+variable is the whole attribution of every record this surface issues, and where
+it lives is part of what is being declared. A hosted signer is the upgrade, and
+it changes one function, because everything else addresses the key by its id.
+
+**A record names a key id, not a key.** Verification resolves the id against a
+published list, so a key can be retired and replaced without invalidating a
+single record already issued under the old one. This is first-class from the
+first record rather than added after the first incident: a key that cannot be
+rotated without breaking history is a key that will not be rotated.
+
+**What the key cannot do, no matter who holds it.** It cannot make a wrong record
+right. Under Option A (§4) the result is a pure function of the bytes, the policy
+and the slot, so anyone holding those recomputes it without any key at all. The
+signature answers a narrower question — did this project issue this exact record
+— and a reader who distrusts it can still check the record. The key also moves no
+money: it receives no payment, holds no funds, and never signs a transaction.
+
+**What a stolen key can do, stated without softening.** Until it is rotated, a
+thief can issue records that are indistinguishable from ours by signature alone,
+for bytes of their choosing, at the current slot. Nothing in this section closes
+that. Rotation is the answer to it, and the time between compromise and rotation
+is the exposure.
+
+**What the slot binding closes, and what it does not.** Every record commits to
+the slot it speaks about, and the slot is signed alongside the issuance time
+rather than buried inside the record, so a reader who understands only the
+envelope can see both. A genuine record is issued within seconds of its slot —
+that is the freshness window this section already requires — so an envelope whose
+slot and issuance time disagree by more than that window is refutable by anyone
+with an RPC connection, with no access to us. What this removes is the thief's
+freedom to mix a stale slot into a fresh record, or the reverse. What it does not
+remove is a *coherent* forgery, with both values moved together: the slot is
+asserted by whoever holds the key, and a thief asserts an old one as easily as a
+new one.
+
+**What the anchor closes, and what it does not.** Records are linked into an
+append-only chain, and a chain head published on-chain fixes, at a time we cannot
+edit afterwards, every record issued before it. A forged record dated before a
+published head is not in the chain that head commits to, and inserting it changes
+every link after it — so retroactive forgery becomes detectable by a third party
+even while the key is stolen. Two limits belong in the same breath. The anchor
+only protects the period during which anchors were already being published; it
+says nothing about a record dated before the first one. And it does nothing about
+the live hole: **a stolen key can still forge new records at the current slot
+until the key is rotated.** The anchor closes the retroactive hole, not the live
+one.
 
 **We never submit the customer's transaction.** Of the two x402 shapes — the
 caller settles and hands us a signature, or the caller hands us a signed
@@ -478,11 +537,35 @@ results that make one tempting.
 ### (e) The crossing specific to this surface
 
 In a paid audit, the payer buys a **private** measurement of their own agent, and
-publication is a separate opt-in. Here the payer buys a **published** record
-about their own transaction. That is a different relationship and it has to be
-said out loud: if a company holds a leaderboard row *and* pays per call for
-rulechecks, there is a paying relationship with an evaluated party — which is the
-pledge's own phrase, "directly or indirectly".
+publication is a separate opt-in. Here the payer buys a record about their own
+transaction, which is **generated and addressable by design** rather than
+published by design. That is a different relationship and it has to be said out
+loud: if a company holds a leaderboard row *and* pays per call for rulechecks,
+there is a paying relationship with an evaluated party — which is the pledge's
+own phrase, "directly or indirectly".
+
+**Amended 2026-09-20: addressable, not published.** This section first said the
+payer buys a *published* record, and the first implementation does not do that.
+Every record is generated, signed and stored, and is retrievable by its binding
+digest and by nothing else: there is no listing, no browse, no lookup by subject,
+and the record's *existence* is not discoverable without the digest either. That
+last part is structural rather than a matter of policy — a stored record is
+sealed under a key derived from its own binding digest, so a reader holding the
+table and not the digest has a count and some times, and so do we. We cannot
+produce a customer's record on request, for support or for anyone who asks for
+it, without the digest they hold.
+
+The reason for the narrowing: a customer who pays to learn that their agent is
+over a limit should not find that result world-readable the moment they pay.
+Publication is theirs to choose. The digest is recomputable from the bytes, the
+policy and the slot, so it is derivable rather than a secret we keep for them,
+and handing it on is how they publish. Nothing about verifiability is given up —
+a record still proves itself against the bytes to anyone holding both (§7), and
+it needs no listing to do so.
+
+What the earlier wording was protecting is unchanged and still holds: a record
+must be safe to publish permanently, because the customer may, which is why it
+binds to bytes and never to a payer or a caller. The change is who decides.
 
 The service-fee-for-compute argument still holds, for the same reason it holds
 for audits: payment buys the mechanical application of a frozen rule to bytes the
