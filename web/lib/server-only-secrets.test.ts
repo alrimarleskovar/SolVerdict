@@ -27,6 +27,7 @@ import path from "node:path";
 const WEB = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
 const SUPABASE_MODULE = path.join(WEB, "lib/supabase.ts");
 const RULECHECK_KEY_MODULE = path.join(WEB, "lib/rulecheck-key.ts");
+const RULECHECK_PAYMENT_MODULE = path.join(WEB, "lib/rulecheck-payment.ts");
 
 /**
  * Modules that hold a secret and must therefore stay out of every client
@@ -38,8 +39,14 @@ const RULECHECK_KEY_MODULE = path.join(WEB, "lib/rulecheck-key.ts");
  * no money and cannot make a wrong record right, since what a rule says about
  * bytes is recomputable without any key; what it can do is put this project's
  * name on a record it never issued.
+ *
+ * lib/rulecheck-payment.ts holds the memo-tag key. It signs nothing and moves
+ * nothing: what it buys is the ability to recognise, from a public on-chain
+ * memo, which binding digest a payment was for. In a client bundle it would let
+ * anyone link a published record to the wallet that paid for it, which is the
+ * one thing putting a tag in the memo instead of the digest is there to stop.
  */
-const SERVER_ONLY = [SUPABASE_MODULE, RULECHECK_KEY_MODULE];
+const SERVER_ONLY = [SUPABASE_MODULE, RULECHECK_KEY_MODULE, RULECHECK_PAYMENT_MODULE];
 const SKIP = new Set(["node_modules", ".next", "supabase", ".git"]);
 
 function walk(dir: string, out: string[] = []): string[] {

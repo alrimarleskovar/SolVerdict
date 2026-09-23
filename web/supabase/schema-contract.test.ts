@@ -140,15 +140,29 @@ t("every RPC the code calls is defined in the applied schema", () => {
 
 t("every audit status the code writes is permitted by the final check constraint", () => {
   // The LAST audits_status_check in application order is the one in force.
+  //
   // Scoped to `check (status in (...))` so a `v_status in (...)` inside a
   // function body is not mistaken for the constraint — that local variable
   // legitimately lists a SUBSET (the statuses that mean "already submitted"),
   // and reading it as the constraint would report `failed` as forbidden.
-  const checks = [...appliedSql.matchAll(/check\s*\(\s*status\s+in\s*\(([^)]*)\)/gi)];
-  assert.ok(checks.length > 0, "no status check constraint found");
-  const permitted = new Set(
-    [...checks[checks.length - 1][1].matchAll(/'([a-z_]+)'/g)].map((m) => m[1]),
-  );
+  //
+  // Scoped to the constraint's NAME as well, since migration 012: a second
+  // table (rulecheck_payments) now carries its own `status in (...)` check, and
+  // "whichever list came last" silently became a different table's. The name is
+  // what says which table is meant. The baseline defines the list inline inside
+  // `create table audits`, so that is the fallback when no migration has
+  // redefined it.
+  const named = [
+    ...appliedSql.matchAll(/constraint\s+audits_status_check\s+check\s*\(\s*status\s+in\s*\(([^)]*)\)/gi),
+  ];
+  let list: string | undefined = named.at(-1)?.[1];
+  if (list === undefined) {
+    const table = appliedSql.match(/create table (?:if not exists )?audits\s*\(([\s\S]*?)\n\s*\);/i);
+    assert.ok(table, "neither an audits table nor an audits_status_check constraint defines the audit statuses");
+    list = table[1].match(/check\s*\(\s*status\s+in\s*\(([^)]*)\)/i)?.[1];
+  }
+  assert.ok(list !== undefined, "no audits status list found — the constraint must stay findable by name");
+  const permitted = new Set([...list.matchAll(/'([a-z_]+)'/g)].map((m) => m[1]));
   const used = new Set(
     [...code.matchAll(/"(awaiting_payment|awaiting_evidence|queued|running|done|failed|payment_failed)"/g)].map(
       (m) => m[1],

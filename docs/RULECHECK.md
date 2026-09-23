@@ -4,12 +4,17 @@
 **Status: declaration, written before implementation.** One rule is now
 implemented: approval limit (C1), as a local core in `rulecheck/`. The other six
 rules and the allowance finding are not. Around that core there is now record
-signing (§7) and an append-only store; there is still no payment path, no policy
-anchor, no published chain head and no rendered surface, and no rulecheck record
-has been issued outside a test. §7 and §8(e) were amended on 2026-09-20 to match
-what that code does: records are generated and addressable rather than published,
-and the section on the signing key says plainly what its compromise does and does
-not buy. No official benchmark run traverses this surface.
+signing (§7), an append-only store, and a paid route: `POST /api/rulecheck`
+quotes a price over x402, reads the payment the caller authorises, appends the
+signed record, and only then asks a third-party facilitator to settle. There is
+still no policy anchor, no published chain head and no rendered surface; no
+rulecheck record has been issued outside a test, no payment has been settled on
+mainnet, and nothing is deployed. §7 and §8(e) were amended on 2026-09-20 to
+match what the store does: records are generated and addressable rather than
+published, and the section on the signing key says plainly what its compromise
+does and does not buy. §7 is amended again on 2026-09-23, before that route is
+deployed, because the payment shape it uses is one the earlier text forbade. No
+official benchmark run traverses this surface.
 The frozen methodological body
 of the pre-registration (§3–§9, `sha256:44df6be6…`) is untouched by this
 document, and nothing here changes a scenario, a cap, or a scoring rule.
@@ -459,6 +464,67 @@ transaction and we submit it — only the first is available to this surface. Th
 second is materially better for binding and is nonetheless forbidden, because it
 puts us in the transaction-submitting business. See §8(a).
 
+### The payment shape, amended before the route ships
+
+*Amended 2026-09-23, with the payment path. Drafted against the code, and it
+corrects the paragraph immediately above rather than reinterpreting it.*
+
+**The first shape does not exist on Solana.** x402's `exact` scheme, in both
+protocol versions, has exactly one form on this chain: the caller authorises a
+transfer by signing a transaction whose FEE PAYER is the facilitator, sends it
+in a header, and the facilitator adds its own signature and submits it. There is
+no scheme in which the caller settles first and hands us a signature. So the
+sentence above ruled out the only mechanism x402 offers here, and a surface
+built on x402 either uses this shape or is not on x402. The choice is made in
+the open: this surface uses it, and the paragraph above is corrected rather than
+quietly ignored.
+
+**What we hold, and what we do.** We hold no key that can sign any transaction —
+not the caller's, not a payment's, not our own. We do not submit, sponsor, or pay
+a fee for anything. What we do is pass a payment the caller authorised to a named
+third-party facilitator (`FACILITATOR_URL`, a config value, swappable) and ask it
+to settle; the facilitator co-signs as fee payer and submits. That is a real
+change from "we never relay" in §8(a), and it is the reason this section exists
+rather than a footnote: the payment transaction now passes through us.
+
+**What does not change, and is the point of the original prohibition.** The
+transaction being checked is never signed, submitted, relayed, sponsored or
+altered by this surface, and no key here could do any of those. A rulecheck stays
+advisory (§8(a)): the caller submits their own transaction, or does not.
+
+**The order, and who carries the risk.** x402 has no refund, so whichever of
+"store the record" and "take the money" goes second is the step that can leave a
+party short. The record is appended first and the settlement is submitted
+afterwards, which puts the residual on us: a settlement the facilitator refuses
+leaves a record in the chain that nobody paid for. That record is not withdrawn
+(the chain is append-only), it is not handed over (a record is returned only
+against a settled payment), and the count of them is a query rather than a guess.
+The alternative would have been a caller who paid for a record we then could not
+produce, with no way to give the money back.
+
+**Three re-derivations this section owed.** The freshness window is 30 seconds,
+not 24 hours — a quote stands for that long and a paid request is matched to it
+within that window. The spent-set is keyed by the hash of the payment's message
+rather than by its on-chain signature, because in this scheme the on-chain
+signature is the facilitator's and does not exist until after the money moves; a
+digest is still settled at most once, which is what the original sentence was
+protecting. And the economic constraint moves: the caller pays no network fee
+here — the facilitator sponsors it — so the price must clear what a facilitator
+charges us rather than what a signature costs the caller.
+
+**Open, to verify — the client-side authorisation format.** What a paying client
+must construct (a partially signed v0 transaction: compute-budget instructions, a
+`TransferChecked` of the quoted amount to the quoted destination's associated
+token account, and exactly one Memo instruction carrying the tag from
+`extra.memo`, with the facilitator's address as fee payer), and the claim that a
+facilitator MUST reject a payment whose memo does not match `extra.memo`, are
+read off the x402 specification and its reference implementation. They have not
+been confirmed with the x402 maintainers and no payment has settled on mainnet
+under them. Until both happen, this paragraph is an assumption, not a fact, and
+the route is written so that it does not depend on the second half: the memo is
+checked against the quoted tag by us, on the payment's own bytes, before a
+facilitator is shown anything.
+
 ---
 
 ## 8. Independence, declared rather than inherited
@@ -487,7 +553,15 @@ precisely the operational dependence the pledge exists to prevent.
 **Structural mitigations.** The check is advisory by construction. It never
 returns "safe to submit", "approved", or any synonym — it returns per-rule states
 from the closed list in §3. It never signs, co-signs, submits, relays, or
-sponsors a transaction, and it holds no key that could. The tool description
+sponsors a transaction, and it holds no key that could.
+
+*Corrected 2026-09-23.* That last sentence holds for the transaction being
+checked, which is what this crossing is about, and it holds for every key this
+surface possesses — there is none that can sign a transaction of any kind. It no
+longer holds for the word "relays": a payment the caller authorises is passed to
+a third-party facilitator, which co-signs as fee payer and submits it. §7's
+amendment of the same date says why the only x402 shape available on Solana is
+that one, and what did not change with it. The tool description
 given to a calling agent says what the check does and does not see, so an agent
 integrating it cannot reasonably read it as protection.
 

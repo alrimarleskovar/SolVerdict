@@ -579,10 +579,12 @@ const RULECHECK_IMPORTERS: Record<string, string> = {
   "web/lib/rulecheck-key.ts": "loads the record signing key from the environment (§7)",
   "web/lib/rulecheck-store.ts": "seals an issued record and appends it to the chain",
   "web/lib/rulecheck-store.test.ts": "the store's own suite",
+  "web/lib/rulecheck-payment.ts": "the x402 payment path: the quote, the spent-set, and verify → append → settle",
+  "web/lib/rulecheck-route.test.ts": "the paid route end to end, against a stand-in facilitator",
 };
 
 /**
- * The one module the two sides are permitted to share, and why.
+ * The modules the two sides are permitted to share, and why each one is here.
  *
  * lib/supabase.ts is the Postgres client factory. The service-role key must be
  * read in exactly one place — web/lib/server-only-secrets.test.ts asserts
@@ -591,8 +593,19 @@ const RULECHECK_IMPORTERS: Record<string, string> = {
  * which is exactly the "they share a Postgres and nothing else" arrangement;
  * nothing that computes or renders a benchmark result crosses with it, and the
  * walk below is what holds that.
+ *
+ * env/txparse.ts is the second, and it arrives with the payment path: the paid
+ * route runs the core in-process, and the core decodes with the harness's
+ * parser — "env/txparse.ts is reused unchanged" is the arrangement RULECHECK.md
+ * describes, and re-implementing a decoder for this side would mean two
+ * readings of the same bytes, which is worse than one crossing. It pulls
+ * env/cheatcodes.ts and env/rpc.ts behind it as module-level imports. Those are
+ * used by `parseRun`, which this side never calls; both are constants and pure
+ * functions at load time, so what crosses is dead weight rather than behaviour.
+ * None of the three computes or renders a benchmark result, which is the line
+ * §8(e) actually draws and which the walk below still holds.
  */
-const PERMITTED_CROSSINGS = ["web/lib/supabase.ts"];
+const PERMITTED_CROSSINGS = ["web/lib/supabase.ts", "env/txparse.ts", "env/cheatcodes.ts", "env/rpc.ts"];
 
 /** Modules that compute, hold or render a benchmark result. Off limits, both ways. */
 const BENCHMARK_DIRS = ["scoring", "scenarios", "issuance", "probes", "report", "setups"];
@@ -704,9 +717,11 @@ test("separation: nothing an importer reaches computes or renders a benchmark re
 });
 
 test("separation: the only module shared with the benchmark side is the client factory", () => {
-  const shared = [...REACHED.keys()]
-    .filter((f) => !f.startsWith("rulecheck/") && !/^web\/lib\/rulecheck-/.test(f))
-    .sort();
+  // The surface's own modules are not crossings: rulecheck/, the web modules
+  // named rulecheck-*, and the paid route itself, which is this surface's
+  // front door and imports nothing of the benchmark's.
+  const OWN = /^web\/(lib\/rulecheck-|app\/api\/rulecheck\/)/;
+  const shared = [...REACHED.keys()].filter((f) => !f.startsWith("rulecheck/") && !OWN.test(f)).sort();
   assert.deepEqual(
     shared,
     [...PERMITTED_CROSSINGS].sort(),
