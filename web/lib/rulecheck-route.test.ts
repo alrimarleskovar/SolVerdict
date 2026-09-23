@@ -47,7 +47,7 @@ import { CHAIN_GENESIS, nextChainHash } from "../../rulecheck/chain";
 import { lookupKeyFor } from "../../rulecheck/seal";
 import { handle, type RouteDeps } from "../app/api/rulecheck/route";
 import { recordSigner } from "./rulecheck-key";
-import type { Facilitator, PaymentRequirements, SettleOutcome } from "./rulecheck-payment";
+import type { Facilitator, PaymentChain, PaymentPayload, PaymentRequirements, SettleOutcome } from "./rulecheck-payment";
 import type { RulecheckDb } from "./rulecheck-store";
 
 // ---------------------------------------------------------------------------
@@ -164,11 +164,18 @@ interface PaymentRow {
   record_appended: boolean;
   settle_signature: string | null;
   note: string | null;
+  payment_payload: unknown;
   created_at: number;
+  updated_at: number;
 }
 const LIVE = ["claimed", "settled", "unknown"];
 
-function memoryDb(log: string[]) {
+/** The database's clock, in ms. Tests move it forward to make a claim stale. */
+interface Clock {
+  t: number;
+}
+
+function memoryDb(log: string[], clock: Clock = { t: Date.now() }) {
   const records: RecordRow[] = [];
   const payments: PaymentRow[] = [];
   const head = () => (records.length > 0 ? records[records.length - 1]!.chain_hash : CHAIN_GENESIS);
@@ -236,7 +243,9 @@ function memoryDb(log: string[]) {
           record_appended: false,
           settle_signature: null,
           note: null,
-          created_at: Date.now(),
+          payment_payload: null,
+          created_at: clock.t,
+          updated_at: clock.t,
         };
         payments.push(row);
         return answer([{ outcome: "claimed", status: row.status, slot: row.slot, record_appended: false, settle_signature: null, note: null }]);
@@ -254,10 +263,61 @@ function memoryDb(log: string[]) {
         return answer([{ status: row?.status ?? "released", record_appended: row?.record_appended ?? false }]);
       }
 
+      if (fn === "rulecheck_mark_appended_with_payload") {
+        assert.ok(params.p_payment_payload, "013 requires the payload with the append mark");
+        const row = payments.find((r) => r.payment_key === p.p_payment_key);
+        if (row && row.status === "claimed") {
+          row.record_appended = true;
+          row.payment_payload = structuredClone(params.p_payment_payload);
+          row.updated_at = clock.t;
+        }
+        return answer([{ status: row?.status ?? "released", record_appended: row?.record_appended ?? false }]);
+      }
+
+      if (fn === "rulecheck_payments_to_reconcile") {
+        const stale = Number(params.p_stale_seconds) * 1000;
+        const rows = payments
+          .filter((r) => params.p_digest_tag === null || r.digest_tag === params.p_digest_tag)
+          .filter((r) => r.status === "unknown" || (r.status === "claimed" && r.updated_at < clock.t - stale))
+          .map((r) => ({
+            payment_key: r.payment_key,
+            digest_tag: r.digest_tag,
+            status: r.status,
+            slot: r.slot,
+            record_appended: r.record_appended,
+            payment_payload: r.payment_payload === null ? null : structuredClone(r.payment_payload),
+            age_seconds: Math.floor((clock.t - r.created_at) / 1000),
+          }));
+        return answer(rows);
+      }
+
+      if (fn === "rulecheck_resolve_payment") {
+        const from = params.p_from_status as string;
+        const appended = params.p_from_appended as boolean;
+        const to = params.p_to_status as PaymentRow["status"];
+        const allowed =
+          (from === "claimed" && !appended && to === "released") ||
+          (from === "claimed" && appended && ["unknown", "settled", "declined"].includes(to)) ||
+          (from === "unknown" && ["settled", "declined"].includes(to));
+        assert.ok(allowed, `013 refuses ${from} (appended ${appended}) to ${to}`);
+        const row = payments.find((r) => r.payment_key === p.p_payment_key);
+        const changed = !!row && row.status === from && row.record_appended === appended;
+        if (changed) {
+          row.status = to;
+          row.settle_signature = (params.p_settle_signature as string | null) ?? row.settle_signature;
+          row.note = (params.p_note as string | null) ?? row.note;
+          row.updated_at = clock.t;
+        }
+        return answer([
+          { status: row?.status, record_appended: row?.record_appended, settle_signature: row?.settle_signature ?? null, changed },
+        ]);
+      }
+
       if (fn === "rulecheck_finish_payment") {
         const row = payments.find((r) => r.payment_key === p.p_payment_key);
         const to = p.p_status as PaymentRow["status"];
         if (row && (row.status === "claimed" || (row.status === "unknown" && (to === "settled" || to === "declined")))) {
+          row.updated_at = clock.t;
           row.status = to;
           row.settle_signature = (p.p_settle_signature as string | null) ?? row.settle_signature;
           row.note = (p.p_note as string | null) ?? row.note;
@@ -287,17 +347,18 @@ function memoryDb(log: string[]) {
 // The facilitator, as a stand-in that records what it was asked
 // ---------------------------------------------------------------------------
 function mockFacilitator(log: string[], outcome: () => SettleOutcome) {
-  const calls = { verify: 0, settle: 0 };
+  const calls = { verify: 0, settle: 0, settled: [] as PaymentPayload[] };
   const facilitator: Facilitator = {
     async verify() {
       log.push("facilitator.verify");
       calls.verify++;
       return { isValid: true, payer: PAYER.publicKey.toBase58() };
     },
-    async settle(_payload, _requirements, proof) {
+    async settle(payload, _requirements, proof) {
       log.push("facilitator.settle");
       calls.settle++;
-      assert.ok(proof && typeof proof.digest === "string", "a settlement must carry its proof of a stored record");
+      calls.settled.push(structuredClone(payload));
+      assert.ok(proof && typeof proof.ref === "string", "a settlement must carry its proof of a stored record");
       assert.ok(
         log.indexOf("rulecheck_append_record") >= 0 && log.indexOf("rulecheck_append_record") < log.lastIndexOf("facilitator.settle"),
         "the record must be appended before a settlement is submitted",
@@ -308,10 +369,29 @@ function mockFacilitator(log: string[], outcome: () => SettleOutcome) {
   return { facilitator, calls };
 }
 
-function deps(db: RulecheckDb, facilitator: Facilitator, slot = SLOT): RouteDeps {
+/** The chain, as a stand-in: whatever the test says it is, and a log of what was asked. */
+function mockChain(log: string[], state: { live: boolean; landed: { signature: string; failed: boolean } | null }) {
+  const calls = { live: 0, find: 0 };
+  const chain: PaymentChain = {
+    async blockhashLive() {
+      log.push("chain.blockhashLive");
+      calls.live++;
+      return state.live;
+    },
+    async findPayment() {
+      log.push("chain.findPayment");
+      calls.find++;
+      return state.landed;
+    },
+  };
+  return { chain, calls, state };
+}
+
+function deps(db: RulecheckDb, facilitator: Facilitator, slot = SLOT, chain?: PaymentChain): RouteDeps {
   return {
     ports: {
       facilitator,
+      chain: chain ?? mockChain([], { live: true, landed: null }).chain,
       currentSlot: async () => slot,
       db,
       env: ENV,
@@ -413,7 +493,7 @@ await test("a paid POST returns the sealed record, and settles only after the ap
       "rulecheck_claim_payment",
       "facilitator.verify",
       "rulecheck_append_record",
-      "rulecheck_mark_appended",
+      "rulecheck_mark_appended_with_payload",
       "facilitator.settle",
       "rulecheck_finish_payment",
     ],
@@ -567,6 +647,189 @@ await test("the stored row is sealed under the digest and names nothing about th
   for (const secret of [POLICY.subject, PAYER.publicKey.toBase58(), quote.rulecheck.bindingDigest]) {
     assert.ok(!raw.includes(secret), `the row must not carry ${secret.slice(0, 8)}… in the clear`);
   }
+});
+
+// ---------------------------------------------------------------------------
+// Reconciliation (migration 013): an unresolved row must not block a digest
+// ---------------------------------------------------------------------------
+const T0 = 1_790_000_000_000;
+/** Past RECONCILE_STALE_SECONDS: a claim this old is not in flight. */
+const STALE = 61_000;
+/** Past EXPIRY_FLOOR_SECONDS: an expired blockhash is believed. */
+const EXPIRED = 121_000;
+const LANDED_SIG = bs58.encode(createHash("sha512").update("settle/landed").digest());
+const txOf = (p: PaymentPayload) => p.payload.transaction;
+
+/** A paid request that dies after the append mark, with its settlement possibly sent. */
+async function crashAfterMark(clock: Clock) {
+  const log: string[] = [];
+  const mem = memoryDb(log, clock);
+  const behaviour = { crash: true, outcome: SETTLED as SettleOutcome };
+  const fac = mockFacilitator(log, () => {
+    if (behaviour.crash) throw new Error("the process died mid-settlement");
+    return behaviour.outcome;
+  });
+  const ch = mockChain(log, { live: true, landed: null });
+  const d = deps(mem.db, fac.facilitator, SLOT, ch.chain);
+  const quote = (await (await handle(post({ transaction: TX, policy: POLICY }), d)).json()) as Record<string, any>;
+  const dead = await handle(post({ transaction: TX, policy: POLICY }, buildPayment(quote.accepts[0], { nonce: "one" })), d);
+  assert.equal(dead.status, 500, "the crash surfaces as a failure, not an answer");
+  assert.equal(mem.payments[0].status, "claimed");
+  assert.equal(mem.payments[0].record_appended, true);
+  assert.ok(mem.payments[0].payment_payload, "the payload is stored with the append mark");
+  behaviour.crash = false;
+  const pay = (nonce: string) => handle(post({ transaction: TX, policy: POLICY }, buildPayment(quote.accepts[0], { nonce })), d);
+  return { log, ...mem, fac, ch, pay, behaviour };
+}
+
+await test("a claim stuck by a crash stops blocking the next payer: resubmitted byte-identical, and settled", async () => {
+  const clock = { t: T0 };
+  const { fac, ch, pay, payments, records } = await crashAfterMark(clock);
+
+  // Still fresh: the request that holds it may be alive, so nobody touches it.
+  const early = await pay("two");
+  assert.equal(early.status, 409);
+  assert.equal(ch.calls.find, 0, "a claim that may be in flight is not reconciled");
+
+  clock.t += STALE;
+  const res = await pay("two");
+  const body = (await res.json()) as Record<string, any>;
+  assert.equal(res.status, 200, "the digest is buyable again — the bug this exists for");
+  assert.equal(body.payment, "already-settled", "the second payer is served and not charged");
+  assert.equal(fac.calls.settle, 2, "the crashed attempt, then one resubmission");
+  assert.deepEqual(fac.calls.settled[1], fac.calls.settled[0], "the resubmission is the stored payment, byte for byte");
+  assert.equal(payments.length, 1, "the second payer's payment was never claimed");
+  assert.equal(payments[0].status, "settled");
+  assert.equal(records.length, 1);
+});
+
+await test("a stuck claim whose blockhash expired unseen is declined, and the next payer buys the stored record", async () => {
+  const clock = { t: T0 };
+  const { log, fac, ch, pay, payments, records } = await crashAfterMark(clock);
+  ch.state.live = false;
+  clock.t += EXPIRED;
+
+  const res = await pay("two");
+  const body = (await res.json()) as Record<string, any>;
+  assert.equal(res.status, 200);
+  assert.equal(body.payment, "settled", "this payer's own payment paid for it");
+  assert.equal(body.chain.seq, 1, "the record released is the one already stored");
+  assert.equal(records.length, 1);
+  assert.equal(payments[0].status, "declined");
+  assert.equal(payments[1].status, "settled");
+  assert.notEqual(txOf(fac.calls.settled[1]!), txOf(fac.calls.settled[0]!), "the settlement that paid is the new payer's");
+  assert.ok(
+    log.indexOf("chain.blockhashLive") < log.indexOf("chain.findPayment"),
+    "expiry is read before the search, so a search after expiry is final",
+  );
+});
+
+await test("an unknown settlement found on-chain is marked settled, and nothing is resubmitted", async () => {
+  const log: string[] = [];
+  const { db, payments } = memoryDb(log, { t: T0 });
+  const { facilitator, calls } = mockFacilitator(log, () => ({ kind: "unknown", reason: "timed out" }));
+  const ch = mockChain(log, { live: true, landed: { signature: LANDED_SIG, failed: false } });
+  const d = deps(db, facilitator, SLOT, ch.chain);
+  const quote = (await (await handle(post({ transaction: TX, policy: POLICY }), d)).json()) as Record<string, any>;
+  await handle(post({ transaction: TX, policy: POLICY }, buildPayment(quote.accepts[0], { nonce: "one" })), d);
+  assert.equal(payments[0].status, "unknown");
+
+  const res = await handle(post({ transaction: TX, policy: POLICY }, buildPayment(quote.accepts[0], { nonce: "two" })), d);
+  const body = (await res.json()) as Record<string, any>;
+  assert.equal(res.status, 200);
+  assert.equal(body.payment, "already-settled");
+  assert.equal(calls.settle, 1, "the chain answered; the facilitator was not asked again");
+  assert.equal(payments[0].status, "settled");
+  assert.equal(payments[0].settle_signature, LANDED_SIG);
+});
+
+await test("a refused resubmission does not decline while the blockhash lives; the chain declines it after", async () => {
+  const log: string[] = [];
+  const clock = { t: T0 };
+  const { db, payments } = memoryDb(log, clock);
+  let outcome: SettleOutcome = { kind: "unknown", reason: "timed out" };
+  const { facilitator, calls } = mockFacilitator(log, () => outcome);
+  const ch = mockChain(log, { live: true, landed: null });
+  const d = deps(db, facilitator, SLOT, ch.chain);
+  const quote = (await (await handle(post({ transaction: TX, policy: POLICY }), d)).json()) as Record<string, any>;
+  await handle(post({ transaction: TX, policy: POLICY }, buildPayment(quote.accepts[0], { nonce: "one" })), d);
+
+  // "Already processed" can come back as a refusal. It is not the chain's word.
+  outcome = { kind: "declined", reason: "transaction_already_processed" };
+  const waiting = await handle(post({ transaction: TX, policy: POLICY }, buildPayment(quote.accepts[0], { nonce: "two" })), d);
+  assert.equal(waiting.status, 409);
+  assert.equal(calls.settle, 2, "resubmitted once");
+  assert.equal(payments[0].status, "unknown", "left open: only the chain declines");
+
+  clock.t += EXPIRED;
+  ch.state.live = false;
+  outcome = SETTLED;
+  const res = await handle(post({ transaction: TX, policy: POLICY }, buildPayment(quote.accepts[0], { nonce: "two" })), d);
+  assert.equal(res.status, 200);
+  assert.equal(payments[0].status, "declined");
+  assert.equal(payments[1].status, "settled");
+});
+
+await test("a payment that landed and failed is declined without a resubmission", async () => {
+  const log: string[] = [];
+  const { db, payments } = memoryDb(log, { t: T0 });
+  const { facilitator, calls } = mockFacilitator(log, () => ({ kind: "unknown", reason: "timed out" }));
+  const ch = mockChain(log, { live: true, landed: { signature: LANDED_SIG, failed: true } });
+  const d = deps(db, facilitator, SLOT, ch.chain);
+  const quote = (await (await handle(post({ transaction: TX, policy: POLICY }), d)).json()) as Record<string, any>;
+  await handle(post({ transaction: TX, policy: POLICY }, buildPayment(quote.accepts[0], { nonce: "one" })), d);
+
+  await handle(post({ transaction: TX, policy: POLICY }, buildPayment(quote.accepts[0], { nonce: "two" })), d);
+  assert.equal(payments[0].status, "declined");
+  assert.equal(calls.settle, 2, "the original, and the second payer's own — no resubmission of the failed one");
+});
+
+await test("a stored payment that does not hash to its row is never resubmitted", async () => {
+  const clock = { t: T0 };
+  const { fac, pay, payments } = await crashAfterMark(clock);
+  // A bug that swapped payloads: the row now carries a different transaction.
+  const other = JSON.parse(Buffer.from(buildPayment(fac.calls.settled[0]!.accepted, { nonce: "swapped" }), "base64").toString("utf8"));
+  (payments[0].payment_payload as PaymentPayload).payload.transaction = other.payload.transaction;
+  clock.t += STALE;
+
+  const res = await pay("three");
+  assert.equal(res.status, 409, "left open rather than guessed at");
+  assert.equal(fac.calls.settle, 1, "nothing was resubmitted");
+  assert.equal(payments[0].status, "claimed");
+});
+
+await test("a stale claim with no append mark is released without asking the chain", async () => {
+  const log: string[] = [];
+  const clock = { t: T0 };
+  const mem = memoryDb(log, clock);
+  let die = true;
+  const db: RulecheckDb = {
+    ...mem.db,
+    rpc(fn, params) {
+      if (fn === "rulecheck_mark_appended_with_payload" && die) {
+        die = false;
+        throw new Error("the process died between the append and the mark");
+      }
+      return mem.db.rpc(fn, params);
+    },
+  };
+  const { facilitator, calls } = mockFacilitator(log, () => SETTLED);
+  const ch = mockChain(log, { live: true, landed: null });
+  const d = deps(db, facilitator, SLOT, ch.chain);
+  const quote = (await (await handle(post({ transaction: TX, policy: POLICY }), d)).json()) as Record<string, any>;
+  const dead = await handle(post({ transaction: TX, policy: POLICY }, buildPayment(quote.accepts[0], { nonce: "one" })), d);
+  assert.equal(dead.status, 500);
+  assert.equal(mem.records.length, 1, "the record was stored");
+  assert.equal(mem.payments[0].record_appended, false, "but the mark was not");
+
+  clock.t += STALE;
+  const res = await handle(post({ transaction: TX, policy: POLICY }, buildPayment(quote.accepts[0], { nonce: "two" })), d);
+  const body = (await res.json()) as Record<string, any>;
+  assert.equal(res.status, 200);
+  assert.equal(body.chain.seq, 1, "the stored record is the one sold");
+  assert.equal(mem.payments[0].status, "released");
+  assert.equal(ch.calls.live + ch.calls.find, 0, "no settlement was ever submitted, so the chain has nothing to say");
+  assert.equal(calls.settle, 1, "one settlement, the second payer's");
 });
 
 console.log(`\nrulecheck route tests: ${held} held\n`);

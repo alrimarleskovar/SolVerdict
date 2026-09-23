@@ -52,6 +52,7 @@ import { OPAQUE_KEYS, rulecheck, type RulecheckRecord } from "../../rulecheck/ru
 import type { RecordEnvelope } from "../../rulecheck/envelope";
 import { assertVocabulary, maskOpaque } from "../../rulecheck/vocabulary";
 import { recordSigner, type EnvLike, type RecordSigner } from "./rulecheck-key";
+import { paymentFacts, type PaymentFacts } from "./rulecheck-payload";
 import { getRecord, putRecord, type RulecheckDb, type StoredRecord } from "./rulecheck-store";
 import { supabaseAdmin } from "./supabase";
 
@@ -333,8 +334,19 @@ export async function slotForTag(db: PaymentDb, tag: string): Promise<bigint | n
   return BigInt(String(row.slot));
 }
 
-export async function markAppended(db: PaymentDb, paymentKey: string): Promise<PaymentStatus> {
-  const [row] = await call(db, "rulecheck_mark_appended", { p_payment_key: paymentKey });
+/**
+ * Marks the record stored and keeps the payment that will pay for it (013).
+ *
+ * The payload is written in the same statement as `record_appended`, because
+ * from this point a settlement may have been submitted, and a reconciler that
+ * finds this row later needs the exact bytes: the blockhash to know whether it
+ * can still land, and the transaction to resubmit.
+ */
+export async function markAppended(db: PaymentDb, paymentKey: string, payload: PaymentPayload): Promise<PaymentStatus> {
+  const [row] = await call(db, "rulecheck_mark_appended_with_payload", {
+    p_payment_key: paymentKey,
+    p_payment_payload: payload,
+  });
   return (row?.status as PaymentStatus) ?? "released";
 }
 
@@ -399,14 +411,23 @@ export type SettleOutcome =
  */
 export class SettlementProof {
   private constructor(
-    readonly digest: string,
-    /** How the record got here: newly appended, or already stored and still unpaid. */
-    readonly record: "appended" | "held-unpaid",
+    /**
+     * What the stored record is known by: its binding digest on a first
+     * settlement, or the payment key of a row marked `record_appended` when the
+     * reconciler resubmits — the sweep holds no digest, and needs none, because
+     * the row already says the record is stored.
+     */
+    readonly ref: string,
+    /**
+     * How the record got here: newly appended, already stored and still
+     * unpaid, or stored by a request whose settlement is being resubmitted.
+     */
+    readonly record: "appended" | "held-unpaid" | "resubmitted",
   ) {}
 
   /** Module-private mint. Not exported, so no other file can construct a proof. */
-  static [MINT](digest: string, record: "appended" | "held-unpaid"): SettlementProof {
-    return new SettlementProof(digest, record);
+  static [MINT](ref: string, record: SettlementProof["record"]): SettlementProof {
+    return new SettlementProof(ref, record);
   }
 }
 
@@ -427,6 +448,27 @@ export interface Facilitator {
     requirements: PaymentRequirements,
     proof: SettlementProof,
   ): Promise<SettleOutcome>;
+}
+
+/**
+ * The two things the reconciler asks the chain. The RPC implementation is
+ * `rpcPaymentChain` in lib/rulecheck-chain.ts, which says why each answer can
+ * be trusted to decline a payment.
+ */
+export interface PaymentChain {
+  /** Can a transaction carrying this blockhash still land? */
+  blockhashLive(blockhash: string): Promise<boolean>;
+  /**
+   * The landed transaction into `account`, at or after `fromSlot`, whose
+   * message hashes to `paymentKey`. `failed` means it landed and the transfer
+   * did not happen. Throws when it cannot say, rather than answering null.
+   */
+  findPayment(q: {
+    account: string;
+    tag: string;
+    paymentKey: string;
+    fromSlot: bigint;
+  }): Promise<{ signature: string; failed: boolean } | null>;
 }
 
 /**
@@ -472,6 +514,11 @@ export interface RulecheckAsk {
 
 export interface Ports {
   facilitator: Facilitator;
+  /**
+   * Required, not optional: without it an unresolved payment row is a
+   * permanent 409 for its digest (see `reconcilePayments`).
+   */
+  chain: PaymentChain;
   /** The chain's current slot, at `confirmed`. */
   currentSlot(): Promise<bigint>;
   db?: RulecheckDb;
@@ -662,7 +709,7 @@ async function answer(ask: RulecheckAsk, payment: CheckedPayment | null, ports: 
   }
   const { record, slot } = found;
 
-  const claim = await claimPayment(db(ports), {
+  const claimRequest: ClaimRequest = {
     paymentKey: payment.paymentKey,
     tag: payment.tag,
     slot,
@@ -670,7 +717,21 @@ async function answer(ask: RulecheckAsk, payment: CheckedPayment | null, ports: 
     amount: payment.amount,
     network: payment.network,
     facilitator: config.facilitator,
-  });
+  };
+  let claim = await claimPayment(db(ports), claimRequest);
+
+  // ---- the retry path reconciles before it answers. An unresolved row for
+  // this digest — this caller's own, or someone else's that holds the digest —
+  // is otherwise a 409 that never ends (see "Reconciliation" below). Whatever
+  // the chain can settle is settled, and the claim is asked once more: a
+  // holder that turns out declined or released lets this payment claim the
+  // digest, and a holder that turns out settled means the record is served
+  // without charging this caller, as below. A claim still in flight is left
+  // alone.
+  if (claim.outcome !== "claimed" && (claim.status === "claimed" || claim.status === "unknown")) {
+    await reconcilePayments(ports, { tag: payment.tag, caller: payment });
+    claim = await claimPayment(db(ports), claimRequest);
+  }
 
   if (claim.outcome !== "claimed") {
     // `seen` means this exact payment already has a row — the caller is
@@ -775,7 +836,7 @@ async function answer(ask: RulecheckAsk, payment: CheckedPayment | null, ports: 
   // attempted. A process that dies in the next few hundred milliseconds leaves
   // `record_appended` true and the status still 'claimed', which is exactly
   // what a later reader needs to tell "never settled" from "settled and lost".
-  const marked = await markAppended(db(ports), payment.paymentKey);
+  const marked = await markAppended(db(ports), payment.paymentKey, payment.payload);
   if (marked !== "claimed") {
     return {
       status: 409,
@@ -859,4 +920,198 @@ async function answer(ask: RulecheckAsk, payment: CheckedPayment | null, ports: 
 
   await finishPayment(db(ports), payment.paymentKey, "unknown", null, outcome.reason);
   return { status: 200, envelope: issued.envelope, stored: issued.stored, payment: "unconfirmed" };
+}
+
+// ---------------------------------------------------------------------------
+// Reconciliation (migration 013)
+// ---------------------------------------------------------------------------
+//
+// WHY THIS IS NOT OPTIONAL. The spent-set admits one live row per digest, and
+// that same rule means an UNRESOLVED row blocks everyone else: while a payment
+// sits in 'claimed' or 'unknown', every other payer for its digest gets 409.
+// A process that dies after marking the append leaves 'claimed' forever; a
+// settlement whose answer was lost leaves 'unknown' forever. Without this
+// section, each crash or timeout makes a digest permanently unbuyable. Anyone
+// tempted to remove it as housekeeping: it is the only thing that ever moves
+// those rows again.
+//
+// THE ORDER OF THE CHAIN READS IS LOAD-BEARING. Expiry is read BEFORE the
+// search. Once the blockhash is dead at `finalized`, nothing carrying it can
+// land later, so a search made after that is final. Searching first and
+// checking expiry second leaves a gap in which the transfer lands unseen and
+// the payment is then declined as if it had not, which is how a second payer
+// gets to buy a digest someone already paid for.
+//
+// ONLY THE CHAIN DECLINES. A resubmitted settlement that the facilitator
+// refuses does NOT decline the row: the refusal may mean "already processed",
+// which is the transfer having landed. While the blockhash lives the row stays
+// 'unknown' and the next pass asks again; once it is dead, the search decides.
+
+/** A 'claimed' row younger than this, since its last write, may still be in flight. */
+export const RECONCILE_STALE_SECONDS = 60;
+/**
+ * Expiry is only believed for a row at least this old. The blockhash predates
+ * the claim and lives ~60-90s, so a real expiry is always past this; an RPC
+ * node that has never seen a fresh blockhash also answers "not valid", and this
+ * floor is what keeps that from being read as expired.
+ */
+export const EXPIRY_FLOOR_SECONDS = 120;
+
+interface ReconcileRow {
+  payment_key: string;
+  digest_tag: string;
+  status: PaymentStatus;
+  slot: string | number;
+  record_appended: boolean;
+  payment_payload: PaymentPayload | null;
+  age_seconds: number;
+}
+
+export interface Reconciled {
+  paymentKey: string;
+  from: PaymentStatus;
+  /** The status the row was moved to, or null when it was left as it was. */
+  to: PaymentStatus | null;
+  reason: string;
+}
+
+/** Raised when the bytes about to be resubmitted are not the bytes the row was claimed for. */
+export class PaymentMismatch extends Error {
+  constructor(reason: string) {
+    super(`refusing to resubmit: ${reason}`);
+    this.name = "PaymentMismatch";
+  }
+}
+
+async function resolve(
+  d: PaymentDb,
+  row: ReconcileRow,
+  to: PaymentStatus,
+  signature: string | null,
+  note: string,
+): Promise<Reconciled> {
+  const [after] = await call(d, "rulecheck_resolve_payment", {
+    p_payment_key: row.payment_key,
+    p_from_status: row.status,
+    p_from_appended: row.record_appended,
+    p_to_status: to,
+    p_settle_signature: signature,
+    p_note: note,
+  });
+  if (after?.changed !== true) {
+    // Someone else moved it first — a live request or another reconciler. Theirs stands.
+    return { paymentKey: row.payment_key, from: row.status, to: null, reason: "resolved elsewhere first" };
+  }
+  return { paymentKey: row.payment_key, from: row.status, to, reason: note };
+}
+
+/**
+ * Belt and braces on top of the spent-set. Resubmitting is safe because the
+ * chain dedupes an identical transaction; this makes sure it IS identical. The
+ * stored payload must hash to the row's key, and when the retry path holds the
+ * caller's own copy, its message must match the stored one byte for byte. A
+ * bug that swapped payloads would otherwise turn a retry into a second,
+ * distinct transfer.
+ */
+function assertSameMessage(row: ReconcileRow, stored: PaymentFacts, caller?: CheckedPayment): void {
+  if (stored.paymentKey !== row.payment_key) {
+    throw new PaymentMismatch("the stored payment does not hash to the row it was claimed under");
+  }
+  if (caller && caller.paymentKey === row.payment_key) {
+    const theirs = paymentFacts(caller.payload).message;
+    if (!Buffer.from(theirs).equals(Buffer.from(stored.message))) {
+      throw new PaymentMismatch("the caller's payment message differs from the stored one");
+    }
+  }
+}
+
+async function reconcileRow(row: ReconcileRow, ports: Ports, caller?: CheckedPayment): Promise<Reconciled> {
+  const d = db(ports);
+  const unchanged = (reason: string): Reconciled => ({ paymentKey: row.payment_key, from: row.status, to: null, reason });
+
+  // No append mark means no settlement was ever submitted: settle is only
+  // reached after the mark. Nothing to ask the chain; the claim is dropped,
+  // and the compare-and-set refuses if the request woke up and marked it since.
+  if (row.status === "claimed" && !row.record_appended) {
+    return resolve(d, row, "released", null, "abandoned before the record was marked stored; nothing was submitted");
+  }
+  if (!row.payment_payload) {
+    return unchanged("no stored payload (appended before migration 013): resolve by hand against the chain");
+  }
+
+  let facts: PaymentFacts;
+  try {
+    facts = paymentFacts(row.payment_payload);
+    assertSameMessage(row, facts, caller);
+  } catch (err) {
+    return unchanged(err instanceof Error ? err.message : String(err));
+  }
+
+  // 1. Expiry first (see above), believed only past the floor.
+  const expired = row.age_seconds >= EXPIRY_FLOOR_SECONDS && !(await ports.chain.blockhashLive(facts.blockhash));
+
+  // 2. Then the search, which is final if 1. said expired.
+  const landed = await ports.chain.findPayment({
+    account: facts.destination,
+    tag: row.digest_tag,
+    paymentKey: row.payment_key,
+    fromSlot: BigInt(row.slot),
+  });
+  if (landed && !landed.failed) {
+    return resolve(d, row, "settled", landed.signature, "found on-chain by reconciliation");
+  }
+  if (landed?.failed) {
+    // Landed and failed: the signature is spent, so this exact transfer can never land now.
+    return resolve(d, row, "declined", null, "landed on-chain and failed; no transfer");
+  }
+  if (expired) {
+    return resolve(d, row, "declined", null, "blockhash expired and the payment never landed");
+  }
+
+  // 3. Not landed, still able to land: submit the SAME payload again. A stale
+  // 'claimed' row is first moved to 'unknown', which is what it is: a
+  // settlement may have gone out and nobody heard back.
+  let current = row;
+  if (row.status === "claimed") {
+    const moved = await resolve(d, row, "unknown", null, "stale claim with the record stored; resubmitting");
+    if (moved.to !== "unknown") return moved;
+    current = { ...row, status: "unknown" };
+  }
+  const outcome = await ports.facilitator.settle(
+    row.payment_payload,
+    row.payment_payload.accepted,
+    SettlementProof[MINT](row.payment_key, "resubmitted"),
+  );
+  if (outcome.kind === "settled") {
+    return resolve(d, current, "settled", outcome.signature, "settled on resubmission");
+  }
+  return unchanged(`resubmitted, ${outcome.kind}: ${outcome.reason}; left open while the blockhash lives`);
+}
+
+/**
+ * Resolves what can be resolved of the unresolved payment rows: those for one
+ * digest tag (the retry path), or all of them (the sweep).
+ *
+ * A row the chain cannot answer for is left as it was and reported, never
+ * guessed at: every doubt falls towards "still open", because an open row costs
+ * a 409 and a wrongly declined one can cost a second payment for a digest.
+ */
+export async function reconcilePayments(
+  ports: Ports,
+  scope: { tag?: string; caller?: CheckedPayment } = {},
+): Promise<Reconciled[]> {
+  const rows = (await call(db(ports), "rulecheck_payments_to_reconcile", {
+    p_digest_tag: scope.tag ?? null,
+    p_stale_seconds: RECONCILE_STALE_SECONDS,
+  })) as unknown as ReconcileRow[];
+
+  const out: Reconciled[] = [];
+  for (const row of rows) {
+    try {
+      out.push(await reconcileRow(row, ports, scope.caller));
+    } catch (err) {
+      out.push({ paymentKey: row.payment_key, from: row.status, to: null, reason: err instanceof Error ? err.message : String(err) });
+    }
+  }
+  return out;
 }

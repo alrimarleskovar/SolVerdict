@@ -168,6 +168,54 @@ function signedBy(message: Uint8Array, signature: Uint8Array, key: string): bool
   }
 }
 
+/** What the reconciler needs from a stored payment, and nothing it would have to trust. */
+export interface PaymentFacts {
+  /** The message bytes, re-serialized exactly as `readPayment` hashes them. */
+  message: Uint8Array;
+  /** sha256 over `message`, hex — the same value as the row's payment_key, or a bug. */
+  paymentKey: string;
+  blockhash: string;
+  /** The token account the transfer pays into: where the chain is searched. */
+  destination: string;
+}
+
+/**
+ * The facts of a payload that was already read once by `readPayment`.
+ *
+ * No terms are checked here — they were checked when the payment was claimed,
+ * and the stored payload is what was checked. What this re-derives is the
+ * identity (the message hash) so the caller can assert the payload it is about
+ * to act on is the one the row was claimed for.
+ */
+export function paymentFacts(payload: PaymentPayload): PaymentFacts {
+  let tx: VersionedTransaction;
+  try {
+    tx = VersionedTransaction.deserialize(Buffer.from(payload.payload.transaction, "base64"));
+  } catch {
+    refuse("invalid_payload", "the stored payment transaction does not decode");
+  }
+  if (tx.version === 0 && tx.message.addressTableLookups.length > 0) {
+    refuse("invalid_payload", "a payment transaction may not take accounts from a lookup table");
+  }
+  const keys = tx.message.staticAccountKeys.map((k) => k.toBase58());
+  let destination: string | null = null;
+  for (const ix of tx.message.compiledInstructions) {
+    const decoded = decodeTransferChecked(keys[ix.programIdIndex], ix.data, ix.accountKeyIndexes.map((i) => keys[i]));
+    if (decoded) {
+      if (destination) refuse("invalid_payload", "a payment transaction carries exactly one transfer");
+      destination = decoded.destination;
+    }
+  }
+  if (!destination) refuse("invalid_payload", "the stored payment carries no transfer");
+  const message = tx.message.serialize();
+  return {
+    message,
+    paymentKey: createHash("sha256").update(message).digest("hex"),
+    blockhash: tx.message.recentBlockhash,
+    destination,
+  };
+}
+
 /**
  * Reads the header into a payment this surface is willing to carry.
  *

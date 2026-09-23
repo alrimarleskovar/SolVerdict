@@ -33,7 +33,16 @@ import type {
 export interface FacilitatorOptions {
   /** FACILITATOR_URL, e.g. https://facilitator.payai.network */
   url: string;
-  /** Optional bearer credential, for facilitators that need one (Coinbase's does). */
+  /**
+   * Optional credential, sent as-is on every call.
+   *
+   * BLOCKS A REAL CDP SWAP. This is one fixed string (FACILITATOR_AUTH). As
+   * far as we know, CDP's facilitator wants a short-lived token minted per
+   * request from the API key id and secret, which a fixed string cannot be.
+   * That is unconfirmed and deliberately not wired: it waits on the answer from
+   * the CDP operator we asked. Until then, pointing FACILITATOR_URL at
+   * api.cdp.coinbase.com is not expected to work.
+   */
   auth?: string;
   /** How long a /supported answer is reused. */
   supportedTtlMs?: number;
@@ -170,7 +179,7 @@ export function facilitatorClient(opts: FacilitatorOptions): Facilitator & {
       requirements: PaymentRequirements,
       proof: SettlementProof,
     ): Promise<SettleOutcome> {
-      if (!proof || typeof proof.digest !== "string") {
+      if (!proof || typeof proof.ref !== "string") {
         throw new Error("a settlement may only be submitted against a stored record");
       }
       let answer: { ok: boolean; status: number; json: unknown };

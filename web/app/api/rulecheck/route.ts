@@ -30,6 +30,7 @@
  */
 import { NextResponse } from "next/server";
 import { Connection } from "@solana/web3.js";
+import { rpcPaymentChain } from "../../../lib/rulecheck-chain";
 import { facilitatorClient, FacilitatorUnusable } from "../../../lib/rulecheck-facilitator";
 import { paymentConfig, PaymentUnavailable, serve, type Ports, type Served } from "../../../lib/rulecheck-payment";
 import { PaymentRefused, readPayment } from "../../../lib/rulecheck-payload";
@@ -65,12 +66,15 @@ export function productionDeps(): RouteDeps {
   const config = paymentConfig();
   const client = facilitatorClient({
     url: config.facilitator,
+    // A fixed credential. The one thing blocking a real CDP swap — see
+    // `FacilitatorOptions.auth` in lib/rulecheck-facilitator.
     ...(process.env.FACILITATOR_AUTH ? { auth: process.env.FACILITATOR_AUTH } : {}),
   });
   const rpcUrl = process.env.SOLANA_RPC_URL ?? "https://api.mainnet-beta.solana.com";
   return {
     ports: {
       facilitator: client,
+      chain: rpcPaymentChain(rpcUrl),
       // `confirmed`, not `finalized`: §7 states the depth this surface accepts
       // and why — an agent cannot wait for finality in its critical path.
       currentSlot: async () => BigInt(await new Connection(rpcUrl, "confirmed").getSlot("confirmed")),
